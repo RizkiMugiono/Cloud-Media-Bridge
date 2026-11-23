@@ -11,8 +11,12 @@ permissions:
 
 jobs:
   rust-tests:
-    name: Rust offline safety and MCP contracts
-    runs-on: ubuntu-latest
+    name: Rust offline safety and MCP contracts (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 12
     env:
       CARGO_TERM_COLOR: always
@@ -29,6 +33,7 @@ jobs:
       - name: Rust lint
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Check provider catalog syntax and required entries
+        if: runner.os == 'Linux'
         run: |
           python3 - <<'PY'
           import json
