@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 6);
+    assert_eq!(tools.len(), 7);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -114,4 +114,23 @@ fn invalid_model_url_and_missing_plan_args_fail_safely() {
     assert_eq!(replies[1]["result"]["isError"], true);
     assert_eq!(replies[2]["error"]["code"], -32602);
     assert_eq!(replies[3]["error"]["code"], -32602);
+}
+
+#[test]
+fn deployment_policy_mcp_is_read_only_and_user_decisions_are_visible() {
+    let replies = exchange(&[
+        INIT,
+        READY,
+        r#"{"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"deployment_policy","arguments":{}}}"#,
+        r#"{"jsonrpc":"2.0","id":41,"method":"tools/call","params":{"name":"deployment_policy","arguments":{"approve":true}}}"#,
+    ]);
+    let policy = &replies[1]["result"]["structuredContent"];
+    assert_eq!(policy["implementation_status"], "documented_contract_not_enforced");
+    assert_eq!(policy["provider_development"]["strategy"], "parallel_workstreams");
+    assert_eq!(policy["approval"]["grants_reusable_for_deployment"], false);
+    assert_eq!(
+        policy["resource_lifecycle"]["pod_vm_instance"]["auto_destroy"],
+        false
+    );
+    assert_eq!(replies[2]["error"]["code"], -32602);
 }
