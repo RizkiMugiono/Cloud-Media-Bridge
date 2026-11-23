@@ -3,7 +3,7 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Version:** 2026-11-23 (simplified local bridge)  
 **Current status:** A working Rust MCP/CLI prototype is under development. Real GPU inference is not implemented or verified.  
-**Related:** [README](README.md) · [GPU providers](docs/PROVIDERS.md) · [Test plan](Cloud-Media-Bridge-TESTING.md) · [Results](Cloud-Media-Bridge-TEST-RESULTS.md)
+**Related:** [README](README.md) · [Media models](docs/MEDIA-MODELS.md) · [GPU providers](docs/PROVIDERS.md) · [Test plan](Cloud-Media-Bridge-TESTING.md) · [Results](Cloud-Media-Bridge-TEST-RESULTS.md)
 
 ## User-approved deployment requirements (2026-11-23)
 
@@ -43,7 +43,8 @@ One MCP bridge is sufficient. Codex, Claude Code, OpenCode, Hermes Agent, DeepSe
 | Local Rust binary, MCP stdio, `doctor` | Implemented; process-level tests included |
 | Catalog of nine GPU provider classes | Implemented as **read-only configurations** |
 | User deployment policy accessible via CLI/MCP | Implemented as a **read-only contract**; not yet enforced |
-| Hugging Face live search | Implemented; needs real network verification |
+| Hugging Face live search, with pipeline-task filter | Implemented; needs real network verification |
+| All-media task classification / discovery | Implemented using `config/media-tasks.json`; inference remains unverified |
 | Inspect model ID/URL and immutable revision | Implemented; needs real Hub verification |
 | Provider-aware, non-mutating generation plan | Implemented; always returns `safe_to_deploy=false` until a runtime is verified |
 | Human authorization grants | Planned; execution must not be offered as approved until built |
@@ -54,7 +55,7 @@ One MCP bridge is sufficient. Codex, Claude Code, OpenCode, Hermes Agent, DeepSe
 
 The status above refers to code availability. A feature is **verified** only when its corresponding tests have succeeded with recorded evidence.
 
-## 3. Model catalog
+## 3. Model catalog and all media modalities
 
 The model catalog is **dynamic** and must never rely on a hardcoded list of model names. An AI harness or user can:
 
@@ -64,6 +65,10 @@ The model catalog is **dynamic** and must never rely on a hardcoded list of mode
 4. Resolve an immutable commit SHA.
 5. See whether there is a compatible serving runtime.
 6. Select the exact model/revision and confirm it as the human.
+
+**Media scope:** model families are image, video, audio/sound, speech/voice, music, 3D, spatial/motion, documents and multimodal/any-to-any. Task names are read from versioned [`config/media-tasks.json`](config/media-tasks.json), currently covering known and extension tags across all nine families. The bridge uses actual Hub pipeline tags and optional model metadata tags; if a new tag is not yet in the catalog, it remains discoverable as `inferred_media_task_requires_review` or `unclassified_requires_review` instead of being silently rejected. A pure text-only task has a separate `non_media_task_out_of_scope` status. Audio-only generation, music, ASR, diarization, video understanding, OCR, point clouds and image segmentation are all within the media scope.
+
+Task classification and model detection are **not** GPU execution. Runtime matching must be based on actual verified loader/checkpoint compatibility, including CPU/GPU, media codecs, inputs and outputs. The task catalog must never be interpreted as a list of ready-to-deploy images.
 
 A newly published model becomes discoverable without a repository update. **It becomes runnable only if an existing compatible serving image or library pipeline is proven to load it.** Unknown architectures must not be deployed optimistically. Discovery status and execution status remain separate.
 
@@ -185,12 +190,14 @@ cloud-media-bridge doctor
 cloud-media-bridge mcp
 cloud-media-bridge providers [provider-id]
 cloud-media-bridge policy
+cloud-media-bridge models tasks
 cloud-media-bridge models search <query> [limit: 1..50]
+cloud-media-bridge models search-task <pipeline_tag> [limit: 1..50]
 cloud-media-bridge models inspect <owner/model | https://huggingface.co/owner/model>
 cloud-media-bridge plan <model> <provider-id>
 ```
 
-**Currently implemented read-only MCP tools:** `doctor`, `providers_list`, `providers_show`, `deployment_policy`, `models_search`, `models_inspect`, `plan_generation`.
+**Currently implemented read-only MCP tools:** `doctor`, `providers_list`, `providers_show`, `deployment_policy`, `media_tasks_list`, `models_search`, `models_inspect`, `plan_generation`.
 
 MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or private files. Search queries are bounded; model URLs must be validated against the Hugging Face HTTPS origin.
 
@@ -199,7 +206,7 @@ MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or p
 ## 8. Implementation order
 
 1. **Local MCP, provider catalog and policy contract (offline).** MCP tests, invalid input handling, provider listing and policy schema validation.
-2. **Dynamic catalog (no GPU).** Live model search, inspection, SHA checks, access/license states and model URL safety.
+2. **Dynamic all-media catalog (no GPU).** Image/video/audio/music/speech/3D/spatial/document/multimodal search, task filters, inspection, SHA checks, access/license states, unknown task fallback and model URL safety.
 3. **Read-only planning (no GPU).** User-selectable provider; runtime compatibility and identity checks; clear unsupported results.
 4. **Human deployment approvals (no GPU).** Implement one-shot, non-reusable user approval for each deployment operation. Negative tests must prove an agent cannot approve itself or reuse an earlier grant.
 5. **Parallel GPU provider adapters.** Develop Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda Cloud, generic HTTPS, SSH and Kubernetes tracks concurrently. Share runtime resolution and request/artifact contracts; implement authentication, provisioning and lifecycle per provider. Each adapter requires its own independent live evidence before an operational claim.
