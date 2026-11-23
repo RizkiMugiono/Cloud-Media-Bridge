@@ -13,9 +13,9 @@ This file records **actual observations only**. Passing documentation checks do 
 | Check | Result | Evidence |
 |---|---|---|
 | Repository is accessible and writable to the authorized account | PASS | GitHub connector read and document commits succeeded |
-| Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on the development branch |
-| Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on the development branch |
-| Markdown code fences in both documents are balanced | PASS | Documentation changed on the current branch; content links and test-case IDs are checked separately |
+| Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on `main` |
+| Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on `main` |
+| Markdown code fences in both documents are balanced | PASS | Architecture: 4 fence delimiters; test plan: 6; balanced = true |
 | Test case IDs are unique and complete | PASS | 82 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
 | Application Rust source compilation and static analysis | PASS | GitHub Actions offline CI on Linux, Windows and macOS passed on main commit `86f93e6bc43d727fbbe6187150282c689ad178ac` |
