@@ -4,9 +4,9 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **19 offline Rust tests passed on Linux and Windows (12 unit + 7 MCP integration); real media inference and cloud resource operations remain untested**
+**Overall application status:** **29 offline Rust tests passed on Linux, Windows and macOS (20 unit + 9 MCP integration); provider deployment, actual model inference and cloud resource operations remain untested**
 
-This file records **actual observations only**. All-media catalog checks demonstrate classification and MCP contract behavior, **not** model inference or true universal runtime compatibility. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, media-task classification, Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
+This file records **actual observations only**. All-media catalog checks demonstrate classification and MCP contract behavior, **not** model inference or true universal runtime compatibility. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, media classification, evidence-based Rust runtime matching, Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
 ## 1. Verified documentation and repository checks
 
@@ -18,8 +18,8 @@ This file records **actual observations only**. All-media catalog checks demonst
 | Markdown code fences in both documents are balanced | PASS | Architecture: 4 fence delimiters; test plan: 6; balanced = true |
 | Test case IDs are unique and complete | PASS | 110 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10, R01–R08 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
-| Application Rust source compilation and static analysis | PASS | GitHub Actions offline CI on Linux, Windows and macOS passed on main commit `86f93e6bc43d727fbbe6187150282c689ad178ac` |
-| CLI integration tests | PASS | 11 tests passed on Ubuntu (6 Rust unit + 5 MCP integration) in GitHub Actions PR CI; new policy tests not evidence of cloud execution |
+| Application Rust source compilation and static analysis | PASS | [PR CI run 45215723211](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45215723211) passed Rust build/test/Clippy on Linux, Windows and macOS; runtime resolver branch commit `227c415b3ba456d9ddc23d67ded2101a0ec66bf8` |
+| CLI integration tests | PASS | 29 offline tests (20 Rust unit + 9 MCP process integration) passed on Linux, Windows and macOS; runtime matching uses synthetic evidence and does not execute models |
 | Modal CLI authentication (current working environment) | NOT VERIFIED | No login check was performed in this GitHub CI run; earlier claims are not fresh evidence |
 | Modal resource provisioning and real GPU inference | NOT RUN | No resources created and no GPU jobs submitted |
 
@@ -27,11 +27,13 @@ This file records **actual observations only**. All-media catalog checks demonst
 
 [All-media offline CI evidence](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45207348636) — **PASS on Linux and Windows: 12 unit tests, 7 MCP process tests, Rust Clippy, 61 media-task catalog checks and both generic media request/result schema checks.** This evidence does not include live Hub access or GPU inference.
 
+[Runtime resolver CI evidence](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45215723211) — 20 unit and 9 MCP process tests passed on Linux, Windows and macOS, Clippy passed, and 20 non-executable upstream runtime routes passed registry validation. No real model inference, provider deployment or paid GPU was used.
+
 Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-Five mapped cases have offline evidence: H01, H02, U01, U02 and U03. The other six unit/integration tests do not automatically establish success for other scenario IDs. The remaining **98 scenarios are NOT RUN** until matching runtime resolver checks have verifiable evidence, including all media inference/runtime and deployment tests. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+Eighteen mapped cases have offline evidence: H01, H02, U01–U03, A01–A07 and R01–R06. Additional unit/integration tests do not automatically establish success for unrelated scenario IDs. The remaining **92 scenarios are NOT RUN**, including live Hub/AI inference, provider deployment and resource cleanup tests. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
@@ -158,12 +160,12 @@ These tests track the read-only runtime candidate matcher. No OCI/installer is e
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
-| R01 | Versioned Runtime Registry and OCI/installer candidates | **NOT RUN** | No matching execution evidence recorded |
-| R02 | Library/task/checkpoint signals avoid false runtime matches | **NOT RUN** | No matching execution evidence recorded |
-| R03 | Audio, music, voice, video runtime families receive candidates | **NOT RUN** | No matching execution evidence recorded |
-| R04 | Unknown, gated, remote-code and invalid-revision models fail closed | **NOT RUN** | No matching execution evidence recorded |
-| R05 | Real verification evidence required; synthetic OCI preference test | **NOT RUN** | No matching execution evidence recorded |
-| R06 | Read-only runtime CLI/MCP tools and injected approval rejection | **NOT RUN** | No matching execution evidence recorded |
+| R01 | Versioned Runtime Registry and OCI/installer candidates | **PASS (offline only)** | [CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45215723211); `bundled_registry_is_valid_and_contains_both_routes` |
+| R02 | Library/task/checkpoint signals avoid false runtime matches | **PASS (offline only)** | [CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45215723211); `diffusers_uses_checkpoint_and_library_evidence_not_task_alone` |
+| R03 | Audio, music, voice, video runtime families receive candidates | **PASS (offline only)** | [CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45215723211); `transformers_and_all_media_tasks_are_not_hardwired_to_images` |
+| R04 | Unknown, gated, remote-code and invalid-revision models fail closed | **PASS (offline only)** | [CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45215723211); `unknown_and_text_only_models_fail_closed; gated_and_remote_code_are_explicitly_blocked; missing_model_revision_and_modified_registry_are_rejected` |
+| R05 | Real verification evidence required; synthetic OCI preference test | **PASS (offline only)** | [CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45215723211); `fake_verified_label_never_passes_without_model_and_worker_evidence; synthetic_exact_evidence_prefers_pinned_image_over_installer` |
+| R06 | Read-only runtime CLI/MCP tools and injected approval rejection | **PASS (offline only)** | [CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45215723211); `runtime_registry_is_read_only_and_lists_both_delivery_routes; runtime_registry_cli_never_calls_cloud_providers` |
 | R07 | Live Hub model metadata and runtime matching | **NOT RUN** | No matching execution evidence recorded |
 | R08 | Real GPU runtime deployment, media result and resource cleanup | **NOT RUN** | No matching execution evidence recorded |
 
