@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/schemas/media-result.schema.json",
+  "title": "Cloud-Media-Bridge generic media worker result (planned contract)",
+  "description": "Planned, extensible result envelope for images, video, audio/music, speech, 3D, spatial outputs, document understanding, multimodal output, and media analyses. Not an implemented or verified endpoint.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "status",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "failed",
+        "cancelled",
+        "uncertain"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "remote_handle": {
+      "type": "string",
+      "description": "Opaque provider-native handle, not a token"
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "media_type",
+        "size_bytes",
+        "sha256",
+        "asset_ref"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Extensible: image, video, audio, music, speech, 3d, spatial, document, text, embedding, mask, timestamps, other"
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 3
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "asset_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Optional dimensions, fps, duration, sampling rate, channels, geometry and task-specific safe metadata"
+        }
+      }
+    }
+  }
+}
