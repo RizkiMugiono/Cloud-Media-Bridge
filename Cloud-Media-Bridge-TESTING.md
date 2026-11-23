@@ -157,7 +157,7 @@ These tests run against deterministic mock API recorders for each adapter. Plann
 | J10 | GPU unavailable or workspace capacity exhausted | Typed error; no silent provider substitution |
 | J11 | Model initialization exceeds typical startup time | Correct timeout/lifecycle handling; no premature success |
 | J12 | Remote result expires before download | Report retention/expiry; local index remains truthful |
-| J13 | VM/pod requires manual stop/termination | No automatic-zero claim; resource state reported |
+| J13 | GPU pod/VM post-job lifecycle differs from serverless | For bridge-owned resources, verify supported stop after final job; otherwise explicitly report unsupported status, without unapproved termination |
 | J14 | Inference fails in the middle of output streaming | Failed job with safe artifact cleanup and redacted trace |
 | J15 | Remote completes but local state write crashes | Restart reconciliation restores correct terminal state |
 
