@@ -129,7 +129,7 @@ See [Provider configuration and lifecycle](docs/PROVIDERS.md).
 ## Project documents
 
 - [Implementation specification](Cloud-Media-Bridge.md) — architecture and implementation requirements.
-- [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — initial project gates, 82 original scenarios, 10 deployment-decision tests and 10 all-media tests (102 total).
+- [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — initial project gates, 82 original scenarios, 10 deployment-decision tests, 10 all-media tests and 8 runtime resolver tests (110 total).
 - [Test result ledger](Cloud-Media-Bridge-TEST-RESULTS.md) — evidence and `NOT RUN` status for unexecuted tests.
 - [Media model discovery and taxonomy](docs/MEDIA-MODELS.md).
 - [Runtime selection and verification](docs/RUNTIME-RESOLUTION.md).
