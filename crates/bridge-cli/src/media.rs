@@ -17,7 +17,7 @@ pub(crate) fn catalog() -> Result<Value, String> {
     Ok(value)
 }
 
-fn tag_strings<'a>(tags: Option<&'a Value>) -> impl Iterator<Item = &'a str> {
+fn tag_strings(tags: Option<&Value>) -> impl Iterator<Item = &str> {
     tags.and_then(Value::as_array)
         .into_iter()
         .flatten()
