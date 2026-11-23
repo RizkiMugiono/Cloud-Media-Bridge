@@ -1,0 +1,1101 @@
+{
+  "schema_version": 1,
+  "implementation_status": "read_only_candidates_no_deployment",
+  "runtime_registry_policy": {
+    "selection_priority": [
+      "verified_exact_model_evidence",
+      "verified_architecture_and_task",
+      "verified_compatible_family",
+      "otherwise_review_required"
+    ],
+    "eligible_sources": [
+      "huggingface_official",
+      "official_upstream",
+      "reviewed_community",
+      "model_author"
+    ],
+    "prefer_prebuilt_oci_when_equally_verified": true,
+    "allow_vetted_installer_fallback": true,
+    "never_execute_unverified_installer": true,
+    "reject_remote_code_by_default": true,
+    "never_assume_hub_metadata_is_executable": true,
+    "never_copy_model_card_commands_into_shell": true,
+    "no_matching_recipe_means": "runtime_unverified_not_model_unsupported",
+    "require_new_human_approval_per_deployment": true,
+    "cloud_execution_implemented": false
+  },
+  "entries": [
+    {
+      "id": "hf-diffusers-image-oci",
+      "family": "diffusers",
+      "upstream_url": "https://github.com/huggingface/diffusers",
+      "provenance": "huggingface_official",
+      "description": "diffusers candidate for image tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": "diffusers",
+        "pipeline_tags": [
+          "text-to-image",
+          "image-to-image",
+          "image-text-to-image",
+          "unconditional-image-generation"
+        ],
+        "required_files": [
+          "model_index.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "hf-diffusers-image-installer",
+      "family": "diffusers",
+      "upstream_url": "https://github.com/huggingface/diffusers",
+      "provenance": "huggingface_official",
+      "description": "diffusers candidate for image tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": "diffusers",
+        "pipeline_tags": [
+          "text-to-image",
+          "image-to-image",
+          "image-text-to-image",
+          "unconditional-image-generation"
+        ],
+        "required_files": [
+          "model_index.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "hf-diffusers-video-oci",
+      "family": "diffusers",
+      "upstream_url": "https://github.com/huggingface/diffusers",
+      "provenance": "huggingface_official",
+      "description": "diffusers candidate for video tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": "diffusers",
+        "pipeline_tags": [
+          "text-to-video",
+          "image-to-video",
+          "image-text-to-video",
+          "video-to-video"
+        ],
+        "required_files": [
+          "model_index.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "hf-diffusers-video-installer",
+      "family": "diffusers",
+      "upstream_url": "https://github.com/huggingface/diffusers",
+      "provenance": "huggingface_official",
+      "description": "diffusers candidate for video tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": "diffusers",
+        "pipeline_tags": [
+          "text-to-video",
+          "image-to-video",
+          "image-text-to-video",
+          "video-to-video"
+        ],
+        "required_files": [
+          "model_index.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "hf-transformers-vision-oci",
+      "family": "transformers",
+      "upstream_url": "https://github.com/huggingface/transformers",
+      "provenance": "huggingface_official",
+      "description": "transformers candidate for image tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": "transformers",
+        "pipeline_tags": [
+          "image-classification",
+          "image-to-text",
+          "image-segmentation",
+          "object-detection",
+          "depth-estimation",
+          "image-feature-extraction",
+          "zero-shot-image-classification",
+          "document-question-answering",
+          "visual-question-answering",
+          "image-text-to-text"
+        ],
+        "required_files": [
+          "config.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "image",
+          "text"
+        ],
+        "output": [
+          "text",
+          "image",
+          "embedding"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "hf-transformers-vision-installer",
+      "family": "transformers",
+      "upstream_url": "https://github.com/huggingface/transformers",
+      "provenance": "huggingface_official",
+      "description": "transformers candidate for image tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": "transformers",
+        "pipeline_tags": [
+          "image-classification",
+          "image-to-text",
+          "image-segmentation",
+          "object-detection",
+          "depth-estimation",
+          "image-feature-extraction",
+          "zero-shot-image-classification",
+          "document-question-answering",
+          "visual-question-answering",
+          "image-text-to-text"
+        ],
+        "required_files": [
+          "config.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "image",
+          "text"
+        ],
+        "output": [
+          "text",
+          "image",
+          "embedding"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "hf-transformers-audio-speech-oci",
+      "family": "transformers",
+      "upstream_url": "https://github.com/huggingface/transformers",
+      "provenance": "huggingface_official",
+      "description": "transformers candidate for audio tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": "transformers",
+        "pipeline_tags": [
+          "text-to-audio",
+          "text-to-speech",
+          "automatic-speech-recognition",
+          "audio-classification",
+          "audio-to-text",
+          "audio-to-audio",
+          "speech-translation"
+        ],
+        "required_files": [
+          "config.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "audio",
+          "text"
+        ],
+        "output": [
+          "audio",
+          "text"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "hf-transformers-audio-speech-installer",
+      "family": "transformers",
+      "upstream_url": "https://github.com/huggingface/transformers",
+      "provenance": "huggingface_official",
+      "description": "transformers candidate for audio tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": "transformers",
+        "pipeline_tags": [
+          "text-to-audio",
+          "text-to-speech",
+          "automatic-speech-recognition",
+          "audio-classification",
+          "audio-to-text",
+          "audio-to-audio",
+          "speech-translation"
+        ],
+        "required_files": [
+          "config.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "audio",
+          "text"
+        ],
+        "output": [
+          "audio",
+          "text"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "hf-transformers-multimodal-oci",
+      "family": "transformers",
+      "upstream_url": "https://github.com/huggingface/transformers",
+      "provenance": "huggingface_official",
+      "description": "transformers candidate for multimodal tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": "transformers",
+        "pipeline_tags": [
+          "image-text-to-text",
+          "video-text-to-text",
+          "video-question-answering",
+          "audio-text-to-text",
+          "any-to-any"
+        ],
+        "required_files": [
+          "config.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "image",
+          "audio",
+          "video",
+          "text"
+        ],
+        "output": [
+          "text",
+          "audio",
+          "video",
+          "image"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "hf-transformers-multimodal-installer",
+      "family": "transformers",
+      "upstream_url": "https://github.com/huggingface/transformers",
+      "provenance": "huggingface_official",
+      "description": "transformers candidate for multimodal tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": "transformers",
+        "pipeline_tags": [
+          "image-text-to-text",
+          "video-text-to-text",
+          "video-question-answering",
+          "audio-text-to-text",
+          "any-to-any"
+        ],
+        "required_files": [
+          "config.json"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": false
+      },
+      "supported_modalities": {
+        "input": [
+          "image",
+          "audio",
+          "video",
+          "text"
+        ],
+        "output": [
+          "text",
+          "audio",
+          "video",
+          "image"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "comfyui-graph-oci",
+      "family": "comfyui",
+      "upstream_url": "https://github.com/comfyanonymous/ComfyUI",
+      "provenance": "official_upstream",
+      "description": "comfyui candidate for image tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": null,
+        "pipeline_tags": [
+          "text-to-image",
+          "image-to-image",
+          "text-to-video",
+          "image-to-video",
+          "video-to-video"
+        ],
+        "required_files": [],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [
+          "image",
+          "text",
+          "video"
+        ],
+        "output": [
+          "image",
+          "video"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "comfyui-graph-installer",
+      "family": "comfyui",
+      "upstream_url": "https://github.com/comfyanonymous/ComfyUI",
+      "provenance": "official_upstream",
+      "description": "comfyui candidate for image tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": null,
+        "pipeline_tags": [
+          "text-to-image",
+          "image-to-image",
+          "text-to-video",
+          "image-to-video",
+          "video-to-video"
+        ],
+        "required_files": [],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [
+          "image",
+          "text",
+          "video"
+        ],
+        "output": [
+          "image",
+          "video"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "audiocraft-music-oci",
+      "family": "audiocraft",
+      "upstream_url": "https://github.com/facebookresearch/audiocraft",
+      "provenance": "official_upstream",
+      "description": "audiocraft candidate for music tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": "audiocraft",
+        "pipeline_tags": [
+          "text-to-audio",
+          "text-to-music",
+          "music-generation",
+          "music-to-music",
+          "audio-to-audio"
+        ],
+        "required_files": [],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [
+          "audio",
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "audiocraft-music-installer",
+      "family": "audiocraft",
+      "upstream_url": "https://github.com/facebookresearch/audiocraft",
+      "provenance": "official_upstream",
+      "description": "audiocraft candidate for music tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": "audiocraft",
+        "pipeline_tags": [
+          "text-to-audio",
+          "text-to-music",
+          "music-generation",
+          "music-to-music",
+          "audio-to-audio"
+        ],
+        "required_files": [],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [
+          "audio",
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "pyannote-diarization-oci",
+      "family": "pyannote",
+      "upstream_url": "https://github.com/pyannote/pyannote-audio",
+      "provenance": "official_upstream",
+      "description": "pyannote candidate for speech tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": "pyannote.audio",
+        "pipeline_tags": [
+          "speaker-diarization",
+          "voice-activity-detection"
+        ],
+        "required_files": [
+          "config.yaml"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "timestamps",
+          "text"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "pyannote-diarization-installer",
+      "family": "pyannote",
+      "upstream_url": "https://github.com/pyannote/pyannote-audio",
+      "provenance": "official_upstream",
+      "description": "pyannote candidate for speech tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": "pyannote.audio",
+        "pipeline_tags": [
+          "speaker-diarization",
+          "voice-activity-detection"
+        ],
+        "required_files": [
+          "config.yaml"
+        ],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "timestamps",
+          "text"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "speechbrain-voice-oci",
+      "family": "speechbrain",
+      "upstream_url": "https://github.com/speechbrain/speechbrain",
+      "provenance": "official_upstream",
+      "description": "speechbrain candidate for speech tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": "speechbrain",
+        "pipeline_tags": [
+          "text-to-speech",
+          "automatic-speech-recognition",
+          "speaker-diarization",
+          "voice-conversion",
+          "speech-to-speech",
+          "speech-translation"
+        ],
+        "required_files": [],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [
+          "audio",
+          "text"
+        ],
+        "output": [
+          "audio",
+          "text"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "speechbrain-voice-installer",
+      "family": "speechbrain",
+      "upstream_url": "https://github.com/speechbrain/speechbrain",
+      "provenance": "official_upstream",
+      "description": "speechbrain candidate for speech tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": "speechbrain",
+        "pipeline_tags": [
+          "text-to-speech",
+          "automatic-speech-recognition",
+          "speaker-diarization",
+          "voice-conversion",
+          "speech-to-speech",
+          "speech-translation"
+        ],
+        "required_files": [],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [
+          "audio",
+          "text"
+        ],
+        "output": [
+          "audio",
+          "text"
+        ]
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "official-model-runtime-oci",
+      "family": "specialized",
+      "upstream_url": "https://huggingface.co/docs/hub/models",
+      "provenance": "model_author",
+      "description": "specialized candidate for multimodal tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "verified_prebuilt_oci_image",
+      "match": {
+        "library_name": null,
+        "pipeline_tags": [],
+        "required_files": [],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [],
+        "output": []
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    },
+    {
+      "id": "official-model-runtime-installer",
+      "family": "specialized",
+      "upstream_url": "https://huggingface.co/docs/hub/models",
+      "provenance": "model_author",
+      "description": "specialized candidate for multimodal tasks; compatibility and security must be verified per model and runtime.",
+      "delivery_route": "vetted_runtime_recipe_on_base_image",
+      "match": {
+        "library_name": null,
+        "pipeline_tags": [],
+        "required_files": [],
+        "architectures": [],
+        "model_id_allowlist": [],
+        "requires_reviewed_workflow": true
+      },
+      "supported_modalities": {
+        "input": [],
+        "output": []
+      },
+      "delivery": {
+        "oci_image_digest": null,
+        "base_image_digest": null,
+        "pinned_install_manifest": null,
+        "worker_implementation_digest": null
+      },
+      "verification": {
+        "status": "candidate_unverified",
+        "model_tested": false,
+        "provider_tested": false,
+        "reviewer_approved": false,
+        "evidence_url": null,
+        "evidence_commit": null,
+        "image_digest": null,
+        "installer_manifest_digest": null,
+        "tested_model_revision": null,
+        "compatible_gpu_architectures": [],
+        "compatible_cuda_versions": []
+      },
+      "network_policy": "no_inbound_network_until_authenticated_worker_is_verified",
+      "execution_enabled": false
+    }
+  ]
+}

@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 8);
+    assert_eq!(tools.len(), 10);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -163,4 +163,36 @@ fn hub_search_requires_query_or_task_and_never_accepts_approval_flag() {
     assert_eq!(replies[1]["error"]["code"], -32602);
     assert_eq!(replies[2]["error"]["code"], -32602);
     assert_eq!(replies[3]["error"]["code"], -32602);
+}
+
+#[test]
+fn runtime_registry_is_read_only_and_lists_both_delivery_routes() {
+    let replies = exchange(&[
+        INIT,
+        READY,
+        r#"{"jsonrpc":"2.0","id":60,"method":"tools/call","params":{"name":"runtimes_list","arguments":{}}}"#,
+        r#"{"jsonrpc":"2.0","id":61,"method":"tools/call","params":{"name":"runtimes_list","arguments":{"approved":true}}}"#,
+        r#"{"jsonrpc":"2.0","id":62,"method":"tools/call","params":{"name":"runtime_resolve","arguments":{"provider":"modal"}}}"#,
+    ]);
+    let reg = &replies[1]["result"]["structuredContent"];
+    assert_eq!(reg["implementation_status"], "read_only_candidates_no_deployment");
+    let entries = reg["entries"].as_array().unwrap();
+    assert!(entries.len() >= 16);
+    assert!(entries.iter().any(|entry| entry["family"] == "diffusers"));
+    assert!(entries.iter().any(|entry| entry["family"] == "transformers"));
+    assert!(entries.iter().any(|entry| entry["family"] == "audiocraft"));
+    assert!(entries.iter().all(|entry| entry["execution_enabled"] == false));
+    assert_eq!(replies[2]["error"]["code"], -32602);
+    assert_eq!(replies[3]["error"]["code"], -32602);
+}
+
+#[test]
+fn runtime_registry_cli_never_calls_cloud_providers() {
+    let output = Command::new(BINARY).arg("runtimes").output().unwrap();
+    assert!(output.status.success());
+    let registry: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(registry["implementation_status"], "read_only_candidates_no_deployment");
+    let entries = registry["entries"].as_array().unwrap();
+    assert!(entries.iter().any(|entry| entry["delivery_route"] == "verified_prebuilt_oci_image"));
+    assert!(entries.iter().any(|entry| entry["delivery_route"] == "vetted_runtime_recipe_on_base_image"));
 }

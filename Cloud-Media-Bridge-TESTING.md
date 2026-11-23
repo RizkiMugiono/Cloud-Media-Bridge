@@ -21,7 +21,7 @@ The project deliberately keeps one small local Rust MCP/CLI process and **reuses
 | V1-6 | Reject model or resource execution without **separate human approvals** | No |
 | V1-7 | A separately approved Modal workload generates real media, returns verified output and scales down | Yes, explicitly authorized |
 
-**V1-1 through V1-5** are the initial development focus. The existing 82-case registry remains intact; ten additional decision-specific checks (U01–U10) cover the approved deployment behavior. Total: **102 scenarios** including ten all-media coverage checks (A01–A10). Register a PASS only for a truly executed test; **the GitHub CI build cannot prove live Hugging Face access or GPU inference**.
+**V1-1 through V1-5** are the initial development focus. The existing 82-case registry remains intact; ten additional decision-specific checks (U01–U10) cover the approved deployment behavior. Total: **110 scenarios** including ten all-media coverage checks (A01–A10) and eight Rust Runtime Resolver cases (R01–R08). Register a PASS only for a truly executed test; **the GitHub CI build cannot prove live Hugging Face access or GPU inference**.
 
 **Cloud safety:** ordinary tests and GitHub Actions do not create resources and consume no GPU credits. Real provider execution requires fresh permission for every deployment and a compatibility-verified worker. The provider configuration catalog covers Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda Cloud, HTTPS GPU workers, SSH GPU hosts and Kubernetes; all adapters are developed in parallel. Each provider requires independent authorization and evidence before live verification.
 
@@ -327,3 +327,20 @@ The project must discover and classify **all media-capable Hugging Face models**
 | A10 | Verified media inference for each **claimed runtime family** and output type, including music, voice, video and 3D where supported | Real provider-backed output bytes, MIME/checksum, model SHA, runtime image/recipe, consent and cleanup evidence; unsupported families never called verified |
 
 Do **not** mark A08–A10 as PASS from the offline catalog, a mock result or a model card. Unknown model architectures require a verified compatible runtime recipe; successful image inference is not evidence of speech, music, video or 3D inference support.
+
+## 16. Evidence-based Rust Runtime Resolver (R01–R08)
+
+These tests cover **runtime compatibility candidates**, not AI inference or a working GPU provider. R01–R06 are offline and must require no cloud credentials, paid GPU or external model downloads. R07 needs Hugging Face Hub HTTP access only; R08 needs an independently approved real GPU deployment.
+
+| ID | Scenario | Expected evidence |
+|---|---|---|
+| R01 | Runtime Registry contains both OCI and vetted-installer alternatives with upstream provenance | Unique IDs, valid HTTPS upstreams, non-executable routes for Diffusers, Transformers, ComfyUI, AudioCraft, pyannote, SpeechBrain and specialized models |
+| R02 | Hub model task matches but lacks library/checkpoint/architecture signals | Do not assert any model loadability; Diffusers task + file/library generates candidates without fake verification |
+| R03 | Resolve video, speech, audio/music and non-image media candidates | Deterministic candidate matching across multiple families; no image-only runtime gate |
+| R04 | Model has unknown architecture, invalid SHA, gating, private access or remote-code mapping | Unknown model is preserved for review, invalid revision rejected; gated and untrusted code flagged without automatic execution |
+| R05 | Bundled candidate claims `verified` without evidence, versus synthetic pinned image and installer with full test proof | Fake verification rejected; exact-model/provider evidence mandatory; verified OCI preferred over equally verified installer; deployment remains disabled |
+| R06 | MCP and local CLI list runtime registry; agent injects `approved=true` or omits required resolution parameters | Read-only tools list source candidates, blocked state-changing/invalid tool arguments and no provider API calls |
+| R07 | Inspect real Hub models with task, library, model SHA, architectures, safe file signals and runtime hints | Read-only HTTP evidence, correct matching, no untrusted scripts or model binaries executed |
+| R08 | Deploy a verified runtime to each claimed provider and model family using both approved delivery routes where available | Real output artifacts and checksum, model/worker/image evidence, separate deployment approval, owned resource stop/scale-to-zero and cleanup proof |
+
+A `verified` status from a test fixture is **not** production evidence. Provider adapters and human approval are still unimplemented; R08 stays NOT RUN until separately authorized end-to-end inference and resource lifecycle checks exist.

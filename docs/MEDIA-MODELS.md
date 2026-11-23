@@ -48,6 +48,8 @@ Search and inspect contact Hugging Face over HTTPS. No provider credentials, GPU
 
 ## Separating taxonomy from a working media runtime
 
+The Rust implementation now has a [versioned upstream runtime registry](../config/runtime-registry.json) and [read-only resolver](../crates/bridge-cli/src/runtime.rs). It identifies candidate runtime families and verified-evidence gaps; all bundled entries remain `candidate_unverified` and no GPU inference worker is shipped. See [Runtime selection and provenance](RUNTIME-RESOLUTION.md).
+
 | Status | Meaning |
 |---|---|
 | `known_media_task` | A known pipeline/task tag appears in the local catalog; **not runnable just because it is known** |

@@ -116,3 +116,33 @@ jobs:
               assert schema["properties"]["schema_version"]["const"] == 1
           print(f"Validated {len(tasks)} task hints across {len(expected)} media families and both generic media schemas")
           PY
+      - name: Validate runtime registry fail-closed contracts (no GPU)
+        if: runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          runtime=json.loads(Path("config/runtime-registry.json").read_text())
+          policy=json.loads(Path("config/deployment-policy.json").read_text())
+          routes=set(policy["runtime_installation"]["allowed_routes"])
+          assert runtime["schema_version"] == 1
+          assert runtime["implementation_status"] == "read_only_candidates_no_deployment"
+          entries=runtime["entries"]
+          assert len(entries) >= 18
+          assert len({e["id"] for e in entries}) == len(entries)
+          assert {e["delivery_route"] for e in entries} == routes
+          assert {"diffusers","transformers","comfyui","audiocraft","pyannote","speechbrain","specialized"} <= {e["family"] for e in entries}
+          for e in entries:
+              assert e["upstream_url"].startswith("https://")
+              assert e["verification"]["status"] == "candidate_unverified"
+              assert not e["verification"]["model_tested"]
+              assert not e["verification"]["provider_tested"]
+              assert not e["execution_enabled"]
+              assert e["delivery"]["oci_image_digest"] is None
+              assert e["delivery"]["pinned_install_manifest"] is None
+              assert e["delivery"]["worker_implementation_digest"] is None
+              assert e["network_policy"] == "no_inbound_network_until_authenticated_worker_is_verified"
+          assert not runtime["runtime_registry_policy"]["cloud_execution_implemented"]
+          assert runtime["runtime_registry_policy"]["require_new_human_approval_per_deployment"]
+          print(f"Validated {len(entries)} non-executable runtime routes across all upstream families")
+          PY

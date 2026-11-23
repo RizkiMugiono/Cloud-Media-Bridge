@@ -1,4 +1,5 @@
 mod media;
+mod runtime;
 
 use serde_json::{json, Value};
 use std::env;
@@ -152,6 +153,16 @@ fn inspect_model(input: &str) -> Result<Value, String> {
         .as_array()
         .map(|a| a.len())
         .unwrap_or(0);
+    let file_names = info["siblings"].as_array().into_iter().flatten().take(200)
+        .filter_map(|entry| entry["rfilename"].as_str())
+        .filter(|name| name.len() <= 256)
+        .collect::<Vec<_>>();
+    let architectures = info["config"]["architectures"].as_array().into_iter().flatten()
+        .take(16).filter_map(Value::as_str).filter(|name| name.len() <= 128)
+        .collect::<Vec<_>>();
+    let tags = info["tags"].as_array().into_iter().flatten().take(100)
+        .filter_map(Value::as_str).filter(|tag| tag.len() <= 128)
+        .collect::<Vec<_>>();
     Ok(json!({
         "source": "huggingface",
         "id": id,
@@ -163,6 +174,14 @@ fn inspect_model(input: &str) -> Result<Value, String> {
         "private": info["private"],
         "license": info["cardData"]["license"],
         "files_count": siblings,
+        "runtime_hints": {
+            "architectures": architectures,
+            "model_type": info["config"]["model_type"],
+            "file_names": file_names,
+            "tags": tags,
+            "remote_code_mapping_present": !info["config"]["auto_map"].is_null(),
+            "warning": "Upstream model metadata is untrusted; runtime hints do not grant executable compatibility."
+        },
         "media": media::classify(info["pipeline_tag"].as_str(), info.get("tags")),
         "execution_status": "not_verified",
         "warning": "Model discovery does not prove that a compatible serving runtime exists."
@@ -211,6 +230,7 @@ fn plan_generation(model: &str, provider: &str) -> Result<Value, String> {
     let selected = provider_info(provider)?;
     let inspected = inspect_model(model)?;
     let classification = inspected["media"]["classification_status"].as_str().unwrap_or("unclassified_requires_review");
+    let resolved = runtime::resolve(&inspected, &selected)?;
     let verdict = match classification {
         "non_media_task_out_of_scope" => "non_media_task_out_of_scope",
         "unclassified_requires_review" | "catalog_unavailable" => "unknown_media_task_requires_review",
@@ -222,6 +242,7 @@ fn plan_generation(model: &str, provider: &str) -> Result<Value, String> {
         "model": inspected,
         "provider": selected,
         "media_classification": inspected["media"].clone(),
+        "runtime_resolution": resolved,
         "plan_status": verdict,
         "safe_to_deploy": false,
         "costing": "not_estimated",
@@ -246,6 +267,12 @@ fn execute_readonly(name: &str, arguments: &Value) -> Result<Value, String> {
         "providers_list" => providers_list(),
         "deployment_policy" => deployment_policy(),
         "media_tasks_list" => media::catalog(),
+        "runtimes_list" => runtime::registry(),
+        "runtime_resolve" => {
+            let inspected = inspect_model(get_string(arguments, "model")?)?;
+            let provider = provider_info(get_string(arguments, "provider")?)?;
+            runtime::resolve(&inspected, &provider)
+        },
         "providers_show" => provider_info(get_string(arguments, "provider")?),
         "models_search" => search_models(
             arguments["query"].as_str(),
@@ -338,7 +365,7 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let Some(object) = arguments.as_object() else { return false; };
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
-        "doctor" | "providers_list" | "deployment_policy" | "media_tasks_list" => object.is_empty(),
+        "doctor" | "providers_list" | "deployment_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "models_search" => {
             has_only(&["query", "task", "limit"])
@@ -351,7 +378,7 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
                 })
         }
         "models_inspect" => has_only(&["model"]) && arguments["model"].is_string(),
-        "plan_generation" => {
+        "plan_generation" | "runtime_resolve" => {
             has_only(&["model", "provider"]) && arguments["model"].is_string()
                 && arguments["provider"].is_string()
         }
@@ -366,6 +393,8 @@ fn tool_names() -> &'static [&'static str] {
         "providers_show",
         "deployment_policy",
         "media_tasks_list",
+        "runtimes_list",
+        "runtime_resolve",
         "models_search",
         "models_inspect",
         "plan_generation",
@@ -389,6 +418,13 @@ fn tool_definitions() -> Value {
          "annotations":{"readOnlyHint":true}},
         {"name":"media_tasks_list","description":"List categorized image, video, audio, voice, music, 3D, document, spatial and multimodal task hints. Discovery does not imply compatibility.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"runtimes_list","description":"List versioned upstream runtime families and unverified OCI or installer recipe candidates. Does not deploy.",
+         "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"runtime_resolve","description":"Inspect an exact Hugging Face media model, compare it to trusted upstream runtime candidate metadata and a GPU provider. Read-only; execution unavailable.",
+         "inputSchema":{"type":"object","properties":{"model":{"type":"string"},"provider":{"type":"string"}},
+                        "required":["model","provider"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"models_search","description":"Search all accessible Hugging Face models or filter by any Hub pipeline task; tags are classified without asserting inference compatibility.",
          "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"task":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},
@@ -456,6 +492,12 @@ fn run_cli(args: &[String]) -> i32 {
         }
         [cmd] if cmd == "providers" => print_json(providers_list()),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
+        [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
+        [cmd, action, model, provider] if cmd == "runtimes" && action == "resolve" => {
+            print_json(inspect_model(model).and_then(|inspected| {
+                provider_info(provider).and_then(|selected| runtime::resolve(&inspected, &selected))
+            }))
+        },
         [cmd, id] if cmd == "providers" => print_json(provider_info(id)),
         [cmd, action] if cmd == "models" && action == "tasks" => print_json(media::catalog()),
         [cmd, action, query] if cmd == "models" && action == "search" => {
@@ -492,6 +534,8 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge mcp
   cloud-media-bridge providers [provider-id]
   cloud-media-bridge policy
+  cloud-media-bridge runtimes
+  cloud-media-bridge runtimes resolve <model> <provider-id>
   cloud-media-bridge models tasks
   cloud-media-bridge models search <query> [limit]
   cloud-media-bridge models search-task <pipeline_tag> [limit]
