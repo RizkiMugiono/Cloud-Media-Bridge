@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "purpose": "Public non-secret provider catalog. Account credentials stay in each user's local environment. Entries are capabilities and connection hints, not proof of live API integration.",
+  "providers": [
+    {
+      "id": "modal",
+      "name": "Modal",
+      "kind": "serverless",
+      "integration": "read_only",
+      "driver": "modal_cli",
+      "credential_env": [
+        "MODAL_TOKEN_ID",
+        "MODAL_TOKEN_SECRET"
+      ],
+      "authentication": "modal setup or workspace-scoped Modal environment credentials",
+      "capabilities": {
+        "discover": true,
+        "plan": true,
+        "deploy": false,
+        "execute": false,
+        "scale_to_zero": "supported_on_eligible_services"
+      },
+      "docs": "https://modal.com/docs/cli/latest/server"
+    },
+    {
+      "id": "runpod-serverless",
+      "name": "RunPod Serverless",
+      "kind": "serverless",
+      "integration": "planned",
+      "driver": "runpod_queue_http",
+      "credential_env": [
+        "RUNPOD_API_KEY"
+      ],
+      "authentication": "user-owned API key",
+      "api_base": "https://api.runpod.ai/v2/",
+      "capabilities": {
+        "discover": false,
+        "plan": false,
+        "deploy": false,
+        "execute": false,
+        "scale_to_zero": "provider_dependent"
+      },
+      "docs": "https://docs.runpod.io/serverless/endpoints/overview"
+    },
+    {
+      "id": "runpod-pods",
+      "name": "RunPod Pods",
+      "kind": "pod",
+      "integration": "planned",
+      "driver": "runpod_pods",
+      "credential_env": [
+        "RUNPOD_API_KEY"
+      ],
+      "authentication": "user-owned API key",
+      "capabilities": {
+        "discover": false,
+        "plan": false,
+        "deploy": false,
+        "execute": false,
+        "scale_to_zero": "manual_lifecycle"
+      },
+      "docs": "https://docs.runpod.io/pods/overview"
+    },
+    {
+      "id": "vast-serverless",
+      "name": "Vast.ai Serverless",
+      "kind": "serverless",
+      "integration": "planned",
+      "driver": "vast_serverless",
+      "credential_env": [
+        "VAST_API_KEY"
+      ],
+      "authentication": "user-owned API key",
+      "capabilities": {
+        "discover": false,
+        "plan": false,
+        "deploy": false,
+        "execute": false,
+        "scale_to_zero": "provider_dependent"
+      },
+      "docs": "https://vast.ai/developers/api"
+    },
+    {
+      "id": "vast-instances",
+      "name": "Vast.ai Instances",
+      "kind": "gpu-marketplace",
+      "integration": "planned",
+      "driver": "vast_instances",
+      "credential_env": [
+        "VAST_API_KEY"
+      ],
+      "authentication": "user-owned API key",
+      "api_base": "https://cloud.vast.ai/api/v0/",
+      "capabilities": {
+        "discover": false,
+        "plan": false,
+        "deploy": false,
+        "execute": false,
+        "scale_to_zero": "manual_lifecycle"
+      },
+      "docs": "https://vast.ai/developers/api"
+    },
+    {
+      "id": "lambda-cloud",
+      "name": "Lambda GPU Cloud",
+      "kind": "gpu-vm",
+      "integration": "planned",
+      "driver": "lambda_instances",
+      "credential_env": [
+        "LAMBDA_API_KEY"
+      ],
+      "authentication": "user-owned API key",
+      "capabilities": {
+        "discover": false,
+        "plan": false,
+        "deploy": false,
+        "execute": false,
+        "scale_to_zero": "manual_lifecycle"
+      },
+      "docs": "https://docs.lambda.com/api/cloud"
+    },
+    {
+      "id": "generic-https",
+      "name": "Existing HTTPS GPU worker",
+      "kind": "external-worker",
+      "integration": "planned",
+      "driver": "generic_https",
+      "credential_env": [
+        "CMB_WORKER_TOKEN"
+      ],
+      "authentication": "user-owned worker endpoint with a fixed task-specific contract",
+      "capabilities": {
+        "discover": false,
+        "plan": false,
+        "deploy": false,
+        "execute": false,
+        "scale_to_zero": "unknown"
+      },
+      "docs": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/docs/PROVIDERS.md"
+    },
+    {
+      "id": "generic-ssh",
+      "name": "User-managed GPU SSH Host",
+      "kind": "existing-host",
+      "integration": "planned",
+      "driver": "ssh",
+      "credential_env": [],
+      "authentication": "SSH keys provided by user outside repository",
+      "capabilities": {
+        "discover": false,
+        "plan": false,
+        "deploy": false,
+        "execute": false,
+        "scale_to_zero": "externally_managed"
+      },
+      "docs": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/docs/PROVIDERS.md"
+    },
+    {
+      "id": "kubernetes-gpu",
+      "name": "User-managed Kubernetes GPU Cluster",
+      "kind": "gpu-cluster",
+      "integration": "planned",
+      "driver": "kubernetes",
+      "credential_env": [],
+      "authentication": "user kubeconfig with least privilege",
+      "capabilities": {
+        "discover": false,
+        "plan": false,
+        "deploy": false,
+        "execute": false,
+        "scale_to_zero": "cluster_dependent"
+      },
+      "docs": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/"
+    }
+  ]
+}

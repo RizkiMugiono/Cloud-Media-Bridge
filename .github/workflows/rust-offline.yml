@@ -1,0 +1,51 @@
+name: Offline Rust CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-tests:
+    name: Rust offline safety and MCP contracts (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    env:
+      CARGO_TERM_COLOR: always
+      CMB_LIVE_GPU_TESTS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Verify dependency lockfile
+        run: cargo metadata --locked --format-version 1 --no-deps
+      - name: Compile and run local tests (no cloud accounts)
+        run: cargo test --locked --workspace --all-targets
+      - name: Rust lint
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Check provider catalog syntax and required entries
+        if: runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import json
+          with open("config/providers.json", encoding="utf-8") as f:
+              data = json.load(f)
+          ids = [p["id"] for p in data["providers"]]
+          assert len(ids) == len(set(ids)), "Duplicate provider ids"
+          assert {"modal", "runpod-serverless", "runpod-pods", "vast-serverless",
+                  "vast-instances", "lambda-cloud", "generic-https",
+                  "generic-ssh", "kubernetes-gpu"}.issubset(ids)
+          for provider in data["providers"]:
+              assert provider["integration"] in {"read_only", "planned"}
+              assert provider["capabilities"]["execute"] is False
+          print(f"Verified {len(ids)} non-secret provider definitions")
+          PY

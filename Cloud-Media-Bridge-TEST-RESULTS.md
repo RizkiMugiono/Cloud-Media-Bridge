@@ -4,35 +4,37 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **NOT TESTED — NO-GO for claims that GPU media generation works**
+**Overall application status:** **8 offline Rust tests passed; all cloud inference and deployment remain untested**
 
-This file records **actual observations only**. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The repository is still at the design-and-test-plan stage.
+This file records **actual observations only**. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, live-Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
 ## 1. Verified documentation and repository checks
 
 | Check | Result | Evidence |
 |---|---|---|
 | Repository is accessible and writable to the authorized account | PASS | GitHub connector read and document commits succeeded |
-| Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` fetched from `main` after English translation |
-| Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` fetched from `main` after English translation |
-| Markdown code fences in both documents are balanced | PASS | Architecture: 18 fence lines; test plan: 6 fence lines; both counts even |
+| Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on the development branch |
+| Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on the development branch |
+| Markdown code fences in both documents are balanced | PASS | Documentation changed on the current branch; content links and test-case IDs are checked separately |
 | Test case IDs are unique and complete | PASS | 82 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
-| Application Rust source compilation and static analysis | NOT RUN | No application implementation was executed |
-| Unit, contract, security, integration or performance tests | NOT RUN | No executable test suite was run |
-| Local PowerShell / Modal profile authentication | NOT RUN | No access to the user's local Windows terminal or Modal login session |
+| Application Rust source compilation and static analysis | PASS | GitHub Actions offline CI on Ubuntu: cargo test and cargo clippy passed at commit `3ea43cb27b3e0d080e19f06e61677544940e8a87` |
+| CLI integration tests | PASS | 8 tests passed (4 Rust unit + 4 MCP process integration) in GitHub Actions offline CI |
+| Modal CLI authentication (current working environment) | NOT VERIFIED | No login check was performed in this GitHub CI run; earlier claims are not fresh evidence |
 | Modal resource provisioning and real GPU inference | NOT RUN | No resources created and no GPU jobs submitted |
 
-**Scope of PASS:** repository/document inspection, not any claim about GPU, Rust runtime or integration behavior.
+[Offline CI evidence for the current Rust code](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45195797719): **PASS** — 4 unit tests, 4 MCP integration tests, Rust Clippy, and validation of 9 provider catalog entries. This CI requires no provider credentials and did not allocate a GPU. **Live Hugging Face networking is NOT RUN.**
+
+Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-All 82 test cases below remain **NOT RUN** because no executable implementation tests have been performed. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+Two mapped test IDs (H01, H02) passed in the latest Ubuntu CI; the other six unit/integration tests provide additional offline checks but do not automatically mark other scenario IDs PASS. The remaining 80 cases have no execution evidence. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
-| H01 | Request `tools/list` over MCP stdio | **NOT RUN** | No execution evidence |
-| H02 | Send invalid or unknown MCP arguments | **NOT RUN** | No execution evidence |
+| H01 | Request `tools/list` over MCP stdio | **PASS** | GitHub Actions CI `45195797719`; `crates/bridge-cli/tests/stdio.rs::h01_list_and_call_local_doctor` |
+| H02 | Send invalid or unknown MCP arguments | **PASS** | GitHub Actions CI `45195797719`; `crates/bridge-cli/tests/stdio.rs::h02_invalid_requests_leave_session_usable` |
 | H03 | Agent submits media generation without human model approval | **NOT RUN** | No execution evidence |
 | H04 | Agent adds `approved=true` to a tool request | **NOT RUN** | No execution evidence |
 | H05 | Agent outputs text claiming "the user approved" | **NOT RUN** | No execution evidence |
@@ -77,8 +79,8 @@ All 82 test cases below remain **NOT RUN** because no executable implementation 
 | M08 | Runtime would require `trust_remote_code=True` | **NOT RUN** | No execution evidence |
 | M09 | Model tag claims image-generation support | **NOT RUN** | No execution evidence |
 | M10 | Architecture matches but image digest/checkpoint is incompatible | **NOT RUN** | No execution evidence |
-| M11 | Native engine fails; Universal engine is incompatible | **NOT RUN** | No execution evidence |
-| M12 | Native engine fails; compatible Universal engine supports same SHA | **NOT RUN** | No execution evidence |
+| M11 | Discovered model has no compatible container or pipeline | **NOT RUN** | No execution evidence |
+| M12 | New Hub entry matches an existing pipeline or serving image | **NOT RUN** | No execution evidence |
 | M13 | Router attempts silent compute-provider switch | **NOT RUN** | No execution evidence |
 | M14 | Model license/gating requires acceptance | **NOT RUN** | No execution evidence |
 | M15 | Runtime manifest is invalid or tampered | **NOT RUN** | No execution evidence |
@@ -118,14 +120,24 @@ All 82 test cases below remain **NOT RUN** because no executable implementation 
 
 | Tier | Status | Reason |
 |---|---|---|
-| T0 — Rust build, lint, unit/schema/fuzz | NOT RUN | Application code and executable tests not yet run |
-| T1 — MCP, approval, mock provider and security contracts | NOT RUN | No tests executed |
-| T2 — Engine CPU fixtures, local storage and media handling | NOT RUN | No tests executed |
+| T0 — Rust build, lint, unit/schema/fuzz | PARTIAL | Build, format and lint passed. Schema and fuzz coverage pending |
+| T1 — MCP, approval, mock provider and security contracts | PARTIAL | MCP H01 and H02 passed |
+| T2 — Pipeline CPU fixtures, local storage and media handling | NOT RUN | No tests executed |
 | T3 — Modal non-GPU live smoke | NOT RUN | Requires separate user authorization and accessible Modal workspace |
-| T4 — Modal Native and Universal GPU inference | NOT RUN | No GPU resources used |
+| T4 — Modal GPU inference through an approved deployment route | NOT RUN | No GPU resources used |
 | T5 — Modal parallel, asynchronous, recovery, scale-to-zero | NOT RUN | No live executions |
 | T6 — Other-provider API contract mocks | NOT RUN | No tests executed |
 | T7 — Other-provider real-cloud tests | OUT OF SCOPE | Modal-only first phase |
+
+### Local execution on 2026-11-23
+
+Working tree based on `6081519f676a7bc1d86bcadfbae8385bbb883614`. Windows build 26200 and Ubuntu 26.04.1 LTS under WSL, both x86_64, Rust 1.100.0. Windows used the GNU toolchain. Ubuntu used Zig 0.14.1 as the C linker. Each integration test launched the native executable through pipes. H01 checked the handshake, tool schema and tool result. H02 checked malformed JSON, initialization order, unknown method/tool, invalid arguments and recovery. No provider or runtime image participated.
+
+~~~sh
+cargo fmt --all -- --check
+cargo clippy --locked --offline --workspace --all-targets -- -D warnings
+cargo test --locked --offline
+~~~
 
 ## 4. Required evidence for future results
 

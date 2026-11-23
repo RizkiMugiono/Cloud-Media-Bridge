@@ -1,28 +1,77 @@
 # Cloud-Media-Bridge
 
-**Status:** specification and test-plan stage — no verified production implementation.
+**A local MCP/CLI bridge for discovering Hugging Face media models and preparing execution in the user's own GPU account.** No central service, shared user accounts, or hosted LLMs.
 
-An open-source, local-first bridge connecting a user's AI harness to **their own** GPU compute provider account. It supports a Rust-based local control plane (MCP stdio/CLI), explicit human-approved model selection, and a dual inference-engine design (native Rust + universal Python/PyTorch runtimes).
+**Current status:** early Rust prototype. The MCP `doctor` tool and basic error-handling tests were previously reported as passing on Windows and Ubuntu WSL. Live Hugging Face discovery, read-only planning, and the provider catalog have been added to the current development branch; their CI/integration status must be checked before claiming they work. **No media generation or cloud deployment is implemented yet.**
 
-The architecture targets many AI media workloads (image, video, speech, voice, music, audio and more) **excluding LLM hosting**. Model sources and compute providers are extensible; **Modal.com is the only provider planned for initial real-GPU testing**. Additional providers such as RunPod, Vast.ai and Lambda are future integrations, not currently verified.
+## Minimal design
 
-This repository **does not provide a central hosted service**, use the maintainer's cloud account to process user media, or silently select/replace models. It does not guarantee every discovered model is executable.
+```text
+User's AI harness (any client supporting local MCP stdio)
+    -> Cloud-Media-Bridge (single local Rust process)
+       -> Hugging Face Hub (live search / URL inspection / model SHA)
+       -> User-selected GPU provider profile (read-only plan)
+       -> Approved, compatible serving image or library pipeline (future)
+       -> Media result (future)
+```
 
-## Start here
+A model that appears on the Hub is **discoverable**, not automatically **runnable**. Models sharing an established serving pipeline can be supported without hardcoding model names. New architectures may require additional runtime support. The project reuses existing inference software rather than building a separate inference engine.
 
-| Document | Purpose |
+## What works and what does not
+
+| Capability | Status |
 |---|---|
-| [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md) | Approved implementation specification, architectural contracts, security and phased work order for coding agents |
-| [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md) | Detailed test plan, test IDs, expected behavior, release gates and Modal-only live-test procedure |
-| [Cloud-Media-Bridge-TEST-RESULTS.md](Cloud-Media-Bridge-TEST-RESULTS.md) | Actual documentation checks and transparent **NOT RUN** statuses for unexecuted application/GPU tests |
+| Rust local CLI and MCP stdio `doctor` | Implemented; previous process-level tests reported passing |
+| MCP provider listing and inspection | Implemented; offline test code included |
+| Live Hugging Face model search | Implemented; requires network, `curl`, and live verification |
+| Model URL inspection and immutable revision SHA | Implemented; requires live Hub verification |
+| Read-only generation plan for a selected provider | Implemented; explicitly blocks unverified execution |
+| Human model and cloud-resource approval workflow | Planned; **no generated media or provisioning permitted** |
+| Modal deployment and image/audio/video generation | Planned; no GPU tests run |
+| RunPod / Vast.ai / Lambda / GPU host deployment | Planned; configured in the catalog, **not operational adapters** |
 
-## Safety and testing rules
+## Quick start (Windows, Linux, macOS)
 
-- **User-owned credentials:** authentication to GPU providers stays under the end user's control.
-- **Human approval:** model ID, immutable revision and appropriate resource operations require explicit approval.
-- **Safe defaults:** building/testing documentation and local mocks must not deploy cloud resources or consume GPU by default.
-- **Scale-to-zero:** required where a provider supports it; GPU pods/VMs can have different lifecycle/billing behavior.
-- **Provider claims:** implement and verify providers individually. Initial live tests only on Modal with separate authorization.
-- **No fabricated results:** a spec or mock test is never proof that real GPU inference works.
+Requires a current stable Rust toolchain, Cargo, and a `curl` executable on the local `PATH`. Build and run:
+
+```sh
+cargo test --locked --workspace
+cargo run --locked -- doctor
+cargo run --locked -- providers
+cargo run --locked -- providers modal
+cargo run --locked -- models search "text-to-image" 10
+cargo run --locked -- models inspect "stabilityai/stable-diffusion-xl-base-1.0"
+cargo run --locked -- plan "stabilityai/stable-diffusion-xl-base-1.0" modal
+```
+
+The last three commands access Hugging Face over HTTPS; the other commands run without provider credentials or GPUs. **None of these commands provisions resources or submits inference jobs.**
+
+For any local MCP-compatible AI harness, launch the `cloud-media-bridge` binary with the argument `mcp`. The server exposes `doctor`, `providers_list`, `providers_show`, `models_search`, `models_inspect`, and `plan_generation`. Stdout is reserved for MCP JSON-RPC messages. The standalone CLI works without a specific AI-agent brand.
+
+## Configuring GPU platforms
+
+Public, non-secret provider definitions live at [`config/providers.json`](config/providers.json). The catalog covers **Modal, RunPod Serverless, RunPod Pods, Vast.ai Serverless, Vast.ai Instances, Lambda Cloud, existing HTTPS workers, generic SSH GPU hosts, and Kubernetes GPU clusters**.
+
+To use a modified local catalog, copy it outside the repository and set the `CMB_PROVIDER_CONFIG` environment variable to that file's path. Keep private API credentials in the provider's own local authentication mechanism or protected environment variables, never in a public configuration file.
+
+**Catalog entry != supported deployment.** Each provider has unique authentication, endpoint, provisioning and cleanup semantics. Status fields explicitly say `read_only` or `planned` until a working driver and live tests exist. A future generic HTTPS worker protocol can cover many rented GPU hosts once their compatible worker is deployed separately.
+
+See [Provider configuration and lifecycle](docs/PROVIDERS.md).
+
+## Safety and GPU credits
+
+- Model selection and immutable revision must be explicitly approved by the human.
+- Provisioning/terminating cloud resources requires a separate approval; do not treat selecting a model as permission to spend credits.
+- No automatic provider switching, public unauthenticated worker, remote arbitrary Python model code, or unsafe deserialization.
+- Only Modal is scheduled for **first real-GPU validation**. The remaining providers are configuration/roadmap targets.
+- All default tests are offline. The existing small Modal trial credit must not be consumed by build, lint, search, inspection, planning or CI.
+
+## Project documents
+
+- [Implementation specification](Cloud-Media-Bridge.md) — minimal design and completion criteria.
+- [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — primary v1 gates and 82 broader test scenarios.
+- [Test result ledger](Cloud-Media-Bridge-TEST-RESULTS.md) — evidence and `NOT RUN` status for unexecuted tests.
+- [Provider support matrix](docs/PROVIDERS.md).
+- [Contributor instructions](AGENTS.md).
 
 **License:** [Apache-2.0](LICENSE).

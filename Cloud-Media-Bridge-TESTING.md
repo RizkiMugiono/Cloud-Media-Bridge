@@ -7,15 +7,33 @@
 
 > **Authorization and safety rule for every development agent and contributor:** Do not create Modal Apps, Servers, Functions or Volumes; allocate GPU/CPU cloud instances; modify harness settings; stop/delete resources; access private workspaces; or publish GitHub changes without the applicable explicit user authorization. Normal lint and unit tests must be fully offline or mocked. Non-Modal live compute-provider tests are out of scope for the initial release.
 
+## Prioritized v1 verification
+
+The project deliberately keeps one small local Rust MCP/CLI process and **reuses existing inference runtimes**. The first milestone does not require two newly built inference engines, every GPU vendor to be live-tested, a custom cluster scheduler, or durable video job recovery.
+
+| Gate | Expected evidence | GPU needed? |
+|---|---|---|
+| V1-1 | MCP initializes, lists tools, handles invalid arguments without crashing | No |
+| V1-2 | GPU provider catalog parses and reports truthful implemented/planned states | No |
+| V1-3 | Search the live Hugging Face catalog without a manual list | No |
+| V1-4 | Inspect a model URL and pin an immutable revision SHA; block malicious URLs | No |
+| V1-5 | Prepare a read-only model/provider plan; deny deployment for an unsupported runtime | No |
+| V1-6 | Reject model or resource execution without **separate human approvals** | No |
+| V1-7 | A separately approved Modal workload generates real media, returns verified output and scales down | Yes, explicitly authorized |
+
+**V1-1 through V1-5** are the initial development focus. The broader 82-case registry below is retained for hardening and additional provider implementations. Register a PASS only for a truly executed test; **the GitHub CI build cannot prove live Hugging Face access or GPU inference**.
+
+**Cloud safety:** ordinary tests and GitHub Actions do not create resources and consume no GPU credits. Real provider execution requires fresh permission and a compatibility-verified worker. The provider configuration catalog covers Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda Cloud, HTTPS GPU workers, SSH GPU hosts and Kubernetes; **only Modal is planned for the first live test**.
+
 ## 0. Test levels and scope
 
 | Level | Tests | Real cloud used? | Required before |
 |---|---|---|---|
 | T0 | Rust build, formatting, lint, unit/schema/property/fuzz tests | No | Every relevant code change |
 | T1 | MCP/harness, approval, provider contract mocks, security | No | Any cloud-enabled workflow |
-| T2 | CPU-only engine fixtures, asset handling, SQLite migrations | No | Live provider testing |
+| T2 | CPU-only pipeline fixtures, asset handling, SQLite migrations | No | Live provider testing |
 | T3 | Modal read-only identity plus separately approved non-GPU deployment smoke test | Yes, explicit authorization | Real GPU test |
-| T4 | Real Modal inference for both Native and Universal engines | Yes, explicit authorization | Claiming runnable GPU inference |
+| T4 | Real inference through an approved Modal deployment route | Yes, explicit authorization | Claiming runnable GPU inference |
 | T5 | Modal parallel jobs, asynchronous recovery, cancellation, cold start and scale-to-zero | Yes, explicit authorization | Claiming production-grade workflow |
 | T6 | Contract mocks for RunPod, Vast.ai, Lambda and SSH | No | When a non-Modal adapter is introduced |
 | T7 | Live providers other than Modal | **Not permitted in this phase** | A separately approved future phase |
@@ -96,8 +114,8 @@ These tests run against deterministic mock API recorders for each adapter. Plann
 | M08 | Runtime would require `trust_remote_code=True` | Denied by default |
 | M09 | Model tag claims image-generation support | Not marked `verified` without real execution evidence |
 | M10 | Architecture matches but image digest/checkpoint is incompatible | Never treated as verified |
-| M11 | Native engine fails; Universal engine is incompatible | Accurate error; no fake output |
-| M12 | Native engine fails; compatible Universal engine supports same SHA | Idempotent, authorized fallback |
+| M11 | Discovered model has no compatible container or pipeline | Model remains discoverable; planner reports unsupported and performs no deployment |
+| M12 | New Hub entry matches an existing pipeline or serving image | Search finds it without a repo update; plan binds the selected route and exact SHA without deployment |
 | M13 | Router attempts silent compute-provider switch | Block without explicit user choice and authorization |
 | M14 | Model license/gating requires acceptance | Restricted status, no automatic bypass |
 | M15 | Runtime manifest is invalid or tampered | Rejected with traceable error |
@@ -162,18 +180,12 @@ These tests run against deterministic mock API recorders for each adapter. Plann
 - [ ] Observe idle-to-zero where supported, and correct cold-start retry without duplicate jobs.
 - [ ] Confirm secret redaction and cleanup dry-run.
 
-### T4 — Real Native Rust GPU inference
+### T4 — Real inference through an approved Modal deployment route
 
-- [ ] Load and execute one human-approved image model with exact revision SHA.
-- [ ] Record runtime image digest, GPU type, sanitized resource/job IDs, output hash and timing phases.
-- [ ] Verify actual generated media, not a mock or static fixture.
-- [ ] Download artifact and independently verify checksum.
-
-### T4 — Real Universal GPU inference
-
-- [ ] Execute one compatible image model through Python/PyTorch runtime under the same approval rules.
-- [ ] Pin runtime image digest, verify media output and prohibit arbitrary remote code.
-- [ ] Keep the user provisioning token out of the inference worker.
+- [ ] Record the selected container or library pipeline, model SHA, image digest, user workspace and approved GPU operation.
+- [ ] Generate media with the selected model. Record GPU type, timings and sanitized job references.
+- [ ] Download the result, inspect it and independently verify its checksum.
+- [ ] Keep provisioning credentials outside the inference worker. Each additional route needs its own evidence before being claimed as verified.
 
 ### T5 — Async, parallel, cancellation and scale-down
 
@@ -218,7 +230,7 @@ capabilities | provision | async | cancel | artifacts | cleanup |
 scale-to-zero mode | live-tested? | evidence reference
 
 MODEL / RUNTIME
-source + model SHA | license | task | engine | image digest |
+source + model SHA | license | task | deployment route | image digest |
 GPU profile | tested parameters | output hash | measured latency |
 verified/unverified/unsupported
 ~~~
@@ -241,7 +253,7 @@ Only Modal may be labeled **live-tested** during the current phase. Non-Modal ad
 
 **GO for Modal live smoke test:** separately approved operation, verified exact workspace, immutable model SHA, authenticated worker endpoint and tested cleanup preview.
 
-**GO to state "Modal image generation works":** both Native and Universal engines have real output artifacts, verified hashes, recorded model SHA/runtime digest/GPU profile, and passing relevant error/retry tests.
+**GO to state "Modal image generation works":** the claimed deployment route has real output artifacts, verified hashes, recorded model SHA/runtime digest/GPU profile, and passing relevant error/retry tests.
 
 **GO to state "video/music async works":** actual media-specific generation, durable remote job handle across bridge restarts and tested cancellation/retention semantics.
 
