@@ -4,7 +4,7 @@
 
 **Current status:** early Rust prototype. The MCP `doctor` tool and basic error-handling tests were previously reported as passing on Windows and Ubuntu WSL. Live Hugging Face discovery, read-only planning, and the provider catalog have been added to the current development branch; their CI/integration status must be checked before claiming they work. **No media generation or cloud deployment is implemented yet.**
 
-## Minimal design
+## System architecture
 
 ```text
 User's AI harness (any client supporting local MCP stdio)
@@ -15,7 +15,7 @@ User's AI harness (any client supporting local MCP stdio)
        -> Media result (future)
 ```
 
-A model that appears on the Hub is **discoverable**, not automatically **runnable**. Models sharing an established serving pipeline can be supported without hardcoding model names. New architectures may require additional runtime support. The project reuses existing inference software rather than building a separate inference engine.
+A model that appears on the Hub is **discoverable**, not automatically **runnable**. Hugging Face model configuration and weights do not, by themselves, provide an executable inference server. The bridge must match each model to a verified runtime recipe (serving image or existing library pipeline), install it on the selected provider, and load the exact model revision. Models sharing an established pipeline can run without hardcoding model names; new architectures may require an additional runtime recipe. The project reuses existing inference software rather than building a separate inference engine.
 
 ## What works and what does not
 
@@ -56,6 +56,8 @@ To use a modified local catalog, copy it outside the repository and set the `CMB
 
 **Catalog entry != supported deployment.** Each provider has unique authentication, endpoint, provisioning and cleanup semantics. Status fields explicitly say `read_only` or `planned` until a working driver and live tests exist. A future generic HTTPS worker protocol can cover many rented GPU hosts once their compatible worker is deployed separately.
 
+**GPU rentals such as Vast.ai:** they can run standard Docker images, including vendor base/PyTorch images or a verified custom serving image. Where an image does not contain a model-specific runtime, a reviewed startup/provisioning recipe installs a compatible library and loads the approved Hugging Face revision. This is not automatic execution of arbitrary scripts found in a model repository. For GPU pods and VMs, the bridge must also report and perform only user-approved stop/termination operations.
+
 See [Provider configuration and lifecycle](docs/PROVIDERS.md).
 
 ## Safety and GPU credits
@@ -68,7 +70,7 @@ See [Provider configuration and lifecycle](docs/PROVIDERS.md).
 
 ## Project documents
 
-- [Implementation specification](Cloud-Media-Bridge.md) — minimal design and completion criteria.
+- [Implementation specification](Cloud-Media-Bridge.md) — architecture and implementation requirements.
 - [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — primary v1 gates and 82 broader test scenarios.
 - [Test result ledger](Cloud-Media-Bridge-TEST-RESULTS.md) — evidence and `NOT RUN` status for unexecuted tests.
 - [Provider support matrix](docs/PROVIDERS.md).
