@@ -82,6 +82,14 @@ POST /v1/media/jobs/{id}/cancel -> cancellation outcome
 
 The caller must validate the worker's HTTPS origin, response schema, output size/hash, account binding and approval. Never send provider provisioning credentials to the inference worker. Merely using a shared HTTP contract does **not** automatically provision a host, pull a model, satisfy gated license requirements, or guarantee CUDA/runtime compatibility.
 
+## Media-family independent provider adapters
+
+Every GPU platform adapter must be able to carry **a task-aware, typed media request**. The task catalog [`media-tasks.json`](../config/media-tasks.json) recognizes image, video, audio, speech/voice, music, 3D, spatial/motion, document and multimodal classes. New Hub task tags remain discoverable, but still need a reviewed runtime recipe before execution.
+
+Do not hardcode `text-to-image` as the only task or assume that audio/music/voice share identical inputs and outputs. Reuse a generic provider transport and a compatible runtime-family worker, with model-specific validated task schemas and verified media artifact formats. The adapter's ability to create a GPU instance does not imply that the worker can load every AI model.
+
+This capability is an **execution design requirement**, not a currently implemented provider deployment feature. See [all media model coverage](MEDIA-MODELS.md).
+
 ## How media models are deployed on a GPU rental
 
 A GPU rental provider does not need to maintain a special image-generation, video-generation, speech or music container for every model. What the selected GPU resource needs is a **compatible inference runtime**. The bridge must resolve that runtime from a **trusted, versioned runtime-family recipe**.
