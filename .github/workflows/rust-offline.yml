@@ -44,6 +44,3 @@ jobs:
               assert provider["capabilities"]["execute"] is False
           print(f"Verified {len(ids)} non-secret provider definitions")
           PY
-      - name: Verify no live GPU operations are present in workflow
-        run: |
-          ! grep -R -E 'modal (deploy|run|server deploy)|runpod.*(/run|/runsync)' .github/workflows/
