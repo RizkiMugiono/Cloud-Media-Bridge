@@ -215,7 +215,7 @@ MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or p
 
 ## 9. Testing and release claims
 
-The [test plan](Cloud-Media-Bridge-TESTING.md) retains the original 82 detailed cases plus 10 deployment-decision cases (92 total), with the initial deployment milestone gated by the seven capabilities above. Advanced load testing, durable video/music jobs and multiple live providers are later phases.
+The [test plan](Cloud-Media-Bridge-TESTING.md) retains the original 82 detailed cases plus 10 deployment-decision cases (102 total), with the initial deployment milestone gated by the seven capabilities above. Advanced load testing, durable video/music jobs and multiple live providers are later phases.
 
 - Default CI uses Rust unit/integration tests and synthetic fixtures; **no GPU or paid cloud services**.
 - All provider adapters are developed concurrently; each provider's real GPU tests require separately approved access and must not run by default. Modal may be used first for economical validation, but is not an implementation dependency.
