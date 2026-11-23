@@ -69,7 +69,12 @@ Do **not** hardcode application logic to images or video. Runtime and worker con
 - Validated outputs: image frames, encoded audio, video clips, transcripts, music files, point clouds, meshes, spatial tracks, masks, embeddings and JSON analysis, as actually supported by that runtime.
 - Authenticated large asset staging, stream/chunk support where available, checksums, clear retention/cleanup behavior and durable handles for long media jobs.
 
-**These are extension requirements, not implemented RPC endpoints.** A provider's GPU runtime is not universally able to execute all of them. Never fabricate media outputs or claim tests passed without real model/worker evidence.
+Two **future worker interface schemas** now specify an open-ended typed-media envelope:
+
+- [Generic media request schema](../schemas/media-request.schema.json) — accepts arbitrary task tags and typed text, image, audio, music, speech, video, spatial or 3D asset references, without a hardcoded image/video-only request shape.
+- [Generic media result schema](../schemas/media-result.schema.json) — supports arbitrary artifact kinds with verified byte size, MIME type, SHA-256 and authenticated references.
+
+**These are interface contracts, not implemented RPC endpoints or an inference engine.** A provider's GPU runtime is not universally able to execute all of them. Never fabricate media outputs or claim tests passed without real model/worker evidence.
 
 ## References
 
