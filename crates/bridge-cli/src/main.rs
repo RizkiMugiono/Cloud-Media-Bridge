@@ -163,7 +163,7 @@ fn providers_config() -> Result<Value, String> {
 }
 
 fn providers_list() -> Result<Value, String> {
-    Ok(providers_config()?)
+    providers_config()
 }
 
 fn provider_info(id: &str) -> Result<Value, String> {
@@ -313,7 +313,7 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "models_search" => {
             has_only(&["query", "limit"]) && arguments["query"].is_string()
-                && arguments.get("limit").map_or(true, |v| {
+                && arguments.get("limit").is_none_or(|v| {
                     v.as_u64().is_some_and(|n| (1..=50).contains(&n))
                 })
         }
