@@ -4,7 +4,7 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **18 offline Rust tests passed on Linux and Windows (11 unit + 7 MCP integration); all real media inference and cloud resource operations remain untested**
+**Overall application status:** **19 offline Rust tests passed on Linux and Windows (12 unit + 7 MCP integration); real media inference and cloud resource operations remain untested**
 
 This file records **actual observations only**. All-media catalog checks demonstrate classification and MCP contract behavior, **not** model inference or true universal runtime compatibility. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, media-task classification, Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
@@ -25,7 +25,7 @@ This file records **actual observations only**. All-media catalog checks demonst
 
 [Offline CI evidence on the merged main branch](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45196722011): **PASS on Linux, Windows and macOS** — 4 unit tests, 4 MCP integration tests, and Rust Clippy on each OS; validation of 9 provider catalog entries on Linux. No provider credentials or GPU were used. **Live Hugging Face networking is NOT RUN.**
 
-[All-media offline CI evidence](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45206248356) — **PASS on Linux and Windows: 11 unit tests, 7 MCP process tests, Rust Clippy and 61 media-task catalog checks.** This evidence does not include live Hub access or GPU inference.
+[All-media offline CI evidence](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45207348636) — **PASS on Linux and Windows: 12 unit tests, 7 MCP process tests, Rust Clippy, 61 media-task catalog checks and both generic media request/result schema checks.** This evidence does not include live Hub access or GPU inference.
 
 Local application evidence covers only the scenarios below.
 
