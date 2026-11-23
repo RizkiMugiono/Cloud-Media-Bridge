@@ -1,288 +1,280 @@
-# Cloud-Media-Bridge — Rencana Pengujian Repository untuk Codex
+# Cloud-Media-Bridge — Testing and Verification Plan
 
-**Target:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
-**Pendamping:** [`Cloud-Media-Bridge.md`](Cloud-Media-Bridge.md) = spesifikasi repository/implementasi.  
-**Dokumen ini** = prosedur pengujian, evidence, pass/fail, dan release gates. **Jangan menyamakan test mocks dengan kemampuan provider nyata.**
+**Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
+**Companion architecture:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
+**Actual results:** [Cloud-Media-Bridge-TEST-RESULTS.md](Cloud-Media-Bridge-TEST-RESULTS.md)  
+**Purpose:** Versioned test cases, reproducible procedures, evidence requirements and honest release gates. **This is a plan, not an assertion that any application tests have passed.**
 
-> **Kontrak safety:** Tidak membuat Modal App, Server, Function, Volume, mengakses GPU, menghentikan instance, mengubah konfigurasi harness, mengedit workspace pribadi atau menulis GitHub sebelum perizinan eksplisit. `cargo test` dan lint selalu offline/mocked secara default. Provider selain Modal tidak boleh dikenai live tests pada fase saat ini.
+> **Authorization and safety rule for every development agent and contributor:** Do not create Modal Apps, Servers, Functions or Volumes; allocate GPU/CPU cloud instances; modify harness settings; stop/delete resources; access private workspaces; or publish GitHub changes without the applicable explicit user authorization. Normal lint and unit tests must be fully offline or mocked. Non-Modal live compute-provider tests are out of scope for the initial release.
 
-## 0. Tujuan dan tingkat pengujian
+## 0. Test levels and scope
 
-| Tier | Jenis | Cloud nyata? | Kapan wajib |
+| Level | Tests | Real cloud used? | Required before |
 |---|---|---|---|
-| T0 | Rust compile/lint/unit/schema/property/fuzz | Tidak | Semua PR |
-| T1 | MCP/harness, approval, provider contract dengan mock, security | Tidak | Semua perubahan relevan |
-| T2 | Engine unit/CPU-only fixture, local file streams, SQLite migration | Tidak | Sebelum provider live |
-| T3 | Modal non-GPU account/deployment smoke | **Ya, dengan izin** | Sebelum GPU test |
-| T4 | Modal real GPU Native & Universal, artifact | **Ya, dengan izin** | Sebelum klaim runnable |
-| T5 | Modal parallel/async/recovery/cold-start/end-to-end | **Ya, dengan izin** | Sebelum rilis publik fitur itu |
-| T6 | RunPod/Vast/Lambda/SSH contract mocks | Tidak | Saat adapter dibuat |
-| T7 | Live provider selain Modal | **DILARANG dalam scope saat ini** | Baru setelah keputusan baru |
+| T0 | Rust build, formatting, lint, unit/schema/property/fuzz tests | No | Every relevant code change |
+| T1 | MCP/harness, approval, provider contract mocks, security | No | Any cloud-enabled workflow |
+| T2 | CPU-only engine fixtures, asset handling, SQLite migrations | No | Live provider testing |
+| T3 | Modal read-only identity plus separately approved non-GPU deployment smoke test | Yes, explicit authorization | Real GPU test |
+| T4 | Real Modal inference for both Native and Universal engines | Yes, explicit authorization | Claiming runnable GPU inference |
+| T5 | Modal parallel jobs, asynchronous recovery, cancellation, cold start and scale-to-zero | Yes, explicit authorization | Claiming production-grade workflow |
+| T6 | Contract mocks for RunPod, Vast.ai, Lambda and SSH | No | When a non-Modal adapter is introduced |
+| T7 | Live providers other than Modal | **Not permitted in this phase** | A separately approved future phase |
 
-Tidak ada `cargo test` yang tanpa sengaja menyalakan GPU. Tandai live test `#[ignore]`, feature flag terpisah (`live-modal`), dan gunakan perintah eksplisit dengan langkah persetujuan tersendiri. Jangan memalsukan statistik latency dari mock.
+Default `cargo test` must never allocate GPUs or make cloud changes. Live tests must be marked `#[ignore]`, behind a separate `live-modal` feature or executable, and require an interactive human confirmation tied to the exact profile/workspace and proposed operations. A mock test result is not performance or functionality evidence for the real provider.
 
-## 1. Entry criteria sebelum implementasi/pengujian
+## 1. Prerequisites and test-environment controls
 
-- Source spec dan test plan sinkron; dua file berada di root repository pada saat user mengizinkan upload.
-- Memiliki `AGENTS.md` yang menyatakan: no cloud/GitHub changes by default; source and test traceability.
-- Secret scanning, `.gitignore` untuk provider/HF tokens, lockfile deps dan versi toolchain.
-- Kontrak dan fixtures tidak berisi API token asli, data pengguna sungguhan, gambar pribadi, atau signed URL.
-- Modal account/profile/workspace yang digunakan untuk live test adalah **akun pemilik yang memberi izin**, bukan maintainer shared account.
-- Test harness local MCP dapat diluncurkan secara independen dari satu brand agent.
+- Implementation specification, this plan and the current test-results file must be mutually consistent.
+- An `AGENTS.md`, if added, must apply equally to all coding agents and require offline-by-default test behavior.
+- Secret scanning, Rust dependency locks, runtime dependency pinning and credential-safe .gitignore rules must be enabled.
+- Fixtures must use synthetic data without provider credentials, real user media, private prompts or signed URLs.
+- Live Modal tests use **the authorizing user's own** Modal account, exact workspace and explicitly selected environment; no shared maintainer account.
+- An MCP stdio test harness must run independently of any proprietary AI agent brand.
+- Real resource changes require independent human approval even if the model is approved.
+- Tests must record OS, language/runtime versions, git SHA, provider and image digest. Redact credentials and private paths.
+- Record failures and blockers without changing acceptance criteria to hide bugs.
 
-## 2. Test IDs — model approval, harness, account ownership (P0)
+## 2. Harness, human approval and provider ownership tests (H01–H18)
 
-| ID | Skenario | Bukti lulus |
+| ID | Test scenario | Passing evidence |
 |---|---|---|
-| H01 | `tools/list` pada MCP stdio | JSON-RPC valid; stdout hanya protokol |
-| H02 | Parameter MCP salah/unknown | Typed error; tidak panic, tanpa GPU |
-| H03 | Agent meminta generate tanpa model approval | `MODEL_APPROVAL_REQUIRED`, no submit |
-| H04 | Agent menyisipkan `approved=true` dalam tool request | Ditolak, grant tidak diciptakan |
-| H05 | Agent mencetak teks “user approved” | Tidak dipercaya, masih `PENDING` |
-| H06 | Pengguna menolak model | Status `DENIED`, tidak dapat generate |
-| H07 | User approve SHA A, HF `main` berubah ke SHA B | SHA B ditolak, SHA A tetap terikat grant |
-| H08 | Agent/Router mencoba mengganti model A menjadi B | Ditolak tanpa human approval B |
-| H09 | Model approved untuk task A dipakai task B | Ditolak jika task B tidak approved |
-| H10 | Grant expired/revoked | Tidak ada submit baru; inflight semantics jelas |
-| H11 | Agent mencoba approve dari stdin MCP | Tidak boleh ada path privileged approval |
-| H12 | Terminal headless/no TTY | Tidak auto approve; kode penolakan jelas |
-| H13 | Provider profile A diganti diam-diam ke B | Tidak ada operasi pada B; fail closed |
-| H14 | Model approval dipakai untuk create GPU resource | Ditolak tanpa approval resource terpisah |
-| H15 | Profile lain menggunakan token salah | Error autentikasi, tidak fallback ke profile lain |
-| H16 | Agent cloud-only mencoba config executable lokal tidak tersedia | Diagnosis environment, bukan klaim berhasil |
-| H17 | `harness configure` file existing | Backup, preserve options lain, atomic write, rollback |
-| H18 | Harness client versi berbeda | Matrix tested/untested/unsupported sesuai bukti |
+| H01 | Request `tools/list` over MCP stdio | Valid JSON-RPC; stdout only protocol frames |
+| H02 | Send invalid or unknown MCP arguments | Typed error, no panic, no GPU call |
+| H03 | Agent submits media generation without human model approval | `MODEL_APPROVAL_REQUIRED`; no remote submission |
+| H04 | Agent adds `approved=true` to a tool request | Ignored or rejected; no approval grant created |
+| H05 | Agent outputs text claiming "the user approved" | Treat as untrusted; request remains `PENDING` |
+| H06 | Human explicitly rejects the proposed model | `DENIED` and no generation possible under that request |
+| H07 | Approve revision SHA A; source default branch moves to SHA B | SHA B requires new approval; SHA A remains pinned |
+| H08 | Agent/router attempts substitution from model A to model B | Block without separate approval for B |
+| H09 | Approval for task A is reused for task B | Reject unless task B is explicitly included in grant |
+| H10 | Approval grant expires or is revoked | No further submissions; in-flight semantics documented |
+| H11 | Agent attempts privileged approval via MCP stdin/tool | No path to approve through agent-supplied data |
+| H12 | Approval is attempted in headless/no-TTY mode | Fail closed with a clear typed error |
+| H13 | Agent silently switches compute provider profile from A to B | No operation against B; fail closed |
+| H14 | Model approval is presented as authorization to provision GPU resources | Require separate resource-operation approval |
+| H15 | Wrong profile credentials are supplied | Authentication fails; never fall back to another profile |
+| H16 | Cloud-only agent attempts to launch unavailable local executable | Diagnose unsupported environment accurately |
+| H17 | Harness configuration file already exists | Backup, preserve unrelated settings, atomic write and rollback |
+| H18 | Test multiple harness/protocol versions | Dated verified/unverified/unsupported matrix with evidence |
 
-## 3. Provider Adapter contract tests — offline, wajib setiap adapter
+## 3. Compute provider contract tests (P01–P18)
 
-| ID | Contract | Expected |
+These tests run against deterministic mock API recorders for each adapter. Planned adapters include RunPod Serverless, RunPod Pods, Vast.ai Serverless, Vast.ai Instances, Lambda Cloud and generic SSH. Mocks prove interface behavior **only**, not real provider availability.
+
+| ID | Contract scenario | Expected result |
 |---|---|---|
-| P01 | `capabilities()` multi mode | Tri-state; unknown tidak dianggap supported |
-| P02 | `plan()` read only | Zero create/deploy/submit side effect |
-| P03 | `provision()` tanpa resource grant | Ditolak |
-| P04 | `submit()` tanpa exact approval/grant | Ditolak |
-| P05 | Salah provider/account/workspace/environment | Fail closed |
-| P06 | Endpoint URL/host dari model card | Tidak dipakai sebagai compute endpoint |
-| P07 | Network timeout sebelum submit | Retry jika aman |
-| P08 | Timeout setelah provider menerima submit | Reconcile, tidak duplicate job |
-| P09 | Provider tidak support cancellation | `unsupported`/`uncertain`, tidak fake cancelled |
-| P10 | Provider API return 429/503/5xx | Backoff + jitter, deadline bounded |
-| P11 | `cleanup --dry-run` | No destructive calls, resource scope akurat |
-| P12 | Cleanup resource milik aplikasi lain | Ditolak |
-| P13 | Feature pod `scale_to_zero` di provider tanpa dukungan | `manual_stop|terminate_required|unknown`, bukan automatic |
-| P14 | Provider adapter not implemented | `PROVIDER_NOT_IMPLEMENTED` bukan success |
-| P15 | Wrong account credentials not leaked | Redacted log/errors |
-| P16 | Provider slot GPU tidak tersedia | Typed error, tidak berubah provider diam-diam |
-| P17 | Provider API schema berubah | Fail closed, visible compatibility error |
-| P18 | Repo user A dan user B | Tidak shared storage/credentials/namespace |
+| P01 | Capabilities include multiple resource/deployment modes | Tri-state capability; `unknown` never means `supported` |
+| P02 | Call `plan()` | No create/deploy/submit side effects |
+| P03 | Call `provision()` without a resource grant | Rejected |
+| P04 | Call `submit()` without matching approved job/model | Rejected |
+| P05 | Mismatch provider, account, workspace or environment | Fail closed before remote call |
+| P06 | Model card supplies an arbitrary compute endpoint URL | Never used as an approved provider endpoint |
+| P07 | Network timeout occurs before a safe submission | Retry only if provably safe |
+| P08 | Provider accepts submission but response is lost | Reconcile; do not create duplicate job |
+| P09 | Provider does not support cancellation | Report `unsupported` or `uncertain`; never fake cancellation |
+| P10 | Provider API responds with 429, 503 or 5xx | Bounded backoff, jitter, deadline and classified error |
+| P11 | Execute `cleanup --dry-run` | No destructive call and complete owned-resource preview |
+| P12 | Cleanup targets resource owned by another application | Rejected |
+| P13 | GPU pod does not support automatic scale-to-zero | Report manual stop, terminate required or unknown truthfully |
+| P14 | Adapter exists as an unimplemented skeleton | `PROVIDER_NOT_IMPLEMENTED`, not false success |
+| P15 | Provider authentication fails | No credential leakage in logs/errors |
+| P16 | Requested GPU is unavailable | Typed error; no silent switch to another provider |
+| P17 | Provider API schema changes incompatibly | Explicit compatibility failure; no unsafe default |
+| P18 | Two independent installations/users share a provider class | No shared secrets, artifact namespace or state leakage |
 
-Implementasi T6 memakai **mock API recorder** untuk RunPod Serverless, RunPod Pods, Vast.ai Serverless, Vast.ai Instances, Lambda Cloud, generic SSH. Test memverifikasi interface dan error; status hasil = `contract-only / not live verified`.
+## 4. Model discovery, inference compatibility and supply-chain tests (M01–M16)
 
-## 4. Model discovery/runtime routing/supply-chain tests
-
-| ID | Skenario | Expected |
+| ID | Scenario | Expected result |
 |---|---|---|
-| M01 | HF model URL valid | Canonical model ID + immutable SHA |
-| M02 | URL HTTP/localhost/private/link-local | SSRF blocked |
-| M03 | Redirect berbahaya setelah HEAD/GET | Blocked; no credential leakage |
-| M04 | URL `../` encoded/traversal/symlink | Rejected |
-| M05 | Malicious model card prompt injection | Metadata only, no shell instructions executed |
-| M06 | Model gated/private | Access check, user source token optional; no bypass |
-| M07 | Pickle-only weights | Not auto-loaded, safe unsupported policy |
-| M08 | `trust_remote_code=True` required | Denied by default |
-| M09 | Model repo task label saja mengklaim image gen | Tidak diberi status `verified` |
-| M10 | Runtime family cocok tetapi image digest/checkpoint mismatch | Tidak dianggap verified |
-| M11 | Rust engine gagal; Universal tidak compatible | Error, tanpa fake output |
-| M12 | Rust gagal; Universal compatible, model SHA sama | Fallback aman dan idempotent |
-| M13 | Router mencoba provider lain otomatis | Ditolak tanpa user selection/resource consent |
-| M14 | Model license restriksi/penerimaan syarat | Status restricted/approval info, jangan otomatis bypass |
-| M15 | Manifest invalid/tampered | Reject dan traceable error |
-| M16 | GPU VRAM kebutuhan lebih tinggi dari resource | Planner gagal sebelum model load |
+| M01 | Valid Hugging Face model URL | Canonical model ID plus immutable revision SHA |
+| M02 | HTTP, localhost, private or link-local target | SSRF blocked |
+| M03 | Redirect from allowed source to unsafe target | Blocked with no credential leakage |
+| M04 | Encoded traversal, symlink or dangerous file path | Rejected |
+| M05 | Model card contains malicious prompt-injection commands | Treated as metadata; no agent/shell instructions executed |
+| M06 | Gated or private model | Access restriction honored; optional user-owned source token |
+| M07 | Checkpoint contains pickle-only weights | No automatic unsafe load |
+| M08 | Runtime would require `trust_remote_code=True` | Denied by default |
+| M09 | Model tag claims image-generation support | Not marked `verified` without real execution evidence |
+| M10 | Architecture matches but image digest/checkpoint is incompatible | Never treated as verified |
+| M11 | Native engine fails; Universal engine is incompatible | Accurate error; no fake output |
+| M12 | Native engine fails; compatible Universal engine supports same SHA | Idempotent, authorized fallback |
+| M13 | Router attempts silent compute-provider switch | Block without explicit user choice and authorization |
+| M14 | Model license/gating requires acceptance | Restricted status, no automatic bypass |
+| M15 | Runtime manifest is invalid or tampered | Rejected with traceable error |
+| M16 | Model memory requirement exceeds GPU capability | Planner blocks before model loading |
 
-## 5. Data, media, SQLite, cache, artifact tests
+## 5. Media, SQLite, cache and artifact tests (D01–D15)
 
-| ID | Skenario | Expected |
+| ID | Scenario | Expected result |
 |---|---|---|
-| D01 | Input media kecil valid | Type, SHA, bytes correct |
-| D02 | Video besar dikirim melalui MCP JSON | Gunakan file ref/staging; tidak inline base64 besar |
-| D03 | MIME palsu/codec rusak/decode bomb | Rejected safely |
-| D04 | Input path traversal / symlink outside allowed scope | Rejected |
-| D05 | Upload terputus di tengah | Resumable jika supported, otherwise clean retry |
-| D06 | Dua worker download checkpoint sama | No corrupt final cache; SHA verified |
-| D07 | Incomplete cache file dari crash | Tidak dipakai sebagai verified cached weights |
-| D08 | Volume commit/reload race | No incorrect visibility claim, data integrity verified |
-| D09 | Dua job menulis output bersamaan | Unique paths; no cross-job overwrite |
-| D10 | Output hash berbeda atau file terpotong | `ARTIFACT_HASH_MISMATCH`, no COMPLETED |
-| D11 | Expired remote artifact | Explicit expiry; actionable error |
-| D12 | SQLite crash/restart | Recovery/migrations & WAL integrity |
-| D13 | Revoke grant while running | No new submit; inflight semantics consistent |
-| D14 | Model source token in logs or traces | No plaintext secret |
-| D15 | Cleanup user files dan resource | Preview/confirmation; no unrelated deletion |
+| D01 | Small valid media input | Correct MIME, byte count and SHA-256 |
+| D02 | Large video submitted inline as MCP JSON | Use authenticated file reference/staging instead of huge base64 |
+| D03 | Spoofed MIME, corrupt codec or decompression bomb | Safely rejected |
+| D04 | Input path traversal or symlink escapes authorized scope | Rejected |
+| D05 | Upload interrupted midway | Safe resumable flow if supported; otherwise clean retry |
+| D06 | Two workers download the same checkpoint concurrently | Valid final cache and verified hash, no corruption |
+| D07 | Incomplete cache file survives worker crash | Never treated as verified weights |
+| D08 | Volume commit/reload race | Correct visibility semantics and preserved integrity |
+| D09 | Two jobs write outputs concurrently | Unique paths; no cross-job overwrite |
+| D10 | Output is truncated or checksum mismatched | `ARTIFACT_HASH_MISMATCH`, never `COMPLETED` |
+| D11 | Remote artifact is expired | Explicit expiration and actionable recovery/error |
+| D12 | SQLite process crashes and restarts | Valid WAL, migrations and recovery |
+| D13 | User revokes approval while job is running | No new submissions; consistent in-flight behavior |
+| D14 | Source token might appear in logs/trace | Plaintext secret is always redacted |
+| D15 | User requests cleanup of data/resources | Preview and confirmation; no unrelated deletion |
 
-## 6. Job async, parallel, cold-start, cancellation
+## 6. Job concurrency, asynchronous execution and shutdown tests (J01–J15)
 
-| ID | Skenario | Expected |
+| ID | Scenario | Expected result |
 |---|---|---|
-| J01 | Job short sync | Correct final status/artifact |
-| J02 | Worker scale-to-zero lalu menerima request | Cold-start recovery, no duplicate |
-| J03 | Remote accepts job then HTTP timeout | Idempotent reconcile |
-| J04 | Bridge/harness mati ketika video berlangsung | Durable remote job id; restart/poll/fetch succeeds bila feature advertised |
-| J05 | Cancel running async job | `requested/confirmed/uncertain` accurately |
-| J06 | Cancel complete job | Stable terminal result, no accidental delete |
-| J07 | 10 jobs beda model/runtimes | Concurrent where safe, each correct model SHA |
-| J08 | 10 jobs sama model | Per-worker VRAM-aware batching/scale, no OOM storm |
-| J09 | Model requires single request per worker | Admission enforces 1 per worker, replicas may scale |
-| J10 | GPU unavailable / quota exhausted | Typed error, no alternate provider silently |
-| J11 | Long model initialization | Startup configured, no premature success/failure |
-| J12 | Remote result expires | Explicit retention warning, local index remains honest |
-| J13 | Instance manual stop/terminate lifecycle mocked | No auto zero claim; resource status report |
-| J14 | Inference exception mid-stream | Clean failed job/artifact cleanup, no secret trace |
-| J15 | Crash after completion before local status write | Reconciliation recovers terminal status |
+| J01 | Short synchronous generation | Correct terminal state and validated artifact |
+| J02 | Scale-to-zero worker receives new request | Cold-start recovery without duplicate submission |
+| J03 | Remote accepts job, then HTTP response times out | Idempotent reconciliation |
+| J04 | Bridge/harness stops while video job runs | Durable remote handle; restart/poll/fetch succeeds where advertised |
+| J05 | User cancels running async job | Truthful `requested`/`confirmed`/`uncertain` result |
+| J06 | User cancels a completed job | Completed result remains stable, not accidentally deleted |
+| J07 | Ten jobs use different models/runtimes | Safe parallelism; each uses exact approved SHA |
+| J08 | Ten jobs use the same model | VRAM-aware batching/scaling, no uncontrolled OOM |
+| J09 | Model allows only one request per worker | Enforce per-worker concurrency of one; replicas may scale |
+| J10 | GPU unavailable or workspace capacity exhausted | Typed error; no silent provider substitution |
+| J11 | Model initialization exceeds typical startup time | Correct timeout/lifecycle handling; no premature success |
+| J12 | Remote result expires before download | Report retention/expiry; local index remains truthful |
+| J13 | VM/pod requires manual stop/termination | No automatic-zero claim; resource state reported |
+| J14 | Inference fails in the middle of output streaming | Failed job with safe artifact cleanup and redacted trace |
+| J15 | Remote completes but local state write crashes | Restart reconciliation restores correct terminal state |
 
-## 7. Modal-only live test procedure (T3–T5; terpisah dari CI default)
+## 7. Modal-only live testing (T3–T5)
 
-### Prasyarat eksplisit
+### Mandatory explicit preconditions
 
-1. User telah menyetujui profile/workspace/environment Modal yang dipakai, image digest, model URL+revision, jenis operasi resource dan workload GPU; izin model dan resource terpisah.
-2. User telah mengaktifkan credential lokal Modal pada profile test yang mereka miliki. Test runner tidak menerima token lewat commit, PR, issue atau chat.
-3. Tidak ada deployment otomatis dari `git clone`, build, install, `cargo test`, atau GitHub Actions standar.
-4. Run live test harus berupa command khusus misalnya `cargo test --features live-modal -- --ignored --nocapture` **setelah** prompt interaktif user dan capability checks. Jangan menggunakan flag ini di CI normal.
-5. Semua hasil kerja diisolasi namespace `cmb-test-<installation-id>-<run-id>`; hapus **hanya** resource test milik user setelah konfirmasi. Handle resource yang gagal dibersihkan dalam laporan.
+1. Human approves exact Modal account/profile/workspace/environment, model URL + immutable SHA, selected runtime/image digest, resource operation, and GPU workload.
+2. Credentials are already configured locally through official Modal authentication. Never pass tokens via commits, pull requests, issues or chat.
+3. No cloud deployment occurs from `git clone`, package installation, `cargo test`, or normal GitHub Actions.
+4. A dedicated live-test command requires an interactive human confirmation and checks provider capability, model approval and resource scope before execution.
+5. Test resources use an isolated namespace such as `cmb-test-<installation-id>-<run-id>`. Cleanup affects only owned resources and requires explicit approval. Remaining resources must be listed in the results report.
+6. The user's small available credit is a **testing consideration**, not a repository-enforced financial quota. Run T0–T2 offline before any T3–T5 cloud action.
 
-### Urutan test terkontrol
+### T3 — Non-GPU Modal smoke test
 
-**T3 — Modal non-GPU**
+- [ ] Confirm Modal CLI version, account identity, workspace and environment.
+- [ ] Verify `plan` remains read-only.
+- [ ] Verify private/authenticated worker rejects missing or incorrect credentials.
+- [ ] Observe idle-to-zero where supported, and correct cold-start retry without duplicate jobs.
+- [ ] Confirm secret redaction and cleanup dry-run.
 
-- [ ] `modal` CLI tersedia dan versi tercatat; user identity, workspace, env diverifikasi secara real.
-- [ ] `plan` dapat memperlihatkan resource tanpa membuatnya.
-- [ ] Private test worker autentikasi: permintaan tanpa/keliru proxy token ditolak.
-- [ ] Server idle → 0 container (sesuai observabilitas provider) → request → bisa berjalan; retry 503 tidak membuat job duplikat.
-- [ ] Secret redaction dan cleanup `dry-run` bekerja.
+### T4 — Real Native Rust GPU inference
 
-**T4 — Native GPU real inference**
+- [ ] Load and execute one human-approved image model with exact revision SHA.
+- [ ] Record runtime image digest, GPU type, sanitized resource/job IDs, output hash and timing phases.
+- [ ] Verify actual generated media, not a mock or static fixture.
+- [ ] Download artifact and independently verify checksum.
 
-- [ ] Exact approved image model/revision SHA dapat load dan menjalankan inferensi Native Engine dari worker Modal.
-- [ ] Catat runtime image digest, GPU type, provider resource ID, anonymous job ID, hash artifact dan durasi per tahap.
-- [ ] Hasil gambar benar-benar berbeda dari mocked fixture; tidak boleh mengaku lulus dengan response dummy.
-- [ ] Artifact diambil ke local dan hash diverifikasi.
+### T4 — Real Universal GPU inference
 
-**T4 — Universal GPU real inference**
+- [ ] Execute one compatible image model through Python/PyTorch runtime under the same approval rules.
+- [ ] Pin runtime image digest, verify media output and prohibit arbitrary remote code.
+- [ ] Keep the user provisioning token out of the inference worker.
 
-- [ ] Family runtime Python/PyTorch menjalankan satu model image sesuai SHA dan license.
-- [ ] Runtime image dipin digest, output terverifikasi, tidak ada arbitrary remote code.
-- [ ] Rust bridge tetap control plane; worker tidak memiliki provisioning token pengguna.
+### T5 — Async, parallel, cancellation and scale-down
 
-**T5 — Async + parallel + scale down**
+- [ ] Demonstrate provider-backed remote asynchronous handle recovery after local bridge restart.
+- [ ] Run concurrent workloads within measured GPU/model safety and capture per-worker concurrency.
+- [ ] Observe idle worker count returning to zero for supported Modal resource modes.
+- [ ] Confirm cached model data remains valid if designed to survive scale-down.
+- [ ] Repeat after a full cold idle and compare end-to-end timing.
 
-- [ ] Jalur async teruji lewat provider-supported remote handle, bukan detached thread. Restart bridge, lanjutkan status/fetch.
-- [ ] Eksekusi paralel pada beberapa job; catat per-worker concurrency, VRAM, OOM behavior dan artefak unik.
-- [ ] Idle setelah selesai → 0 workers (jika Modal mode yang dipakai mendukung), cache retained bila dikonfigurasi.
-- [ ] Re-run setelah cold idle untuk mengukur end-to-end.
+**Video and music:** mark them verified only after real category-specific models produce media, recover correctly and pass task-appropriate security tests. Image inference success is not evidence of video/music compatibility.
 
-**Test video/music:** hanya dicentang ketika adapter audio/video sungguhan telah bekerja; image success tidak membuktikan video/music compatibility. Jangan jalankan model yang membutuhkan izin HF gated tanpa user authorization.
+### Example commands (future target, not assumed implemented)
 
-### Contoh perintah (desain target, jangan diasumsikan sudah ada)
-
-```bash
+~~~bash
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-# HANYA setelah kode mendukung feature + persetujuan pengguna:
+# Only after a real test implementation AND explicit human authorization:
 cargo test -p bridge-provider-modal --features live-modal -- --ignored --nocapture
-```
+~~~
 
-## 8. Benchmark kecepatan (pengukuran yang wajib)
+## 8. Performance measurement requirements
 
-- Bandingkan *cold run* dari 0 workers dan *warm run* dengan model+runtime sama.
-- Laporkan per tahap: metadata discovery, planning, provider submit, provisioning/cold start, download/cache, model load, GPU inference, encoding, output staging, download, total.
-- Catat variabel: GPU type, region, container image digest, model SHA, image resolution/steps/seed, input size, cache cold/warm, concurrency, timeouts, client OS/harness version.
-- Minimal laporkan `n`, median/p50, p95 jika sampel mencukupi, min/max, error rate, throughput dan job completion ratio. Jangan menyimpulkan dari satu sampel atau mencampur model/hardware berbeda.
-- Tujuan: temukan bottleneck aktual. Target angka latency tidak ditetapkan tanpa baseline nyata; scale-to-zero mengandung cold-start tradeoff.
+Compare **cold** start from zero active workers and **warm** execution with the same model, revision, runtime image and GPU.
 
-## 9. Compatibility matrix yang harus dihasilkan Codex
+Capture: model discovery; plan; submission; resource provision and cold start; download/cache; model load; GPU inference; encoding; output staging; download; total.
 
-```text
-HARNESS MATRIX
-client | version | OS | stdio tool discovery | model inspect | approval request
-       | generation (if tested) | status | cleanup | status(tested/unverified)
+Record all relevant conditions: GPU type/region, OCI digest, model SHA, resolution, diffusion steps/seed, media input size, cache cold/warm, safe concurrency, client OS/harness version, timeouts and provider errors.
 
-PROVIDER MATRIX
-provider | mode(serverless/pod/vm/ssh) | API version | authenticated |
-capabilities | provision | async | cancel | artifact | cleanup |
-scale-to-zero mode | live-tested? | evidence
+Report sample count, median/p50, p95 only where sample size supports it, min/max, failure rate, throughput and job-completion ratio. Do not compare unrelated model/hardware runs or fabricate latency from mocks. Optimize the measured bottleneck, not the appearance of benchmarks.
 
-MODEL/RUNTIME MATRIX
-model source & SHA | license | task | engine | image digest | GPU profile |
-parameters | output checksum evidence | measured latency | status
-```
+## 9. Required compatibility evidence matrices
 
-Pada fase saat ini, hanya `Modal` boleh `live-tested`. RunPod, Vast.ai, Lambda, SSH = `interface-only/contract-tested`, tidak boleh ditampilkan sebagai integrasi berjalan.
+~~~text
+HARNESS
+client | version | OS | stdio discovery | model inspection | approval request |
+generation (if run) | status | cleanup | verified/unverified status
 
-## 10. Security tests tambahan (tidak opsional)
+PROVIDER
+provider | mode(serverless/pod/vm/ssh) | API version | account verified |
+capabilities | provision | async | cancel | artifacts | cleanup |
+scale-to-zero mode | live-tested? | evidence reference
 
-- Fuzz parsers model URL, metadata, HTTP status body, JSON schema, provider capability, SQLite migrations, resource IDs, file paths dan input MIME.
-- SAST/dependency advisory/license scan untuk Cargo/Python runtime/image; pin dependencies dan lockfile.
-- Uji arbitrary Python `trust_remote_code`, pickle/checkpoint injection, malicious model `README` directions, unsafe shell interp, exfiltration via error logs.
-- Uji local user permission limitation: agent shell dengan hak OS sama mungkin dapat memalsukan approval; dokumentasikan batas kepercayaan, jangan mengklaim perlindungan mutlak.
-- Pastikan **tidak ada maintainer telemetry** / outbound ke endpoint proyek kecuali update metadata yang diaktifkan user. Hanya koneksi ke provider compute, model source, dan image registry yang diperlukan.
-- Audit source archives dan release artifacts agar tidak mengandung tokens, private datasets atau media user.
+MODEL / RUNTIME
+source + model SHA | license | task | engine | image digest |
+GPU profile | tested parameters | output hash | measured latency |
+verified/unverified/unsupported
+~~~
+
+Only Modal may be labeled **live-tested** during the current phase. Non-Modal adapters are `interface-only` or `contract-tested` until separately authorized provider-specific integration tests are performed.
+
+## 10. Additional security testing (mandatory)
+
+- Fuzz model URL parsers, provider schemas, metadata JSON, SQLite migrations, resource IDs, paths, MIME and archive/media headers.
+- Perform Rust/Python dependency advisory and license checks; pin OCI/image dependencies and review supply-chain risks.
+- Exercise model-card prompt injection, arbitrary Python code, unsafe pickle, shell argument injection and error-log exfiltration.
+- Test the local privilege boundary honestly: an agent with arbitrary shell rights under the same OS user may bypass poorly protected local approval files.
+- Verify no default maintainer telemetry, no public endpoint without authentication and no external connections beyond authorized providers/sources.
+- Audit source archives, test logs and release artifacts for credentials, signed URLs and private user media.
+- Confirm resource cleanup never touches pre-existing or unrelated cloud resources.
 
 ## 11. Release gates: GO / NO-GO
 
-### GO untuk development lokal
+**GO for offline implementation:** contracts and schema exist; all relevant T0/T1 tests pass; no embedded secrets or automatic cloud calls; approval state machine is enforced.
 
-- Semua T0/T1 relevant pass, no secrets, no automatic cloud operation, provider adapter trait dan approval state machine nyata.
+**GO for Modal live smoke test:** separately approved operation, verified exact workspace, immutable model SHA, authenticated worker endpoint and tested cleanup preview.
 
-### GO untuk Modal live smoke
+**GO to state "Modal image generation works":** both Native and Universal engines have real output artifacts, verified hashes, recorded model SHA/runtime digest/GPU profile, and passing relevant error/retry tests.
 
-- Ada izin pengguna untuk operasi nyata; exact workspace terikat; approved model SHA, validated worker auth, cleanup plan; live test command terisolasi dan bisa dibatalkan.
+**GO to state "video/music async works":** actual media-specific generation, durable remote job handle across bridge restarts and tested cancellation/retention semantics.
 
-### GO untuk publisitas "Modal image generation works"
+**GO to state "multiple GPU providers work":** only after authenticated, real-workload and lifecycle/cleanup testing for **each claimed provider**. Interface mocks are not enough.
 
-- Dua engine (Native & Universal) benar-benar menghasilkan gambar dari GPU Modal, hasil hash diverifikasi, model+SHA+runtime digest+GPU ID direkam, error/fallback tests pass.
+**NO-GO for public release** if an agent can self-approve; switch model/provider/accounts without human selection; expose an unauthenticated GPU endpoint; misrepresent model verification; duplicate cloud jobs on retry; lose or corrupt user media; write credentials to logs; provision cloud resources automatically; or claim all GPU pods/VMs scale-to-zero.
 
-### GO untuk "video/music async works"
+## 12. Evidence bundle layout
 
-- Model kategori terkait benar-benar generate media, durable remote handle survive local restart, cancellation/recovery/retention behavior teruji.
-
-### GO untuk "multi-provider works"
-
-- BUKAN tahap sekarang. Harus menjalani credentialed, real workload dan lifecycle/cleanup tests **di setiap provider** yang diklaim runnable, bukan hanya mock trait.
-
-### NO-GO untuk rilis publik jika
-
-- Agent dapat approve model atau switch model/provider tanpa pengguna.
-- Satu profile dapat mengirim job ke workspace lain.
-- Endpoint GPU publik tanpa auth.
-- Model belum kompatibel dipromosikan sebagai verified.
-- Timeout menyebabkan duplicate expensive GPU jobs atau job kehilangan status tanpa warning.
-- Hasil output hash salah, storage corrupt, atau media pengguna bocor.
-- Konfigurasi default membuat cloud/GPU resource tanpa consent.
-- Mengklaim semua providers/pods/VM scale-to-zero otomatis.
-
-## 12. Evidence bundle yang harus diserahkan Codex
-
-```text
+~~~text
 evidence/
-  date-and-commit.txt             # git SHA, build tool versions
-  contracts-results.md             # test ID -> PASS/FAIL/NOT RUN
-  security-results.md              # malicious input and secrets handling
-  compatibility-matrix.md          # harness/provider/runtime states
-  performance-modal.md             # real timings/conditions only
-  modal-real-inference.md          # job metadata + artifact hash; no secrets
-  scale-to-zero-modal.md           # provider-observed active/idle counts
-  async-recovery.md                # restart/cancel evidence if claimed
-  resources-cleanup.md             # all created resource IDs and final state
-  known-limitations.md             # unimplemented models/providers/features
-```
+  date-and-commit.txt
+  contracts-results.md
+  security-results.md
+  compatibility-matrix.md
+  performance-modal.md
+  modal-real-inference.md
+  scale-to-zero-modal.md
+  async-recovery.md
+  resources-cleanup.md
+  known-limitations.md
+~~~
 
-Artifact/media files berisi data pribadi jangan dimasukkan ke public evidence otomatis. Sanitasi URLs, bearer credentials, prompts dan model inputs dari laporan publik.
+Evidence must include test ID, commit SHA, build/runtime version, time, reproduction command/steps, expected result, actual result, PASS/FAIL/NOT RUN/SKIPPED/BLOCKED, sanitized logs/artifact hashes and issue reference when failing.
 
-## 13. Testing work order untuk Codex
+Never automatically publish real customer/user media, prompts, signed URLs or credentials to this public repository. Use synthetic fixtures and checksums where possible.
 
-1. Baca `Cloud-Media-Bridge.md` dan dokumen ini, buat `traceability.csv` ID requirement → file kode → test ID → status/evidence.
-2. Implementasikan T0–T2 dulu, menggunakan mock `ComputeProvider`, tidak menjalankan real GPU.
-3. Tambahkan implementation Modal hanya setelah preflight identity/security/approval. Jangan membuat real resources tanpa instruksi pengguna yang eksplisit.
-4. Jalankan T3–T5 khusus pada Modal setelah izin terpisah; jangan melakukan live integration untuk RunPod/Vast/Lambda/SSH sekarang.
-5. Catat fail, reproduksi bug, perbaiki, rerun dan simpan evidence redacted. Jangan mengubah ekspektasi tes hanya agar lolos.
-6. Buat report ringkas GO/NO-GO berdasarkan bukti, bukan klaim keberhasilan. Laporkan blokir nyata; provider/test yang belum teruji selalu diberi label `NOT RUN`.
+## 13. Vendor-neutral testing work order
+
+1. Read the architecture, this test plan and the current test-results ledger; map requirement IDs to code files and test cases.
+2. Implement offline T0–T2 first with mock provider recorders and no real GPU or credential use.
+3. Add the Modal integration behind identity, authorization, approval and resource cleanup preflight checks.
+4. Run T3–T5 only after the user separately authorizes live Modal operations. Do not live-test RunPod, Vast.ai, Lambda or SSH in this phase.
+5. For failures, capture redacted reproduction evidence, fix the bug, rerun and retain both failure and successful retest history.
+6. Publish concise, evidence-based GO/NO-GO results. Unexecuted and unsupported cases remain explicitly marked `NOT RUN` or `BLOCKED`; never report imagined success.
+
