@@ -4,9 +4,9 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **11 earlier offline Rust tests passed; all-media taxonomy tests are pending CI; cloud inference and automatic GPU stop remain untested**
+**Overall application status:** **18 offline Rust tests passed on Linux and Windows (11 unit + 7 MCP integration); all real media inference and cloud resource operations remain untested**
 
-This file records **actual observations only**. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, live-Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
+This file records **actual observations only**. All-media catalog checks demonstrate classification and MCP contract behavior, **not** model inference or true universal runtime compatibility. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, media-task classification, Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
 ## 1. Verified documentation and repository checks
 
@@ -25,11 +25,13 @@ This file records **actual observations only**. Passing documentation checks do 
 
 [Offline CI evidence on the merged main branch](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45196722011): **PASS on Linux, Windows and macOS** — 4 unit tests, 4 MCP integration tests, and Rust Clippy on each OS; validation of 9 provider catalog entries on Linux. No provider credentials or GPU were used. **Live Hugging Face networking is NOT RUN.**
 
+[All-media offline CI evidence](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45206248356) — **PASS on Linux and Windows: 11 unit tests, 7 MCP process tests, Rust Clippy and 61 media-task catalog checks.** This evidence does not include live Hub access or GPU inference.
+
 Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-Five mapped cases have offline evidence: H01, H02, U01, U02 and U03. The other six unit/integration tests do not automatically establish success for other scenario IDs. The remaining **97 scenarios are NOT RUN** before the new all-media offline CI runs. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+Five mapped cases have offline evidence: H01, H02, U01, U02 and U03. The other six unit/integration tests do not automatically establish success for other scenario IDs. The remaining **90 scenarios are NOT RUN**, including all media inference/runtime and deployment tests. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
@@ -135,17 +137,17 @@ The following new cases trace the four user decisions. **U01–U03 validate the 
 
 ## 2b. Media-family coverage test ledger (A01–A10)
 
-These scenarios document whether media discovery, task classification and actual inference are verified. **A01–A07 are eligible for offline Rust test evidence. A08–A09 need real Hub access, A10 real authorized inference.** A catalog entry is not evidence that a model runs.
+These scenarios document whether media discovery, task classification and actual inference are verified. **A01–A07 passed offline unit/MCP contract tests on Linux and Windows; A08–A09 need real Hub access, A10 real authorized inference.** A catalog entry is not evidence that a model runs.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
-| A01 | Read media catalog and classify representative image, video, audio, speech, music, 3D, spatial, document and multimodal tasks | **NOT RUN** | Pending matching test evidence |
-| A02 | Broad `text-to-audio` model contains Hub `music` tag | **NOT RUN** | Pending matching test evidence |
-| A03 | New future media task or missing/unknown `pipeline_tag` | **NOT RUN** | Pending matching test evidence |
-| A04 | Known pure `text-generation` model with no media inputs/outputs | **NOT RUN** | Pending matching test evidence |
-| A05 | Model has no pipeline tag but an explicit recognized media task in metadata tags | **NOT RUN** | Pending matching test evidence |
-| A06 | MCP `media_tasks_list` returns read-only taxonomy | **NOT RUN** | Pending matching test evidence |
-| A07 | MCP media search filters reject empty request, `approve=true` injection or invalid result count | **NOT RUN** | Pending matching test evidence |
+| A01 | Read media catalog and classify representative image, video, audio, speech, music, 3D, spatial, document and multimodal tasks | **PASS (offline contract only)** | [Linux/Windows CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45206248356) · `taxonomy_covers_all_media_families` |
+| A02 | Broad `text-to-audio` model contains Hub `music` tag | **PASS (offline contract only)** | [Linux/Windows CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45206248356) · `broad_audio_task_can_also_be_music` |
+| A03 | New future media task or missing/unknown `pipeline_tag` | **PASS (offline contract only)** | [Linux/Windows CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45206248356) · `future_and_untagged_models_are_not_dropped` |
+| A04 | Known pure `text-generation` model with no media inputs/outputs | **PASS (offline contract only)** | [Linux/Windows CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45206248356) · `pure_text_model_is_out_of_scope_without_unsafe_fallback` |
+| A05 | Model has no pipeline tag but an explicit recognized media task in metadata tags | **PASS (offline contract only)** | [Linux/Windows CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45206248356) · `known_task_can_be_recovered_from_hub_tags` |
+| A06 | MCP `media_tasks_list` returns read-only taxonomy | **PASS (offline contract only)** | [Linux/Windows CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45206248356) · `media_task_catalog_covers_all_modality_families_without_enabling_gpu` |
+| A07 | MCP media search filters reject empty request, `approve=true` injection or invalid result count | **PASS (offline contract only)** | [Linux/Windows CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45206248356) · `hub_search_requires_query_or_task_and_never_accepts_approval_flag` |
 | A08 | Live Hub search with `task` filter across image, video, audio, music, speech and multimodal; inspect real catalog results | **NOT RUN** | Pending matching test evidence |
 | A09 | Live inspection and planning with model ID and immutable SHA, including gated models and unclassified media tags | **NOT RUN** | Pending matching test evidence |
 | A10 | Verified media inference for each **claimed runtime family** and output type, including music, voice, video and 3D where supported | **NOT RUN** | Pending matching test evidence |
