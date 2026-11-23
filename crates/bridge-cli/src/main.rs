@@ -224,7 +224,7 @@ fn execute_readonly(name: &str, arguments: &Value) -> Result<Value, String> {
             arguments["limit"].as_u64().unwrap_or(10) as usize,
         ),
         "models_inspect" => inspect_model(get_string(arguments, "model")?),
-        "plan_generation" => plan_generation(get_string("model")?, get_string("provider")?),
+        "plan_generation" => plan_generation(get_string(arguments, "model")?, get_string(arguments, "provider")?),
         _ => Err("Unknown MCP tool".into()),
     }
 }
