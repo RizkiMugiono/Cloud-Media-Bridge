@@ -1,0 +1,855 @@
+{
+  "schema_version": 1,
+  "scope": "Media-capable Hugging Face model discovery and conservative task classification, not a model-execution guarantee.",
+  "implementation_status": "classification_only_no_gpu_runtime",
+  "note": "Known task tags and community-extension aliases are hints. The dynamic Hub search is not limited to this list; unrecognized tags remain discoverable and require review.",
+  "categories": [
+    "image",
+    "video",
+    "audio",
+    "speech",
+    "music",
+    "three_d",
+    "spatial",
+    "document",
+    "multimodal"
+  ],
+  "tasks": [
+    {
+      "task": "text-to-image",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "text"
+      ],
+      "outputs": [
+        "image"
+      ]
+    },
+    {
+      "task": "image-to-image",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "image"
+      ]
+    },
+    {
+      "task": "image-text-to-image",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image",
+        "text"
+      ],
+      "outputs": [
+        "image"
+      ]
+    },
+    {
+      "task": "unconditional-image-generation",
+      "categories": [
+        "image"
+      ],
+      "inputs": [],
+      "outputs": [
+        "image"
+      ]
+    },
+    {
+      "task": "image-classification",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "zero-shot-image-classification",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image",
+        "text"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "image-segmentation",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "image"
+      ]
+    },
+    {
+      "task": "mask-generation",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "image"
+      ]
+    },
+    {
+      "task": "object-detection",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "text",
+        "image"
+      ]
+    },
+    {
+      "task": "zero-shot-object-detection",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image",
+        "text"
+      ],
+      "outputs": [
+        "text",
+        "image"
+      ]
+    },
+    {
+      "task": "depth-estimation",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "image"
+      ]
+    },
+    {
+      "task": "image-feature-extraction",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "embedding"
+      ]
+    },
+    {
+      "task": "keypoint-detection",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "spatial"
+      ]
+    },
+    {
+      "task": "image-to-text",
+      "categories": [
+        "image"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "text-to-video",
+      "categories": [
+        "video"
+      ],
+      "inputs": [
+        "text"
+      ],
+      "outputs": [
+        "video"
+      ]
+    },
+    {
+      "task": "image-to-video",
+      "categories": [
+        "video"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "video"
+      ]
+    },
+    {
+      "task": "image-text-to-video",
+      "categories": [
+        "video"
+      ],
+      "inputs": [
+        "image",
+        "text"
+      ],
+      "outputs": [
+        "video"
+      ]
+    },
+    {
+      "task": "video-to-video",
+      "categories": [
+        "video"
+      ],
+      "inputs": [
+        "video"
+      ],
+      "outputs": [
+        "video"
+      ]
+    },
+    {
+      "task": "video-classification",
+      "categories": [
+        "video"
+      ],
+      "inputs": [
+        "video"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "video-text-to-text",
+      "categories": [
+        "video"
+      ],
+      "inputs": [
+        "video",
+        "text"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "video-question-answering",
+      "categories": [
+        "video"
+      ],
+      "inputs": [
+        "video",
+        "text"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "video-segmentation",
+      "categories": [
+        "video"
+      ],
+      "inputs": [
+        "video"
+      ],
+      "outputs": [
+        "video",
+        "image"
+      ]
+    },
+    {
+      "task": "text-to-audio",
+      "categories": [
+        "audio"
+      ],
+      "inputs": [
+        "text"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "audio-to-audio",
+      "categories": [
+        "audio"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "audio-classification",
+      "categories": [
+        "audio"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "zero-shot-audio-classification",
+      "categories": [
+        "audio"
+      ],
+      "inputs": [
+        "audio",
+        "text"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "audio-text-to-text",
+      "categories": [
+        "audio"
+      ],
+      "inputs": [
+        "audio",
+        "text"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "audio-to-text",
+      "categories": [
+        "audio"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "audio-separation",
+      "categories": [
+        "audio"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "audio-enhancement",
+      "categories": [
+        "audio"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "video-to-audio",
+      "categories": [
+        "audio"
+      ],
+      "inputs": [
+        "video"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "text-to-speech",
+      "categories": [
+        "speech"
+      ],
+      "inputs": [
+        "text"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "automatic-speech-recognition",
+      "categories": [
+        "speech"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "voice-activity-detection",
+      "categories": [
+        "speech"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "timestamps"
+      ]
+    },
+    {
+      "task": "speaker-diarization",
+      "categories": [
+        "speech"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "timestamps",
+        "text"
+      ]
+    },
+    {
+      "task": "voice-conversion",
+      "categories": [
+        "speech"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "speech-to-speech",
+      "categories": [
+        "speech"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "speech-translation",
+      "categories": [
+        "speech"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "audio",
+        "text"
+      ]
+    },
+    {
+      "task": "voice-cloning",
+      "categories": [
+        "speech"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "text-to-music",
+      "categories": [
+        "music"
+      ],
+      "inputs": [
+        "text"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "music-generation",
+      "categories": [
+        "music"
+      ],
+      "inputs": [
+        "text"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "music-to-music",
+      "categories": [
+        "music"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "music-source-separation",
+      "categories": [
+        "music"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "text-to-3d",
+      "categories": [
+        "three_d"
+      ],
+      "inputs": [
+        "text"
+      ],
+      "outputs": [
+        "3d"
+      ]
+    },
+    {
+      "task": "image-to-3d",
+      "categories": [
+        "three_d"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "3d"
+      ]
+    },
+    {
+      "task": "3d-to-3d",
+      "categories": [
+        "three_d"
+      ],
+      "inputs": [
+        "3d"
+      ],
+      "outputs": [
+        "3d"
+      ]
+    },
+    {
+      "task": "point-cloud-classification",
+      "categories": [
+        "three_d"
+      ],
+      "inputs": [
+        "3d"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "point-cloud-segmentation",
+      "categories": [
+        "three_d"
+      ],
+      "inputs": [
+        "3d"
+      ],
+      "outputs": [
+        "3d"
+      ]
+    },
+    {
+      "task": "pose-estimation",
+      "categories": [
+        "spatial"
+      ],
+      "inputs": [
+        "image",
+        "video"
+      ],
+      "outputs": [
+        "spatial"
+      ]
+    },
+    {
+      "task": "text-to-motion",
+      "categories": [
+        "spatial"
+      ],
+      "inputs": [
+        "text"
+      ],
+      "outputs": [
+        "spatial"
+      ]
+    },
+    {
+      "task": "motion-generation",
+      "categories": [
+        "spatial"
+      ],
+      "inputs": [
+        "text",
+        "spatial"
+      ],
+      "outputs": [
+        "spatial"
+      ]
+    },
+    {
+      "task": "image-to-4d",
+      "categories": [
+        "spatial"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "spatial"
+      ]
+    },
+    {
+      "task": "document-question-answering",
+      "categories": [
+        "document"
+      ],
+      "inputs": [
+        "image",
+        "text"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "visual-document-retrieval",
+      "categories": [
+        "document"
+      ],
+      "inputs": [
+        "image",
+        "text"
+      ],
+      "outputs": [
+        "embedding"
+      ]
+    },
+    {
+      "task": "optical-character-recognition",
+      "categories": [
+        "document"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "document-layout-analysis",
+      "categories": [
+        "document"
+      ],
+      "inputs": [
+        "image"
+      ],
+      "outputs": [
+        "spatial",
+        "text"
+      ]
+    },
+    {
+      "task": "image-text-to-text",
+      "categories": [
+        "multimodal"
+      ],
+      "inputs": [
+        "image",
+        "text"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "visual-question-answering",
+      "categories": [
+        "multimodal"
+      ],
+      "inputs": [
+        "image",
+        "text"
+      ],
+      "outputs": [
+        "text"
+      ]
+    },
+    {
+      "task": "any-to-any",
+      "categories": [
+        "multimodal"
+      ],
+      "inputs": [
+        "any"
+      ],
+      "outputs": [
+        "any"
+      ]
+    },
+    {
+      "task": "image-text-to-audio",
+      "categories": [
+        "multimodal"
+      ],
+      "inputs": [
+        "image",
+        "text"
+      ],
+      "outputs": [
+        "audio"
+      ]
+    },
+    {
+      "task": "audio-to-video",
+      "categories": [
+        "multimodal"
+      ],
+      "inputs": [
+        "audio"
+      ],
+      "outputs": [
+        "video"
+      ]
+    }
+  ],
+  "non_media_pipeline_tags": [
+    "text-generation",
+    "text2text-generation",
+    "fill-mask",
+    "sentence-similarity",
+    "feature-extraction",
+    "text-classification",
+    "token-classification",
+    "question-answering",
+    "summarization",
+    "translation",
+    "table-question-answering",
+    "zero-shot-classification",
+    "text-ranking"
+  ],
+  "media_keyword_categories": {
+    "image": [
+      "image",
+      "photo",
+      "picture",
+      "mask",
+      "segmentation",
+      "depth",
+      "visual"
+    ],
+    "video": [
+      "video",
+      "animation",
+      "frame",
+      "film"
+    ],
+    "audio": [
+      "audio",
+      "sound",
+      "sfx",
+      "acoustic"
+    ],
+    "speech": [
+      "speech",
+      "voice",
+      "speaker",
+      "diarization",
+      "transcription",
+      "asr",
+      "tts"
+    ],
+    "music": [
+      "music",
+      "song",
+      "melody",
+      "instrument"
+    ],
+    "three_d": [
+      "3d",
+      "mesh",
+      "point-cloud",
+      "nerf",
+      "gaussian-splat"
+    ],
+    "spatial": [
+      "spatial",
+      "motion",
+      "pose",
+      "keypoint",
+      "4d",
+      "robot"
+    ],
+    "document": [
+      "document",
+      "ocr",
+      "layout"
+    ],
+    "multimodal": [
+      "multimodal",
+      "omni",
+      "any-to-any"
+    ]
+  },
+  "classification_rules": {
+    "unknown_task": "preserve_model_as_discoverable_and_require_manual_runtime_review",
+    "model_tag_hints": "may_add_media_categories_but_never_verify_runtime_compatibility",
+    "exclude_pure_text_llm_hosting": true,
+    "execution_compatibility": "always_requires_verified_runtime_family_and_separate_user_approval",
+    "no_arbitrary_remote_code": true
+  }
+}

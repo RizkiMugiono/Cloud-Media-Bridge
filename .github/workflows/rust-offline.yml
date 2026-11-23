@@ -86,3 +86,33 @@ jobs:
           assert policy["execution"]["current_capability"] == "read_only"
           print("All four deployment decisions validated as non-executable contracts")
           PY
+      - name: Validate all-media discovery catalog (no provider or GPU access)
+        if: runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import json
+          with open("config/media-tasks.json", encoding="utf-8") as f:
+              catalog = json.load(f)
+          expected = {"image","video","audio","speech","music","three_d","spatial","document","multimodal"}
+          assert set(catalog["categories"]) == expected
+          tasks = catalog["tasks"]
+          assert len(tasks) >= 60
+          names = [task["task"] for task in tasks]
+          assert len(names) == len(set(names)), "Duplicate media task tags"
+          assert all(set(task["categories"]).issubset(expected) for task in tasks)
+          for label in ("image-text-to-video","video-to-video","audio-to-audio",
+                        "text-to-speech","automatic-speech-recognition",
+                        "text-to-music","image-to-3d","document-question-answering",
+                        "pose-estimation","any-to-any"):
+              assert label in names, f"Missing media task: {label}"
+          assert "text-generation" in catalog["non_media_pipeline_tags"]
+          assert catalog["implementation_status"] == "classification_only_no_gpu_runtime"
+          assert catalog["classification_rules"]["no_arbitrary_remote_code"] is True
+          assert catalog["classification_rules"]["unknown_task"].startswith("preserve_model")
+          for path in ("schemas/media-request.schema.json","schemas/media-result.schema.json"):
+              with open(path, encoding="utf-8") as stream:
+                  schema=json.load(stream)
+              assert schema["$schema"].endswith("2020-12/schema")
+              assert schema["properties"]["schema_version"]["const"] == 1
+          print(f"Validated {len(tasks)} task hints across {len(expected)} media families and both generic media schemas")
+          PY

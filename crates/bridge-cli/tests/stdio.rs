@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 7);
+    assert_eq!(tools.len(), 8);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -133,4 +133,34 @@ fn deployment_policy_mcp_is_read_only_and_user_decisions_are_visible() {
         false
     );
     assert_eq!(replies[2]["error"]["code"], -32602);
+}
+
+#[test]
+fn media_task_catalog_covers_all_modality_families_without_enabling_gpu() {
+    let replies = exchange(&[
+        INIT,
+        READY,
+        r#"{"jsonrpc":"2.0","id":50,"method":"tools/call","params":{"name":"media_tasks_list","arguments":{}}}"#,
+        r#"{"jsonrpc":"2.0","id":51,"method":"tools/call","params":{"name":"media_tasks_list","arguments":{"deploy":true}}}"#,
+    ]);
+    let catalog = &replies[1]["result"]["structuredContent"];
+    assert_eq!(catalog["implementation_status"], "classification_only_no_gpu_runtime");
+    for category in ["image", "video", "audio", "speech", "music", "three_d", "spatial", "document", "multimodal"] {
+        assert!(catalog["categories"].as_array().unwrap().iter().any(|c| c == category));
+    }
+    assert_eq!(replies[2]["error"]["code"], -32602);
+}
+
+#[test]
+fn hub_search_requires_query_or_task_and_never_accepts_approval_flag() {
+    let replies = exchange(&[
+        INIT,
+        READY,
+        r#"{"jsonrpc":"2.0","id":52,"method":"tools/call","params":{"name":"models_search","arguments":{}}}"#,
+        r#"{"jsonrpc":"2.0","id":53,"method":"tools/call","params":{"name":"models_search","arguments":{"task":"audio-to-audio","approved":true}}}"#,
+        r#"{"jsonrpc":"2.0","id":54,"method":"tools/call","params":{"name":"models_search","arguments":{"task":"audio-to-audio","limit":0}}}"#,
+    ]);
+    assert_eq!(replies[1]["error"]["code"], -32602);
+    assert_eq!(replies[2]["error"]["code"], -32602);
+    assert_eq!(replies[3]["error"]["code"], -32602);
 }

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/schemas/media-request.schema.json",
+  "title": "Cloud-Media-Bridge generic media worker request (planned contract)",
+  "description": "Task-independent typed inputs for any Hugging Face media model family. The worker/request executor is NOT YET IMPLEMENTED. This schema does not authorize provisioning.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "model",
+    "task",
+    "inputs",
+    "provider"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "id",
+        "revision_sha"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 3
+        },
+        "revision_sha": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$"
+        }
+      }
+    },
+    "task": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Canonical or new Hub pipeline tag; must not be restricted to a short hardcoded media list"
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "runtime_recipe_digest": {
+      "type": "string",
+      "description": "A pinned and verified recipe, never inferred from Hub metadata alone"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/typedInput"
+      },
+      "description": "Multi-input model support: text, image, video, sound, music, 3D, spatial, documents, embeddings or future types"
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Checked against the selected runtime/task schema before execution, not executed as commands"
+    },
+    "preferred_output_kinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "typedInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Examples: text, image, video, audio, speech, music, 3d, spatial, document, embedding, timestamps, any; extensible"
+        },
+        "text": {
+          "type": "string"
+        },
+        "asset_ref": {
+          "type": "string",
+          "description": "Authenticated, validated asset location; not an unsigned public bearer URL"
+        },
+        "media_type": {
+          "type": "string",
+          "description": "MIME type of asset; checked against actual bytes at runtime"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "text"
+          ]
+        },
+        {
+          "required": [
+            "asset_ref"
+          ]
+        }
+      ]
+    }
+  }
+}

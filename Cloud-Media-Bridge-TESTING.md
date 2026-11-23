@@ -21,7 +21,7 @@ The project deliberately keeps one small local Rust MCP/CLI process and **reuses
 | V1-6 | Reject model or resource execution without **separate human approvals** | No |
 | V1-7 | A separately approved Modal workload generates real media, returns verified output and scales down | Yes, explicitly authorized |
 
-**V1-1 through V1-5** are the initial development focus. The existing 82-case registry remains intact; ten additional decision-specific checks (U01–U10) cover the approved deployment behavior. Total: **92 scenarios**. Register a PASS only for a truly executed test; **the GitHub CI build cannot prove live Hugging Face access or GPU inference**.
+**V1-1 through V1-5** are the initial development focus. The existing 82-case registry remains intact; ten additional decision-specific checks (U01–U10) cover the approved deployment behavior. Total: **102 scenarios** including ten all-media coverage checks (A01–A10). Register a PASS only for a truly executed test; **the GitHub CI build cannot prove live Hugging Face access or GPU inference**.
 
 **Cloud safety:** ordinary tests and GitHub Actions do not create resources and consume no GPU credits. Real provider execution requires fresh permission for every deployment and a compatibility-verified worker. The provider configuration catalog covers Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda Cloud, HTTPS GPU workers, SSH GPU hosts and Kubernetes; all adapters are developed in parallel. Each provider requires independent authorization and evidence before live verification.
 
@@ -309,3 +309,21 @@ These scenarios bind the four user decisions to inspectable evidence. **Static p
 
 **Execution gate for any provider:** U04–U10 must pass offline/contract tests before the adapter can be treated as production-deployable; real provider tests separately verify the supported stop method, concurrency and billing lifecycle. Where no non-destructive stop exists, the adapter must report that and request separately authorized cleanup rather than claiming automatic stop is available.
 
+## 15. Complete AI-media model coverage tests (A01–A10)
+
+The project must discover and classify **all media-capable Hugging Face models**, including those with new and unknown pipeline tags. Model discoverability is not a guarantee that the model can load or generate media on any GPU. **No GPU, provider credentials or paid compute may be used for A01–A07.** Live-Hub tests A08–A09 are HTTP-only; A10 requires separately approved GPU resources and verified runtime/worker integration.
+
+| ID | Scenario | Expected evidence |
+|---|---|---|
+| A01 | Read media catalog and classify representative image, video, audio, speech, music, 3D, spatial, document and multimodal tasks | All nine families and representative pipeline tags present; Rust offline taxonomy test |
+| A02 | Broad `text-to-audio` model contains Hub `music` tag | Both `audio` and `music` categories appear, without claiming runtime compatibility; Rust unit test |
+| A03 | New future media task or missing/unknown `pipeline_tag` | Preserve it for discovery; return inferred/unclassified review state instead of rejecting or claiming supported runtime |
+| A04 | Known pure `text-generation` model with no media inputs/outputs | Mark non-media, do not change the model or auto-host an LLM |
+| A05 | Model has no pipeline tag but an explicit recognized media task in metadata tags | Recover task and classify it as metadata-derived, without marking runnable |
+| A06 | MCP `media_tasks_list` returns read-only taxonomy | List all nine families; any injected `deploy` argument is rejected |
+| A07 | MCP media search filters reject empty request, `approve=true` injection or invalid result count | No cloud request or state change; invalid arguments receive typed error |
+| A08 | Live Hub search with `task` filter across image, video, audio, music, speech and multimodal; inspect real catalog results | Real search metadata includes source task and conservative classification; unknown models remain visible; independent HTTP evidence |
+| A09 | Live inspection and planning with model ID and immutable SHA, including gated models and unclassified media tags | Access status and revision accurate; plan remains read-only with `safe_to_deploy=false`; no GPU or cost |
+| A10 | Verified media inference for each **claimed runtime family** and output type, including music, voice, video and 3D where supported | Real provider-backed output bytes, MIME/checksum, model SHA, runtime image/recipe, consent and cleanup evidence; unsupported families never called verified |
+
+Do **not** mark A08–A10 as PASS from the offline catalog, a mock result or a model card. Unknown model architectures require a verified compatible runtime recipe; successful image inference is not evidence of speech, music, video or 3D inference support.
