@@ -3,6 +3,8 @@ use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
 const MEDIA_TASKS: &str = include_str!("../../../config/media-tasks.json");
+const MEDIA_REQUEST_SCHEMA: &str = include_str!("../../../schemas/media-request.schema.json");
+const MEDIA_RESULT_SCHEMA: &str = include_str!("../../../schemas/media-result.schema.json");
 
 pub(crate) fn catalog() -> Result<Value, String> {
     let value: Value =
@@ -144,6 +146,19 @@ pub(crate) fn classify(task: Option<&str>, tags: Option<&Value>) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generic_media_job_contract_does_not_restrict_future_modality_names() {
+        let request: Value = serde_json::from_str(MEDIA_REQUEST_SCHEMA).unwrap();
+        let result: Value = serde_json::from_str(MEDIA_RESULT_SCHEMA).unwrap();
+        assert_eq!(request["properties"]["task"]["type"], "string");
+        assert!(request["properties"]["task"].get("enum").is_none());
+        assert_eq!(request["$defs"]["typedInput"]["properties"]["kind"]["type"], "string");
+        assert!(request["$defs"]["typedInput"]["properties"]["kind"].get("enum").is_none());
+        assert_eq!(result["$defs"]["artifact"]["properties"]["kind"]["type"], "string");
+        assert!(result["$defs"]["artifact"]["properties"]["kind"].get("enum").is_none());
+        assert_eq!(result["properties"]["artifacts"]["type"], "array");
+    }
 
     #[test]
     fn taxonomy_covers_all_media_families() {
