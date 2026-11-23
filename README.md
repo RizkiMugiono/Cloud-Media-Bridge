@@ -103,7 +103,7 @@ See [Provider configuration and lifecycle](docs/PROVIDERS.md).
 ## Project documents
 
 - [Implementation specification](Cloud-Media-Bridge.md) — architecture and implementation requirements.
-- [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — primary v1 gates and 82 broader test scenarios.
+- [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — initial project gates, 82 existing scenarios plus 10 deployment-decision tests (92 total).
 - [Test result ledger](Cloud-Media-Bridge-TEST-RESULTS.md) — evidence and `NOT RUN` status for unexecuted tests.
 - [Provider support matrix](docs/PROVIDERS.md).
 - [Contributor instructions](AGENTS.md).
