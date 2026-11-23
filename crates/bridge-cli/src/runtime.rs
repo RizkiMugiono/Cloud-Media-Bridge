@@ -133,10 +133,16 @@ fn category_known(model: &Value) -> bool {
 }
 
 fn match_row(row: &Value, model: &Value) -> Option<(i32, Vec<String>)> {
-    if !category_known(model) {
+    let criteria = &row["match"];
+    let model_id = model["id"].as_str().unwrap_or("");
+    let allowed_models = entry_list(criteria, "model_id_allowlist");
+    let exact_model_match = !model_id.is_empty() && allowed_models.iter().any(|id| id == model_id);
+    // Reviewed model-specific runtimes can provide an exact match even if a
+    // new media pipeline tag is not yet in the general task taxonomy.
+    // Pure text-only models remain outside the project scope.
+    if !category_known(model) && !exact_model_match {
         return None;
     }
-    let criteria = &row["match"];
     let library = model["library"].as_str().unwrap_or("");
     let known_library = criteria["library_name"].as_str().unwrap_or("");
     let lib_match = !known_library.is_empty() && known_library.eq_ignore_ascii_case(library);
@@ -157,12 +163,13 @@ fn match_row(row: &Value, model: &Value) -> Option<(i32, Vec<String>)> {
 
     // Never match an arbitrary pipeline on a task name alone. A framework,
     // architecture, explicit family tag, or recognizable checkpoint must corroborate it.
-    let corroborated = lib_match || arch_match || (task_match && files_match && !signals.is_empty())
+    let corroborated = exact_model_match || lib_match || arch_match
+        || (task_match && files_match && !signals.is_empty())
         || (task_match && tag_match);
-    if !corroborated || (!task_match && !arch_match) {
+    if !corroborated || (!task_match && !arch_match && !exact_model_match) {
         return None;
     }
-    if needs_workflow && !lib_match && !tag_match {
+    if needs_workflow && !lib_match && !tag_match && !exact_model_match {
         return None;
     }
     if !files_match && !signals.is_empty() {
@@ -175,6 +182,10 @@ fn match_row(row: &Value, model: &Value) -> Option<(i32, Vec<String>)> {
 
     let mut score = 0;
     let mut reasons = Vec::new();
+    if exact_model_match {
+        score += 100;
+        reasons.push("reviewed_exact_model_id_match".to_string());
+    }
     if lib_match {
         score += 30;
         reasons.push("hub_library_match".to_string());
@@ -369,6 +380,34 @@ mod tests {
         assert_eq!(music["candidate_count"],2);
         let video = resolve(&model("text-to-video","diffusers",&["model_index.json"]), &provider()).unwrap();
         assert_eq!(video["candidate_count"],2);
+    }
+
+    #[test]
+    fn exact_model_upstream_recipe_can_match_a_new_media_architecture() {
+        let mut reg = registry().unwrap();
+        let special = reg["entries"].as_array_mut().unwrap().iter_mut()
+            .find(|row| row["id"] == "official-model-runtime-oci").unwrap();
+        special["match"]["model_id_allowlist"] = json!(["example/media"]);
+
+        let mut model = model("text-to-hologram","new-runtime",&["custom.safetensors"]);
+        model["media"]["classification_status"] = json!("unclassified_requires_review");
+        let candidate = resolve_with_registry(&model, &provider(), &reg).unwrap();
+        assert_eq!(candidate["candidate_count"], 1);
+        assert_eq!(candidate["candidates"][0]["family"], "specialized");
+        assert_eq!(candidate["candidates"][0]["verification_status"], "candidate_unverified");
+        assert_eq!(candidate["candidates"][0]["match_score"], 100);
+        assert_eq!(candidate["safe_to_deploy"], false);
+
+        model["id"] = json!("different/model");
+        let unrecognized = resolve_with_registry(&model, &provider(), &reg).unwrap();
+        assert_eq!(unrecognized["candidate_count"], 0);
+
+        // A model ID allowlist never overrides a known pure text-only task.
+        model["id"] = json!("example/media");
+        model["media"]["classification_status"] = json!("non_media_task_out_of_scope");
+        let excluded = resolve_with_registry(&model, &provider(), &reg).unwrap();
+        assert_eq!(excluded["status"], "non_media_task_out_of_scope");
+        assert_eq!(excluded["candidate_count"], 0);
     }
 
     #[test]
