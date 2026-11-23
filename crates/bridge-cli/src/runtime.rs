@@ -273,12 +273,18 @@ fn resolve_with_registry(model: &Value, provider: &Value, config: &Value) -> Res
     candidates.sort_by(rank);
     // No automatic selection without exact-model, provider, worker and runtime evidence.
     let preferred = candidates.first().filter(|c| {
-        c["verification_status"] == "verified_for_exact_model_provider"
+        reasons.is_empty()
+            && c["verification_status"] == "verified_for_exact_model_provider"
     }).map(|c| c["id"].clone());
+    let has_verified_evidence = candidates.iter().any(|c| {
+        c["verification_status"] == "verified_for_exact_model_provider"
+    });
     let status = if decision == "non_media_task_out_of_scope" {
         "non_media_task_out_of_scope"
     } else if candidates.is_empty() {
         "runtime_unknown_requires_review"
+    } else if has_verified_evidence && !reasons.is_empty() {
+        "verified_runtime_requires_access_or_safety_review"
     } else if preferred.is_none() {
         "unverified_runtime_candidates_found"
     } else {
@@ -430,6 +436,16 @@ mod tests {
         assert_eq!(result["safe_to_deploy"],false);
         assert_eq!(result["execution_enabled"],false);
         assert_eq!(result["status"],"verified_runtime_candidate_but_deployment_unavailable");
+
+        // A published gated model still cannot be chosen for deployment
+        // without independent user-access review, even when model-specific
+        // runtime evidence exists.
+        let mut gated = model("text-to-image","diffusers",&["model_index.json"]);
+        gated["gated"] = json!("manual");
+        let gated_result = resolve_with_registry(&gated, &provider(), &reg).unwrap();
+        assert_eq!(gated_result["status"], "verified_runtime_requires_access_or_safety_review");
+        assert!(gated_result["preferred_verified_candidate_id"].is_null());
+        assert_eq!(gated_result["safe_to_deploy"], false);
     }
 
     #[test]
