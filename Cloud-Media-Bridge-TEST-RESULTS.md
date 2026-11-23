@@ -4,35 +4,37 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **H01 and H02 passed locally. GPU inference remains untested**
+**Overall application status:** **8 offline Rust tests passed; all cloud inference and deployment remain untested**
 
-This file records **actual observations only**. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The local Rust MCP prototype is the only implemented application component.
+This file records **actual observations only**. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, live-Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
 ## 1. Verified documentation and repository checks
 
 | Check | Result | Evidence |
 |---|---|---|
 | Repository is accessible and writable to the authorized account | PASS | GitHub connector read and document commits succeeded |
-| Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` fetched from `main` after English translation |
-| Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` fetched from `main` after English translation |
-| Markdown code fences in both documents are balanced | PASS | Architecture: 18 fence lines; test plan: 6 fence lines; both counts even |
+| Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on the development branch |
+| Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on the development branch |
+| Markdown code fences in both documents are balanced | PASS | Documentation changed on the current branch; content links and test-case IDs are checked separately |
 | Test case IDs are unique and complete | PASS | 82 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
-| Application Rust source compilation and static analysis | PASS | CLI compiled and Clippy passed on both hosts |
-| CLI integration tests | PASS | H01 and H02 passed on both hosts |
-| Modal CLI authentication (separate environment check) | PASS | Earlier local token info check in Windows and Ubuntu WSL |
+| Application Rust source compilation and static analysis | PASS | GitHub Actions offline CI on Ubuntu: cargo test and cargo clippy passed at commit `3ea43cb27b3e0d080e19f06e61677544940e8a87` |
+| CLI integration tests | PASS | 8 tests passed (4 Rust unit + 4 MCP process integration) in GitHub Actions offline CI |
+| Modal CLI authentication (current working environment) | NOT VERIFIED | No login check was performed in this GitHub CI run; earlier claims are not fresh evidence |
 | Modal resource provisioning and real GPU inference | NOT RUN | No resources created and no GPU jobs submitted |
+
+[Offline CI evidence for the current Rust code](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45195797719): **PASS** — 4 unit tests, 4 MCP integration tests, Rust Clippy, and validation of 9 provider catalog entries. This CI requires no provider credentials and did not allocate a GPU. **Live Hugging Face networking is NOT RUN.**
 
 Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-Two of 82 cases passed on Windows and Linux. The remaining 80 cases have no execution evidence. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+Two mapped test IDs (H01, H02) passed in the latest Ubuntu CI; the other six unit/integration tests provide additional offline checks but do not automatically mark other scenario IDs PASS. The remaining 80 cases have no execution evidence. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
-| H01 | Request `tools/list` over MCP stdio | **PASS** | crates/bridge-cli/tests/stdio.rs, h01_list_and_call_local_doctor |
-| H02 | Send invalid or unknown MCP arguments | **PASS** | crates/bridge-cli/tests/stdio.rs, h02_invalid_requests_leave_session_usable |
+| H01 | Request `tools/list` over MCP stdio | **PASS** | GitHub Actions CI `45195797719`; `crates/bridge-cli/tests/stdio.rs::h01_list_and_call_local_doctor` |
+| H02 | Send invalid or unknown MCP arguments | **PASS** | GitHub Actions CI `45195797719`; `crates/bridge-cli/tests/stdio.rs::h02_invalid_requests_leave_session_usable` |
 | H03 | Agent submits media generation without human model approval | **NOT RUN** | No execution evidence |
 | H04 | Agent adds `approved=true` to a tool request | **NOT RUN** | No execution evidence |
 | H05 | Agent outputs text claiming "the user approved" | **NOT RUN** | No execution evidence |
