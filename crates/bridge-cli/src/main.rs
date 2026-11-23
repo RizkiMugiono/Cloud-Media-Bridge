@@ -8,6 +8,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL: &str = "2025-11-25";
 const MAX_FRAME: u64 = 1024 * 1024;
 const PROVIDER_CATALOG: &str = include_str!("../../../config/providers.json");
+const DEPLOYMENT_POLICY: &str = include_str!("../../../config/deployment-policy.json");
 
 fn doctor() -> String {
     format!(
@@ -166,6 +167,16 @@ fn providers_list() -> Result<Value, String> {
     providers_config()
 }
 
+// This contract describes future behavior. No deployment/stop operation is implemented.
+fn deployment_policy() -> Result<Value, String> {
+    let policy: Value = serde_json::from_str(DEPLOYMENT_POLICY)
+        .map_err(|_| "Invalid bundled deployment policy".to_string())?;
+    if policy["implementation_status"] != "documented_contract_not_enforced" {
+        return Err("Deployment policy must not imply enforcement without code".into());
+    }
+    Ok(policy)
+}
+
 fn provider_info(id: &str) -> Result<Value, String> {
     if !valid_segment(id) {
         return Err("Invalid provider identifier".into());
@@ -204,6 +215,9 @@ fn plan_generation(model: &str, provider: &str) -> Result<Value, String> {
         "costing": "not_estimated",
         "user_selection_required": true,
         "user_resource_approval_required": true,
+        "deployment_approval_scope": "new_human_approval_for_every_deployment_request",
+        "runtime_options": ["verified_prebuilt_oci_image", "vetted_runtime_recipe_on_base_image"],
+        "auto_stop_implementation": "not_implemented",
         "action": "read_only_plan",
         "note": "No GPU is provisioned; deployment requires a compatible, verified runtime and separate human approval."
     }))
@@ -218,6 +232,7 @@ fn execute_readonly(name: &str, arguments: &Value) -> Result<Value, String> {
     match name {
         "doctor" => Ok(json!({"message": doctor()})),
         "providers_list" => providers_list(),
+        "deployment_policy" => deployment_policy(),
         "providers_show" => provider_info(get_string(arguments, "provider")?),
         "models_search" => search_models(
             get_string(arguments, "query")?,
@@ -309,7 +324,7 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let Some(object) = arguments.as_object() else { return false; };
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
-        "doctor" | "providers_list" => object.is_empty(),
+        "doctor" | "providers_list" | "deployment_policy" => object.is_empty(),
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "models_search" => {
             has_only(&["query", "limit"]) && arguments["query"].is_string()
@@ -331,6 +346,7 @@ fn tool_names() -> &'static [&'static str] {
         "doctor",
         "providers_list",
         "providers_show",
+        "deployment_policy",
         "models_search",
         "models_inspect",
         "plan_generation",
@@ -348,6 +364,9 @@ fn tool_definitions() -> Value {
         {"name":"providers_show","description":"Inspect a provider's configuration and readiness.",
          "inputSchema":{"type":"object","properties":{"provider":{"type":"string"}},
                         "required":["provider"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, owned resource auto-stop intent.",
+         "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"models_search","description":"Search the live Hugging Face Hub; model discovery is not an execution guarantee.",
          "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},
@@ -414,6 +433,7 @@ fn run_cli(args: &[String]) -> i32 {
             0
         }
         [cmd] if cmd == "providers" => print_json(providers_list()),
+        [cmd] if cmd == "policy" => print_json(deployment_policy()),
         [cmd, id] if cmd == "providers" => print_json(provider_info(id)),
         [cmd, action, query] if cmd == "models" && action == "search" => {
             print_json(search_models(query, 10))
@@ -437,6 +457,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge doctor
   cloud-media-bridge mcp
   cloud-media-bridge providers [provider-id]
+  cloud-media-bridge policy
   cloud-media-bridge models search <query> [limit]
   cloud-media-bridge models inspect <owner/model|https://huggingface.co/owner/model>
   cloud-media-bridge plan <model> <provider-id>
@@ -496,6 +517,49 @@ mod tests {
         assert!(p["providers"].as_array().unwrap().len() >= 7);
         assert_eq!(p["providers"][0]["id"], "modal");
         assert!(provider_info("not-a-provider").is_err());
+    }
+
+    #[test]
+    fn deployment_policy_has_exact_user_decisions() {
+        let policy = deployment_policy().unwrap();
+        assert_eq!(
+            policy["runtime_installation"]["allowed_routes"].as_array().unwrap().len(),
+            2
+        );
+        assert_eq!(policy["provider_development"]["strategy"], "parallel_workstreams");
+        assert_eq!(policy["provider_development"]["targets"].as_array().unwrap().len(), 9);
+        assert_eq!(
+            policy["approval"]["deployment"],
+            "new_human_approval_for_every_deployment_request"
+        );
+        assert_eq!(policy["approval"]["grants_reusable_for_deployment"], false);
+        assert_eq!(policy["resource_lifecycle"]["pod_vm_instance"]["auto_destroy"], false);
+        assert_eq!(policy["resource_lifecycle"]["pod_vm_instance"]["auto_terminate"], false);
+        assert_eq!(
+            policy["resource_lifecycle"]["pod_vm_instance"]["after_last_job"],
+            "automatically_stop_bridge_owned_resource_if_provider_supports_stop"
+        );
+        assert_eq!(policy["execution"]["current_capability"], "read_only");
+    }
+
+    #[test]
+    fn provider_catalog_matches_parallel_workstreams_without_fake_execution() {
+        let catalog: Value = serde_json::from_str(PROVIDER_CATALOG).unwrap();
+        let policy = deployment_policy().unwrap();
+        let providers = catalog["providers"].as_array().unwrap();
+        let targets = policy["provider_development"]["targets"].as_array().unwrap();
+        assert_eq!(providers.len(), targets.len());
+        for provider in providers {
+            assert!(targets.contains(&provider["id"]));
+            assert_eq!(provider["development_track"], "parallel");
+            assert_eq!(provider["capabilities"]["execute"], false);
+            assert_eq!(provider["capabilities"]["deploy"], false);
+            assert_eq!(provider["lifecycle_implementation"], "not_implemented");
+            assert_eq!(
+                provider["deployment_approval"],
+                "fresh_human_consent_for_every_deployment"
+            );
+        }
     }
 
     #[test]
