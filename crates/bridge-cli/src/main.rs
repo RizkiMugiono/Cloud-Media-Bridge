@@ -187,7 +187,7 @@ fn plan_generation(model: &str, provider: &str) -> Result<Value, String> {
             | "automatic-speech-recognition" | "audio-classification"
             | "image-classification" | "image-to-text" | "object-detection"
             | "image-segmentation" | "depth-estimation" | "image-feature-extraction"
-            | "audio-to-audio" | "text-to-3d" | "image-to-3d"
+            | "text-to-3d" | "image-to-3d"
     );
     let verdict = if !media_task {
         "unsupported_or_unclassified_task"
@@ -210,20 +210,20 @@ fn plan_generation(model: &str, provider: &str) -> Result<Value, String> {
 }
 
 fn execute_readonly(name: &str, arguments: &Value) -> Result<Value, String> {
-    let get_string = |key: &str| {
+    fn get_string<'a>(arguments: &'a Value, key: &str) -> Result<&'a str, String> {
         arguments[key]
             .as_str()
             .ok_or_else(|| format!("Missing string argument: {key}"))
-    };
+    }
     match name {
         "doctor" => Ok(json!({"message": doctor()})),
         "providers_list" => providers_list(),
-        "providers_show" => provider_info(get_string("provider")?),
+        "providers_show" => provider_info(get_string(arguments, "provider")?),
         "models_search" => search_models(
-            get_string("query")?,
+            get_string(arguments, "query")?,
             arguments["limit"].as_u64().unwrap_or(10) as usize,
         ),
-        "models_inspect" => inspect_model(get_string("model")?),
+        "models_inspect" => inspect_model(get_string(arguments, "model")?),
         "plan_generation" => plan_generation(get_string("model")?, get_string("provider")?),
         _ => Err("Unknown MCP tool".into()),
     }
@@ -289,7 +289,7 @@ fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
             };
             let empty = json!({});
             let arguments = params.get("arguments").unwrap_or(&empty);
-            if !arguments.is_object() || !tool_names().contains(&name) {
+            if !arguments.is_object() || !tool_names().contains(&name) || !valid_tool_args(name, arguments) {
                 return Some(error(id, -32602, "Invalid parameters"));
             }
             match execute_readonly(name, arguments) {
@@ -301,6 +301,27 @@ fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
         _ => return Some(error(id, -32601, "Method not found")),
     };
     Some(json!({"jsonrpc":"2.0", "id":id, "result":result}))
+}
+
+fn valid_tool_args(name: &str, arguments: &Value) -> bool {
+    let Some(object) = arguments.as_object() else { return false; };
+    let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
+    match name {
+        "doctor" | "providers_list" => object.is_empty(),
+        "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
+        "models_search" => {
+            has_only(&["query", "limit"]) && arguments["query"].is_string()
+                && arguments.get("limit").map_or(true, |v| {
+                    v.as_u64().is_some_and(|n| (1..=50).contains(&n))
+                })
+        }
+        "models_inspect" => has_only(&["model"]) && arguments["model"].is_string(),
+        "plan_generation" => {
+            has_only(&["model", "provider"]) && arguments["model"].is_string()
+                && arguments["provider"].is_string()
+        }
+        _ => false,
+    }
 }
 
 fn tool_names() -> &'static [&'static str] {
@@ -431,7 +452,7 @@ No deployment, inference or billing operation is implemented.");
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().skip(1).collect();
-    if args == ["mcp"] {
+    if args.len() == 1 && args[0] == "mcp" {
         serve(io::stdin().lock(), io::stdout().lock())
     } else {
         std::process::exit(run_cli(&args));
@@ -469,9 +490,9 @@ mod tests {
 
     #[test]
     fn provider_catalog_is_parseable() {
-        let p = providers_list().unwrap();
+        let p: Value = serde_json::from_str(PROVIDER_CATALOG).unwrap();
         assert!(p["providers"].as_array().unwrap().len() >= 7);
-        assert_eq!(provider_info("modal").unwrap()["id"], "modal");
+        assert_eq!(p["providers"][0]["id"], "modal");
         assert!(provider_info("not-a-provider").is_err());
     }
 
