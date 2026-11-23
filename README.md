@@ -89,7 +89,7 @@ The project must support **dynamic discovery of every media-capable model access
 
 The taxonomy is **not** a static model list or evidence that a checkpoint can execute. Runtime family support, model revision, hardware compatibility, access rights, task I/O and security must each be verified before GPU deployment. Pure text-only LLM hosting remains out of scope.
 
-See [Media model coverage and runtime requirements](docs/MEDIA-MODELS.md).
+See [Media model coverage and runtime requirements](docs/MEDIA-MODELS.md). Generic future worker input/output contracts are [media request](schemas/media-request.schema.json) and [media result](schemas/media-result.schema.json); neither is an implemented inference service.
 
 ## Configuring GPU platforms
 
