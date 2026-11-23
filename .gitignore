@@ -22,3 +22,35 @@ rustc-ice-*.txt
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+ 
+# Local provider and model-source credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.token
+*.credentials
+.secrets/
+secrets/
+credentials/
+.modal/
+.huggingface/
+.cache/huggingface/
+
+# Local test data and generated media
+data/
+artifacts/
+outputs/
+tmp/
+temp/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-shm
+*.db-wal
+evidence/private/
+test-results/private/
