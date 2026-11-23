@@ -4,7 +4,7 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **11 offline Rust tests passed on Ubuntu (6 unit + 5 MCP integration); cloud inference, approval enforcement and automatic GPU stop remain untested**
+**Overall application status:** **11 earlier offline Rust tests passed; all-media taxonomy tests are pending CI; cloud inference and automatic GPU stop remain untested**
 
 This file records **actual observations only**. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, live-Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
@@ -16,7 +16,7 @@ This file records **actual observations only**. Passing documentation checks do 
 | Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on `main` |
 | Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on `main` |
 | Markdown code fences in both documents are balanced | PASS | Architecture: 4 fence delimiters; test plan: 6; balanced = true |
-| Test case IDs are unique and complete | PASS | 92 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10 |
+| Test case IDs are unique and complete | PASS | 102 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
 | Application Rust source compilation and static analysis | PASS | GitHub Actions offline CI on Linux, Windows and macOS passed on main commit `86f93e6bc43d727fbbe6187150282c689ad178ac` |
 | CLI integration tests | PASS | 11 tests passed on Ubuntu (6 Rust unit + 5 MCP integration) in GitHub Actions PR CI; new policy tests not evidence of cloud execution |
@@ -29,7 +29,7 @@ Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-Five mapped cases have offline evidence: H01, H02, U01, U02 and U03. The other six unit/integration tests do not automatically establish success for other scenario IDs. The remaining **87 scenarios are NOT RUN**. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+Five mapped cases have offline evidence: H01, H02, U01, U02 and U03. The other six unit/integration tests do not automatically establish success for other scenario IDs. The remaining **97 scenarios are NOT RUN** before the new all-media offline CI runs. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
@@ -132,6 +132,23 @@ The following new cases trace the four user decisions. **U01–U03 validate the 
 | U08 | Resource is preexisting, external, shared, wrong workspace or ownership unknown | **NOT RUN** | No independent execution evidence yet |
 | U09 | Provider exposes terminate only, stop fails or stop response is ambiguous | **NOT RUN** | No independent execution evidence yet |
 | U10 | Bridge crashes after job completion but before stop confirmation | **NOT RUN** | No independent execution evidence yet |
+
+## 2b. Media-family coverage test ledger (A01–A10)
+
+These scenarios document whether media discovery, task classification and actual inference are verified. **A01–A07 are eligible for offline Rust test evidence. A08–A09 need real Hub access, A10 real authorized inference.** A catalog entry is not evidence that a model runs.
+
+| Test ID | Scenario requiring verification | Status | Evidence |
+|---|---|---|---|
+| A01 | Read media catalog and classify representative image, video, audio, speech, music, 3D, spatial, document and multimodal tasks | **NOT RUN** | Pending matching test evidence |
+| A02 | Broad `text-to-audio` model contains Hub `music` tag | **NOT RUN** | Pending matching test evidence |
+| A03 | New future media task or missing/unknown `pipeline_tag` | **NOT RUN** | Pending matching test evidence |
+| A04 | Known pure `text-generation` model with no media inputs/outputs | **NOT RUN** | Pending matching test evidence |
+| A05 | Model has no pipeline tag but an explicit recognized media task in metadata tags | **NOT RUN** | Pending matching test evidence |
+| A06 | MCP `media_tasks_list` returns read-only taxonomy | **NOT RUN** | Pending matching test evidence |
+| A07 | MCP media search filters reject empty request, `approve=true` injection or invalid result count | **NOT RUN** | Pending matching test evidence |
+| A08 | Live Hub search with `task` filter across image, video, audio, music, speech and multimodal; inspect real catalog results | **NOT RUN** | Pending matching test evidence |
+| A09 | Live inspection and planning with model ID and immutable SHA, including gated models and unclassified media tags | **NOT RUN** | Pending matching test evidence |
+| A10 | Verified media inference for each **claimed runtime family** and output type, including music, voice, video and 3D where supported | **NOT RUN** | Pending matching test evidence |
 
 ## 3. Test level status
 
