@@ -21,9 +21,9 @@ The project deliberately keeps one small local Rust MCP/CLI process and **reuses
 | V1-6 | Reject model or resource execution without **separate human approvals** | No |
 | V1-7 | A separately approved Modal workload generates real media, returns verified output and scales down | Yes, explicitly authorized |
 
-**V1-1 through V1-5** are the initial development focus. The broader 82-case registry below is retained for hardening and additional provider implementations. Register a PASS only for a truly executed test; **the GitHub CI build cannot prove live Hugging Face access or GPU inference**.
+**V1-1 through V1-5** are the initial development focus. The existing 82-case registry remains intact; ten additional decision-specific checks (U01–U10) cover the approved deployment behavior. Total: **92 scenarios**. Register a PASS only for a truly executed test; **the GitHub CI build cannot prove live Hugging Face access or GPU inference**.
 
-**Cloud safety:** ordinary tests and GitHub Actions do not create resources and consume no GPU credits. Real provider execution requires fresh permission and a compatibility-verified worker. The provider configuration catalog covers Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda Cloud, HTTPS GPU workers, SSH GPU hosts and Kubernetes; **only Modal is planned for the first live test**.
+**Cloud safety:** ordinary tests and GitHub Actions do not create resources and consume no GPU credits. Real provider execution requires fresh permission for every deployment and a compatibility-verified worker. The provider configuration catalog covers Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda Cloud, HTTPS GPU workers, SSH GPU hosts and Kubernetes; all adapters are developed in parallel. Each provider requires independent authorization and evidence before live verification.
 
 ## 0. Test levels and scope
 
@@ -36,7 +36,7 @@ The project deliberately keeps one small local Rust MCP/CLI process and **reuses
 | T4 | Real inference through an approved Modal deployment route | Yes, explicit authorization | Claiming runnable GPU inference |
 | T5 | Modal parallel jobs, asynchronous recovery, cancellation, cold start and scale-to-zero | Yes, explicit authorization | Claiming production-grade workflow |
 | T6 | Contract mocks for RunPod, Vast.ai, Lambda and SSH | No | When a non-Modal adapter is introduced |
-| T7 | Live providers other than Modal | **Not permitted in this phase** | A separately approved future phase |
+| T7 | Live provider integration for RunPod, Vast.ai, Lambda, SSH/HTTPS, Kubernetes | **Yes, explicit authorization per provider** | After its own adapter and offline tests exist; not part of default CI |
 
 Default `cargo test` must never allocate GPUs or make cloud changes. Live tests must be marked `#[ignore]`, behind a separate `live-modal` feature or executable, and require an interactive human confirmation tied to the exact profile/workspace and proposed operations. A mock test result is not performance or functionality evidence for the real provider.
 
@@ -161,7 +161,7 @@ These tests run against deterministic mock API recorders for each adapter. Plann
 | J14 | Inference fails in the middle of output streaming | Failed job with safe artifact cleanup and redacted trace |
 | J15 | Remote completes but local state write crashes | Restart reconciliation restores correct terminal state |
 
-## 7. Modal-only live testing (T3–T5)
+## 7. Modal reference live testing (T3–T5)
 
 ### Mandatory explicit preconditions
 
@@ -235,7 +235,7 @@ GPU profile | tested parameters | output hash | measured latency |
 verified/unverified/unsupported
 ~~~
 
-Only Modal may be labeled **live-tested** during the current phase. Non-Modal adapters are `interface-only` or `contract-tested` until separately authorized provider-specific integration tests are performed.
+Only providers actually exercised in an independently authorized real-cloud integration test may be labeled **live-tested**. Parallel development is not proof of live compatibility. Non-Modal adapters remain `planned` or `contract-tested` until separately verified.
 
 ## 10. Additional security testing (mandatory)
 
@@ -285,8 +285,27 @@ Never automatically publish real customer/user media, prompts, signed URLs or cr
 
 1. Read the architecture, this test plan and the current test-results ledger; map requirement IDs to code files and test cases.
 2. Implement offline T0–T2 first with mock provider recorders and no real GPU or credential use.
-3. Add the Modal integration behind identity, authorization, approval and resource cleanup preflight checks.
-4. Run T3–T5 only after the user separately authorizes live Modal operations. Do not live-test RunPod, Vast.ai, Lambda or SSH in this phase.
+3. Develop the Modal, RunPod, Vast.ai, Lambda, SSH/HTTPS and Kubernetes adapter workstreams in parallel, reusing common media/runtime contracts; test each provider's own identity, lifecycle and cleanup semantics.
+4. Run T3–T5 on Modal only after explicit authorization; independently run comparable T7 integration tests on other provider adapters **only with their own** explicit resource/workload authorization, never from standard CI.
 5. For failures, capture redacted reproduction evidence, fix the bug, rerun and retain both failure and successful retest history.
 6. Publish concise, evidence-based GO/NO-GO results. Unexecuted and unsupported cases remain explicitly marked `NOT RUN` or `BLOCKED`; never report imagined success.
+
+## 14. User-approved deployment decisions: acceptance tests (U01–U10)
+
+These scenarios bind the four user decisions to inspectable evidence. **Static policy/schema checks do not prove actual human approval, runtime installation or GPU cleanup.** No cloud resource or paid GPU may be used for U01–U03.
+
+| ID | Scenario | Expected evidence |
+|---|---|---|
+| U01 | Bundled deployment policy declares both a verified prebuilt OCI image and a vetted base-image runtime recipe | Both routes appear as compatibility-based alternatives; unsafe model-repository scripts forbidden; offline unit test |
+| U02 | Each configured provider is in the same parallel development matrix | All nine provider IDs match the policy, no false `deploy`/`execute` capability; offline unit/catalog tests |
+| U03 | CLI/MCP exposes the policy without provisioning or allowing approval injection | Read-only policy tool and explicit error for `approve=true`; offline process-level tests |
+| U04 | Identical deployment requested twice, or reconfigure/redeploy after approval | A fresh human-approved nonce is required each time; consumed grants never reused; provider not called if missing |
+| U05 | Model family matches prebuilt image versus vetted installation recipe | Both deployment routes validated against exact model SHA, library versions and VRAM; unsafe recipe rejected |
+| U06 | Two in-flight jobs share one bridge-owned GPU pod | Pod is not stopped until both jobs and artifact transfers finish; stop occurs once per eligible idle transition |
+| U07 | Owned pod/VM job succeeds, fails or is cancelled | Supported provider-native stop is requested and provider confirmation recorded for each terminal case |
+| U08 | Resource is preexisting, external, shared, wrong workspace or ownership unknown | No stop, terminate or deletion request is issued; ownership/scope failure is explicit |
+| U09 | Provider exposes terminate only, stop fails or stop response is ambiguous | Report `STOP_UNSUPPORTED_ACTION_REQUIRED`/`STOP_UNCERTAIN`, never silently destroy, and warn about possible charges |
+| U10 | Bridge crashes after job completion but before stop confirmation | Durable owned-resource record survives restart; reconciliation and safe stop retry produce truthful final state |
+
+**Execution gate for any provider:** U04–U10 must pass offline/contract tests before the adapter can be treated as production-deployable; real provider tests separately verify the supported stop method, concurrency and billing lifecycle. Where no non-destructive stop exists, the adapter must report that and request separately authorized cleanup rather than claiming automatic stop is available.
 
