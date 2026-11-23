@@ -1,9 +1,9 @@
 # Cloud-Media-Bridge — Implementation Specification
 
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
-**Version:** 2026-11-23 (simplified local bridge)  
-**Current status:** A working Rust MCP/CLI prototype is under development. Real GPU inference is not implemented or verified.  
-**Related:** [README](README.md) · [Media models](docs/MEDIA-MODELS.md) · [GPU providers](docs/PROVIDERS.md) · [Test plan](Cloud-Media-Bridge-TESTING.md) · [Results](Cloud-Media-Bridge-TEST-RESULTS.md)
+**Version:** 2026-11-23  
+**Current status:** Local Rust MCP/CLI and a read-only evidence-based Runtime Resolver are implemented. No GPU deployment, runtime execution, human approval enforcement or media generation is implemented or verified.  
+**Related:** [README](README.md) · [Media models](docs/MEDIA-MODELS.md) · [Runtime selection](docs/RUNTIME-RESOLUTION.md) · [GPU providers](docs/PROVIDERS.md) · [Test plan](Cloud-Media-Bridge-TESTING.md) · [Results](Cloud-Media-Bridge-TEST-RESULTS.md)
 
 ## User-approved deployment requirements (2026-11-23)
 
@@ -46,7 +46,8 @@ One MCP bridge is sufficient. Codex, Claude Code, OpenCode, Hermes Agent, DeepSe
 | Hugging Face live search, with pipeline-task filter | Implemented; needs real network verification |
 | All-media task classification / discovery | Implemented using `config/media-tasks.json`; inference remains unverified |
 | Inspect model ID/URL and immutable revision | Implemented; needs real Hub verification |
-| Provider-aware, non-mutating generation plan | Implemented; always returns `safe_to_deploy=false` until a runtime is verified |
+| Rust upstream Runtime Registry and evidence-scored Runtime Resolver | Implemented, **read-only candidate matching**, no verified executable runtime bundle |
+| Provider-aware, non-mutating generation plan | Implemented; includes runtime resolution and always returns `safe_to_deploy=false` until deployment and authorization are real |
 | Human authorization grants | Planned; execution must not be offered as approved until built |
 | Modal account integration / deployment / GPU inference | Planned |
 | RunPod, Vast.ai, Lambda and generic host deployment | Planned, not claimed operational |
@@ -92,7 +93,15 @@ Do not hardcode a central provider account or share credentials between users. P
 
 A single compatible HTTPS media-worker contract can allow the same inference API to work on several rental platforms **after the user has provisioned that worker**. Provisioning, identity, token handling and cleanup remain provider-specific.
 
-### Model-to-runtime resolution (required for every provider)
+### Model-to-runtime resolution (Rust candidate resolver now implemented)
+
+The [Runtime Registry](config/runtime-registry.json) and `crates/bridge-cli/src/runtime.rs` provide a real, tested Rust **read-only matching engine**. It compares the Hugging Face model's library, task, file signals and architecture to official upstream framework candidates (Diffusers, Transformers, ComfyUI, AudioCraft, SpeechBrain, pyannote and specialized models). It prefers a verified OCI image to an equally verified installer, requires immutable model revision and exact worker/provider evidence, and rejects unverified claims.
+
+All bundled records are explicitly `candidate_unverified`, with no pinned executable images or installer manifests. The current resolver returns candidates, blocking requirements and `safe_to_deploy=false`; it **does not install frameworks, run Python, deploy GPU resources, authenticate cloud providers or enforce per-deployment approval**. Unknown model architectures remain discoverable and require separate runtime verification.
+
+See [runtime verification requirements](docs/RUNTIME-RESOLUTION.md).
+
+### Full model-to-runtime execution path (required for every provider)
 
 **Hugging Face model configuration is not a deployment specification.** The Hub may expose `config.json`, `model_index.json`, checkpoint weights, model-card metadata and example code. This information can identify a model family, but it cannot guarantee that CUDA, Python libraries, custom operators, assets, input/output schemas or an inference HTTP service exist.
 
@@ -190,6 +199,8 @@ cloud-media-bridge doctor
 cloud-media-bridge mcp
 cloud-media-bridge providers [provider-id]
 cloud-media-bridge policy
+cloud-media-bridge runtimes
+cloud-media-bridge runtimes resolve <model> <provider-id>
 cloud-media-bridge models tasks
 cloud-media-bridge models search <query> [limit: 1..50]
 cloud-media-bridge models search-task <pipeline_tag> [limit: 1..50]
@@ -197,7 +208,7 @@ cloud-media-bridge models inspect <owner/model | https://huggingface.co/owner/mo
 cloud-media-bridge plan <model> <provider-id>
 ```
 
-**Currently implemented read-only MCP tools:** `doctor`, `providers_list`, `providers_show`, `deployment_policy`, `media_tasks_list`, `models_search`, `models_inspect`, `plan_generation`.
+**Currently implemented read-only MCP tools:** `doctor`, `providers_list`, `providers_show`, `deployment_policy`, `media_tasks_list`, `models_search`, `models_inspect`, `runtimes_list`, `runtime_resolve`, `plan_generation`.
 
 MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or private files. Search queries are bounded; model URLs must be validated against the Hugging Face HTTPS origin.
 
@@ -207,7 +218,7 @@ MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or p
 
 1. **Local MCP, provider catalog and policy contract (offline).** MCP tests, invalid input handling, provider listing and policy schema validation.
 2. **Dynamic all-media catalog (no GPU).** Image/video/audio/music/speech/3D/spatial/document/multimodal search, task filters, inspection, SHA checks, access/license states, unknown task fallback and model URL safety.
-3. **Read-only planning (no GPU).** User-selectable provider; runtime compatibility and identity checks; clear unsupported results.
+3. **Read-only planning (no GPU).** Rust Runtime Resolver matches official upstream candidate families using model task/library/files; recognizes unsupported/unverified paths, and returns provider-specific, non-executable plans.
 4. **Human deployment approvals (no GPU).** Implement one-shot, non-reusable user approval for each deployment operation. Negative tests must prove an agent cannot approve itself or reuse an earlier grant.
 5. **Parallel GPU provider adapters.** Develop Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda Cloud, generic HTTPS, SSH and Kubernetes tracks concurrently. Share runtime resolution and request/artifact contracts; implement authentication, provisioning and lifecycle per provider. Each adapter requires its own independent live evidence before an operational claim.
 6. **Result safety and automatic owned-resource stopping.** Verify hashes and secrets, track every active job, stop only bridge-owned pod/VM resources after the final job, confirm stop state and recover cleanup after restart/crash. Report unsupported stop semantics and residual fees rather than performing unapproved termination.
