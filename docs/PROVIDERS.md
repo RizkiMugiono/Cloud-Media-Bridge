@@ -1,10 +1,10 @@
 # GPU provider configuration
 
-**Cloud-Media-Bridge is provider-extensible, not universal by default.** One local MCP server can discover models and prepare a plan for GPU platforms without requiring a separate MCP server for each provider.
+**Cloud-Media-Bridge supports parallel implementation workstreams for all GPU platform classes.** One local MCP server discovers models and prepares provider-specific plans without requiring a separate MCP server for each GPU company. A configured provider is not automatically a working one.
 
 ## Provider catalog
 
-Public definitions are stored in [`config/providers.json`](../config/providers.json). They contain **no secrets**.
+Public definitions are stored in [`config/providers.json`](../config/providers.json), with agreed behavior in [`config/deployment-policy.json`](../config/deployment-policy.json). They contain **no secrets**. Every listed provider has `development_track=parallel` but `deploy=false` and `execute=false` until implemented and independently tested.
 
 | ID | Platform | Compute model | Current integration | GPU execution |
 |---|---|---|---|---|
@@ -19,6 +19,27 @@ Public definitions are stored in [`config/providers.json`](../config/providers.j
 | `kubernetes-gpu` | User's GPU cluster | K8s Job/Deployment | Planned | Not implemented |
 
 **Read-only discovery of a configured provider is not authentication to that provider.** The current project does not allocate, stop or terminate any GPU resource.
+
+## User-approved provider behavior
+
+Four binding requirements apply equally to all future adapters:
+
+1. **Two runtime installation paths.** Prefer a reviewed, digest-pinned OCI serving image when compatible. Otherwise use a reviewed, pinned runtime-recipe installer on a compatible base image. Verify the full model family, immutable revision, dependencies and GPU requirements. Neither option permits arbitrary code from a Hugging Face model card.
+2. **Parallel provider development.** Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda GPU Cloud, generic HTTPS/SSH GPU services and Kubernetes adapters advance as independent, concurrent workstreams. An adapter may become operational only after its own tests. This is a delivery strategy, not an assertion that all nine are currently usable.
+3. **Consent for every deployment request.** Require a new human grant for each provision, deployment, redeployment, upgrade or resource reconfiguration; bind it to the full exact plan and a unique request nonce. Never reuse or forge the previous approval. Existing authorized inference calls to an already approved worker are not themselves a new deployment.
+4. **Automatic stop after the last job.** For a pod/VM/instance **created and owned by the bridge**, automatically call a supported stop operation once all jobs and artifact transfers on that resource are finished, including after job failure/cancellation. Reconcile the provider's stopped status and recover pending actions after local restart. Do not stop preexisting, shared or unknown resources.
+
+**Important: stopping is not deletion.** If a provider supports termination/deletion but lacks a safe stop operation, report `STOP_UNSUPPORTED_ACTION_REQUIRED` and possible continuing charges; never silently convert user consent for auto-stop into permission to destroy an instance or persistent data. A destructive termination requires its own approval. Storage/IP charges may persist after GPU stopping.
+
+| Provider class | Agreed post-job handling | Status today |
+|---|---|---|
+| Modal / RunPod Serverless / Vast Serverless | Configure and observe scale-to-zero where supported | **Not implemented** |
+| RunPod Pods, Vast.ai Instances | Stop **only bridge-owned** pod/instance after the final job, then confirm stopped state | **Not implemented** |
+| Lambda GPU Cloud | Attempt verified native stop **only if supported**; published API highlights termination, so treat stop as **unverified** and report action required rather than destroying data | **Not implemented** |
+| Existing HTTPS/SSH GPU hosts | Do not stop externally managed equipment without verified ownership and authorized lifecycle | **Not implemented** |
+| Kubernetes GPU jobs | Stop/remove owned workloads as separately authorized, and independently verify whether GPU nodes actually scale down; do not delete user-owned cluster resources | **Not implemented** |
+
+The read-only CLI/MCP `policy` / `deployment_policy` command exposes these intended rules but does not yet execute or enforce them.
 
 ## Local configuration
 
@@ -134,12 +155,13 @@ Unsupported or untrusted recipes must return an explicit error **before any reso
 
 The repository must never silently switch providers or change GPU type to bypass a failed request. Human model approval and cloud resource-operation approval are separate.
 
-## Initial test policy
+## Parallel development and independent live-test policy
 
-- **Offline:** validate configuration, MCP tools, model URLs, error handling, input schemas and provider capability mocks.
-- **First live provider:** Modal only, and only after the user separately authorizes a specific resource operation.
-- **Other live providers:** not yet tested; no claims of operational support.
-- **No automatic GPU allocation:** GitHub Actions, `cargo test`, `models search`, `models inspect`, and `plan` must stay read-only.
+- **Offline across all providers:** validate common schemas, the two runtime routes, consent policy, failure statuses, ownership constraints and mocked stop/scale-to-zero operations.
+- **Provider-specific live verification:** independently verify each provider only when it has a real adapter, matching worker, own-account credentials and **separate explicit user approval**. Modal may be a convenient first paid test using available trial credit, but other provider development does not wait for Modal.
+- **Never report platform support merely because configuration exists.** Track each adapter as `planned`, `contract-tested`, `live-tested` or `unsupported` with evidence.
+- **No automatic GPU allocation:** GitHub Actions, `cargo test`, `models search`, `models inspect`, `policy`, and `plan` are read-only.
+- **Auto-stop tests are provider-specific:** verify owned resources, last active job, concurrent workloads, cancellation, crash recovery, stop unavailable/failure, residual storage charges and actual provider-observed stop or scale-to-zero.
 
 ## Provider references
 
