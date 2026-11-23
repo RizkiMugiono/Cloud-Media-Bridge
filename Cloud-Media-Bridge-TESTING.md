@@ -7,6 +7,24 @@
 
 > **Authorization and safety rule for every development agent and contributor:** Do not create Modal Apps, Servers, Functions or Volumes; allocate GPU/CPU cloud instances; modify harness settings; stop/delete resources; access private workspaces; or publish GitHub changes without the applicable explicit user authorization. Normal lint and unit tests must be fully offline or mocked. Non-Modal live compute-provider tests are out of scope for the initial release.
 
+## Prioritized v1 verification
+
+The project deliberately keeps one small local Rust MCP/CLI process and **reuses existing inference runtimes**. The first milestone does not require two newly built inference engines, every GPU vendor to be live-tested, a custom cluster scheduler, or durable video job recovery.
+
+| Gate | Expected evidence | GPU needed? |
+|---|---|---|
+| V1-1 | MCP initializes, lists tools, handles invalid arguments without crashing | No |
+| V1-2 | GPU provider catalog parses and reports truthful implemented/planned states | No |
+| V1-3 | Search the live Hugging Face catalog without a manual list | No |
+| V1-4 | Inspect a model URL and pin an immutable revision SHA; block malicious URLs | No |
+| V1-5 | Prepare a read-only model/provider plan; deny deployment for an unsupported runtime | No |
+| V1-6 | Reject model or resource execution without **separate human approvals** | No |
+| V1-7 | A separately approved Modal workload generates real media, returns verified output and scales down | Yes, explicitly authorized |
+
+**V1-1 through V1-5** are the initial development focus. The broader 82-case registry below is retained for hardening and additional provider implementations. Register a PASS only for a truly executed test; **the GitHub CI build cannot prove live Hugging Face access or GPU inference**.
+
+**Cloud safety:** ordinary tests and GitHub Actions do not create resources and consume no GPU credits. Real provider execution requires fresh permission and a compatibility-verified worker. The provider configuration catalog covers Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda Cloud, HTTPS GPU workers, SSH GPU hosts and Kubernetes; **only Modal is planned for the first live test**.
+
 ## 0. Test levels and scope
 
 | Level | Tests | Real cloud used? | Required before |
