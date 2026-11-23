@@ -60,7 +60,7 @@ All these conditions are necessary; evidence of one successful Diffusers image m
 1. Queries the live Hugging Face Hub for the chosen model, resolves an immutable SHA, reads available library/task, architectures and file signals. Publisher metadata is untrusted.
 2. Classifies the model into a media family without excluding unfamiliar model types.
 3. Compares task + declared library, architecture and representative checkpoint file signals with runtime registry entries. A generic task name **alone** does not provide a positive match.
-4. Scores candidates and attaches evidence flags; unknown/specialized architectures are **not automatically matched to an arbitrary installer**.
+4. Scores candidates and attaches evidence flags. A reviewed, explicitly allowlisted model ID may select its **official model-specific runtime candidate** even for a newly introduced media task, but a generic/unknown model cannot match specialized code automatically. Such a candidate remains non-executable until reviewed, pinned and tested.
 5. Requires actual model/provider-specific verification and pinned runtime/worker evidence to mark a candidate verified. Synthetic fixtures exercise this logic offline but are not operational proof.
 6. Returns `runtime_unknown_requires_review`, `unverified_runtime_candidates_found`, `verified_runtime_candidate_but_deployment_unavailable`, or `non_media_task_out_of_scope`, together with immutable model SHA, candidate routes and explicit safety notes.
 7. Always returns `execution_enabled=false` and `safe_to_deploy=false`. No MCP tool provisions cloud resources or launches code.
