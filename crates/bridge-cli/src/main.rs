@@ -1,3 +1,5 @@
+mod media;
+
 use serde_json::{json, Value};
 use std::env;
 use std::fs;
@@ -93,14 +95,24 @@ fn get_json(url: &str) -> Result<Value, String> {
     serde_json::from_slice(&output.stdout).map_err(|_| "Invalid Hub JSON response".into())
 }
 
-fn search_models(query: &str, limit: usize) -> Result<Value, String> {
-    if query.trim().is_empty() || query.len() > 200 || !(1..=50).contains(&limit) {
-        return Err("Search requires 1-200 characters and a limit of 1-50".into());
+fn search_models(query: Option<&str>, task: Option<&str>, limit: usize) -> Result<Value, String> {
+    let search = query.unwrap_or("").trim();
+    let filter = task.unwrap_or("").trim();
+    if (search.is_empty() && filter.is_empty())
+        || search.len() > 200
+        || filter.len() > 96
+        || !filter.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        || !(1..=50).contains(&limit)
+    {
+        return Err("Search requires query or pipeline task, safe task characters and a limit of 1-50".into());
     }
-    let url = format!(
-        "https://huggingface.co/api/models?search={}&limit={limit}",
-        percent_encode(query.trim())
-    );
+    let mut url = format!("https://huggingface.co/api/models?limit={limit}");
+    if !search.is_empty() {
+        url.push_str(&format!("&search={}", percent_encode(search)));
+    }
+    if !filter.is_empty() {
+        url.push_str(&format!("&pipeline_tag={}", percent_encode(filter)));
+    }
     let models = get_json(&url)?;
     let entries = models
         .as_array()
@@ -114,12 +126,19 @@ fn search_models(query: &str, limit: usize) -> Result<Value, String> {
                 "library": m.get("library_name"),
                 "gated": m.get("gated"),
                 "private": m.get("private"),
-                "last_modified": m.get("lastModified")
+                "last_modified": m.get("lastModified"),
+                "media": media::classify(m["pipeline_tag"].as_str(), m.get("tags"))
             })
         })
         .collect::<Vec<_>>();
-    Ok(json!({"source": "huggingface", "count": entries.len(), "models": entries,
-              "discovery_is_not_execution_support": true}))
+    Ok(json!({
+        "source": "huggingface",
+        "count": entries.len(),
+        "models": entries,
+        "query": if search.is_empty() { Value::Null } else { json!(search) },
+        "pipeline_tag_filter": if filter.is_empty() { Value::Null } else { json!(filter) },
+        "discovery_is_not_execution_support": true
+    }))
 }
 
 fn inspect_model(input: &str) -> Result<Value, String> {
@@ -144,6 +163,7 @@ fn inspect_model(input: &str) -> Result<Value, String> {
         "private": info["private"],
         "license": info["cardData"]["license"],
         "files_count": siblings,
+        "media": media::classify(info["pipeline_tag"].as_str(), info.get("tags")),
         "execution_status": "not_verified",
         "warning": "Model discovery does not prove that a compatible serving runtime exists."
     }))
@@ -190,26 +210,18 @@ fn provider_info(id: &str) -> Result<Value, String> {
 fn plan_generation(model: &str, provider: &str) -> Result<Value, String> {
     let selected = provider_info(provider)?;
     let inspected = inspect_model(model)?;
-    let task = inspected["task"].as_str().unwrap_or("unknown");
-    let media_task = matches!(
-        task,
-        "text-to-image" | "image-to-image" | "text-to-video" | "image-to-video"
-            | "text-to-audio" | "audio-to-audio" | "text-to-speech"
-            | "automatic-speech-recognition" | "audio-classification"
-            | "image-classification" | "image-to-text" | "object-detection"
-            | "image-segmentation" | "depth-estimation" | "image-feature-extraction"
-            | "text-to-3d" | "image-to-3d"
-    );
-    let verdict = if !media_task {
-        "unsupported_or_unclassified_task"
-    } else if selected["integration"] == "planned" {
-        "provider_adapter_not_implemented"
-    } else {
-        "requires_compatible_serving_image_or_pipeline"
+    let classification = inspected["media"]["classification_status"].as_str().unwrap_or("unclassified_requires_review");
+    let verdict = match classification {
+        "non_media_task_out_of_scope" => "non_media_task_out_of_scope",
+        "unclassified_requires_review" | "catalog_unavailable" => "unknown_media_task_requires_review",
+        "inferred_media_task_requires_review" => "new_media_task_requires_verified_runtime",
+        _ if selected["capabilities"]["execute"] == false => "provider_execution_not_implemented",
+        _ => "verified_runtime_required",
     };
     Ok(json!({
         "model": inspected,
         "provider": selected,
+        "media_classification": inspected["media"].clone(),
         "plan_status": verdict,
         "safe_to_deploy": false,
         "costing": "not_estimated",
@@ -233,9 +245,11 @@ fn execute_readonly(name: &str, arguments: &Value) -> Result<Value, String> {
         "doctor" => Ok(json!({"message": doctor()})),
         "providers_list" => providers_list(),
         "deployment_policy" => deployment_policy(),
+        "media_tasks_list" => media::catalog(),
         "providers_show" => provider_info(get_string(arguments, "provider")?),
         "models_search" => search_models(
-            get_string(arguments, "query")?,
+            arguments["query"].as_str(),
+            arguments["task"].as_str(),
             arguments["limit"].as_u64().unwrap_or(10) as usize,
         ),
         "models_inspect" => inspect_model(get_string(arguments, "model")?),
@@ -324,10 +338,14 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let Some(object) = arguments.as_object() else { return false; };
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
-        "doctor" | "providers_list" | "deployment_policy" => object.is_empty(),
+        "doctor" | "providers_list" | "deployment_policy" | "media_tasks_list" => object.is_empty(),
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "models_search" => {
-            has_only(&["query", "limit"]) && arguments["query"].is_string()
+            has_only(&["query", "task", "limit"])
+                && arguments.get("query").is_none_or(Value::is_string)
+                && arguments.get("task").is_none_or(Value::is_string)
+                && (arguments["query"].as_str().is_some_and(|v| !v.trim().is_empty())
+                    || arguments["task"].as_str().is_some_and(|v| !v.trim().is_empty()))
                 && arguments.get("limit").is_none_or(|v| {
                     v.as_u64().is_some_and(|n| (1..=50).contains(&n))
                 })
@@ -347,6 +365,7 @@ fn tool_names() -> &'static [&'static str] {
         "providers_list",
         "providers_show",
         "deployment_policy",
+        "media_tasks_list",
         "models_search",
         "models_inspect",
         "plan_generation",
@@ -368,9 +387,12 @@ fn tool_definitions() -> Value {
         {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, owned resource auto-stop intent.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"models_search","description":"Search the live Hugging Face Hub; model discovery is not an execution guarantee.",
-         "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},
-                        "required":["query"],"additionalProperties":false},
+        {"name":"media_tasks_list","description":"List categorized image, video, audio, voice, music, 3D, document, spatial and multimodal task hints. Discovery does not imply compatibility.",
+         "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"models_search","description":"Search all accessible Hugging Face models or filter by any Hub pipeline task; tags are classified without asserting inference compatibility.",
+         "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"task":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},
+                        "additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"models_inspect","description":"Resolve an accessible Hugging Face model URL to metadata and immutable revision SHA.",
          "inputSchema":{"type":"object","properties":{"model":{"type":"string"}},
@@ -435,15 +457,27 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd] if cmd == "providers" => print_json(providers_list()),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
         [cmd, id] if cmd == "providers" => print_json(provider_info(id)),
+        [cmd, action] if cmd == "models" && action == "tasks" => print_json(media::catalog()),
         [cmd, action, query] if cmd == "models" && action == "search" => {
-            print_json(search_models(query, 10))
+            print_json(search_models(Some(query), None, 10))
+        }
+        [cmd, action, task] if cmd == "models" && action == "search-task" => {
+            print_json(search_models(None, Some(task), 10))
         }
         [cmd, action, query, limit] if cmd == "models" && action == "search" => {
             print_json(
                 limit
                     .parse::<usize>()
                     .map_err(|_| "Limit must be an integer".to_string())
-                    .and_then(|n| search_models(query, n)),
+                    .and_then(|n| search_models(Some(query), None, n)),
+            )
+        }
+        [cmd, action, task, limit] if cmd == "models" && action == "search-task" => {
+            print_json(
+                limit
+                    .parse::<usize>()
+                    .map_err(|_| "Limit must be an integer".to_string())
+                    .and_then(|n| search_models(None, Some(task), n)),
             )
         }
         [cmd, action, model] if cmd == "models" && action == "inspect" => {
@@ -458,7 +492,9 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge mcp
   cloud-media-bridge providers [provider-id]
   cloud-media-bridge policy
+  cloud-media-bridge models tasks
   cloud-media-bridge models search <query> [limit]
+  cloud-media-bridge models search-task <pipeline_tag> [limit]
   cloud-media-bridge models inspect <owner/model|https://huggingface.co/owner/model>
   cloud-media-bridge plan <model> <provider-id>
 
