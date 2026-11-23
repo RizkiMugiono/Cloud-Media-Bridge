@@ -5,6 +5,19 @@
 **Current status:** A working Rust MCP/CLI prototype is under development. Real GPU inference is not implemented or verified.  
 **Related:** [README](README.md) · [GPU providers](docs/PROVIDERS.md) · [Test plan](Cloud-Media-Bridge-TESTING.md) · [Results](Cloud-Media-Bridge-TEST-RESULTS.md)
 
+## User-approved deployment requirements (2026-11-23)
+
+The authoritative machine-readable requirements are in [`config/deployment-policy.json`](config/deployment-policy.json). The Rust CLI/MCP currently exposes this contract **read-only**; no GPU deployment, human approval enforcement or automatic stopping is implemented yet.
+
+| Requirement | Binding architecture decision |
+|---|---|
+| Runtime installation | Both a verified prebuilt OCI image and a vetted runtime installation recipe on a compatible base image are supported **as alternatives**, selected according to the model's actual compatibility, task and hardware. No arbitrary model-repository scripts are trusted. |
+| GPU development | **All nine configured provider classes are parallel implementation workstreams**, not a Modal-first prerequisite chain. Every provider's operational status and evidence remains independent. |
+| Consent | **New human consent for each exact deployment request**, bound to model/revision, runtime/image digest, account/workspace, provider, GPU resource specification and unique request nonce. No reuse of a previously consumed deployment grant. |
+| Post-job resource handling | Automatically **stop bridge-created and bridge-owned pod/VM/instance resources after their final active job**, if a validated provider stop action exists. Verify stop confirmation; keep job/resource recovery records. Do not destroy/terminate automatically, or stop unrelated/pre-existing/shared resources. Stop failures or unsupported lifecycle actions must be reported, not silently treated as success. |
+
+The term **deployment** here includes initial creation, redeployment, runtime/model image changes and resource reconfiguration. Reusing an already-approved running worker for a generation call is not necessarily a new deployment; execution still requires the applicable user/model permissions. The human approves the auto-stop behavior as part of the exact resource plan. No fixed repository financial limits are imposed.
+
 ## 1. Purpose
 
 Cloud-Media-Bridge is **one local, open-source MCP stdio/CLI process** that connects the user's chosen AI agent to a live catalog of open-source media models and the user's own GPU rental account.
@@ -29,6 +42,7 @@ One MCP bridge is sufficient. Codex, Claude Code, OpenCode, Hermes Agent, DeepSe
 |---|---|
 | Local Rust binary, MCP stdio, `doctor` | Implemented; process-level tests included |
 | Catalog of nine GPU provider classes | Implemented as **read-only configurations** |
+| User deployment policy accessible via CLI/MCP | Implemented as a **read-only contract**; not yet enforced |
 | Hugging Face live search | Implemented; needs real network verification |
 | Inspect model ID/URL and immutable revision | Implemented; needs real Hub verification |
 | Provider-aware, non-mutating generation plan | Implemented; always returns `safe_to_deploy=false` until a runtime is verified |
@@ -57,9 +71,9 @@ External metadata and model cards are **untrusted data**, never instructions to 
 
 ## 4. GPU platforms: one configuration format, provider-specific drivers
 
-The checked-in [`config/providers.json`](config/providers.json) catalog includes:
+The checked-in [`config/providers.json`](config/providers.json) catalog includes **parallel adapter workstreams**:
 
-- **Modal** serverless (first real-GPU test target).
+- **Modal** serverless.
 - **RunPod** Serverless and Pods.
 - **Vast.ai** Serverless and rented Instances.
 - **Lambda** GPU virtual machines.
@@ -67,7 +81,7 @@ The checked-in [`config/providers.json`](config/providers.json) catalog includes
 - A user-controlled **SSH/OCI GPU host**.
 - A user-owned **Kubernetes GPU cluster**.
 
-Additional providers can be represented by an updated catalog and a small driver when their API semantics require it. **Listing a platform in configuration does not mean deployment works.** The `integration`, `driver`, `capabilities` and `scale_to_zero` fields make the status explicit.
+All configured adapters are developed in parallel rather than waiting for one vendor to be completed. Each provider still requires its own implementation and independent verification. Additional providers can be represented by an updated catalog and a small driver when their API semantics require it. **Listing a platform in configuration does not mean deployment works.** The `integration`, `driver`, `capabilities` and `scale_to_zero` fields make the status explicit.
 
 Do not hardcode a central provider account or share credentials between users. Profiles and API tokens are always user-owned, private and local.
 
@@ -108,10 +122,10 @@ The same task-serving API may be reused on Modal, RunPod Pods, Vast instances, L
 
 1. Detect correct user account/workspace and authenticated capabilities.
 2. Build a **read-only** execution/resource plan with an exact model SHA, task, runtime, GPU request and lifecycle warning.
-3. Request human resource-operation approval separately from model approval.
+3. Require new human consent for **every deployment operation** (new, repeat, reconfigure or redeploy), separately from the model-selection approval, with a fresh nonce and one-shot grant.
 4. Provision or connect only through a verified adapter.
 5. Submit/poll/cancel only with safe idempotency and authenticated transport.
-6. Return hash-checked artifacts and report any resources that remain billable.
+6. Return hash-checked artifacts, reconcile the resource state, automatically stop bridge-owned pods/VMs after the last job when provider stop is supported, and report any resource that remains active or billable.
 
 Unknown capabilities fail closed. No unverified fallback to another model or GPU provider.
 
@@ -120,8 +134,8 @@ Unknown capabilities fail closed. No unverified fallback to another model or GPU
 | Mode | Expected behavior |
 |---|---|
 | Serverless | Scale-to-zero only when supported and tested; storage/network charges may persist |
-| GPU pod / VM / marketplace instance | Manual stop/termination may be needed; stopping GPU does not guarantee all fees stop |
-| Existing HTTPS/SSH host | Lifecycle remains user-managed unless ownership and cleanup semantics are verified |
+| Bridge-created GPU pod / VM / marketplace instance | **Automatic stop after the final active job** when a provider stop API is available, with confirmed status and crash recovery. If no stop API exists, report action required; do **not** automatically destroy/terminate. Storage or other fees may persist. |
+| Existing HTTPS/SSH host | Remains user-managed. Never stop a pre-existing machine without explicit, verifiable bridge ownership and authorization. |
 | Kubernetes | Depends on cluster/node autoscaling and configuration |
 
 The repository does **not** implement an automatic per-user cost ceiling. It must still prevent unintended cloud resource creation and include ordinary technical safety limits.
@@ -130,7 +144,7 @@ The repository does **not** implement an automatic per-user cost ceiling. It mus
 
 No separate native Rust inference engine or universal Python inference engine is required for **v1**. Rust only runs the local MCP/CLI and provider orchestration.
 
-There are two acceptable execution routes, both requiring an explicit verified runtime recipe:
+There are two **equally supported alternatives** selected by verified compatibility rather than provider branding; both require a pinned, vetted runtime recipe:
 
 1. **Compatible OCI serving image**: user selects a pinned existing media-serving image that can load the model/revision and exposes an authenticated media request API.
 2. **Library-backed application**: a small provider-native deployment that invokes an existing tested library pipeline (such as Diffusers or a suitable speech/video runtime) and exposes the same media API.
@@ -143,13 +157,24 @@ For both routes, runtime requirements, license/gating, task schema, input media,
 
 The AI agent can **search, compare and suggest**. It cannot decide to spend money or select a model on behalf of the user without approval.
 
-**Model approval** must bind canonical model ID, immutable SHA, task and the selected source. **Resource approval** must separately bind compute provider, account/workspace, GPU/resource parameters, runtime image and action. Changing any relevant dimension invalidates the corresponding grant.
+**Model approval** must bind canonical model ID, immutable SHA, task and the selected source. **Deployment/resource approval** must be a **fresh, one-shot human approval for every exact deployment request**; bind provider, account/workspace, GPU/resource parameters, runtime image/recipe digest, action and a unique nonce. Approval for one deployment can never authorize a second deployment even with the same parameters. Changing any relevant dimension invalidates the grant.
 
-The current read-only implementation **does not provide approval or execution tools**. Do not implement GPU execution until the approval path exists and has negative security tests.
+The current read-only implementation **does not provide approval or execution tools**. The CLI/MCP can only display the intended policy, never enforce approval, deploy or stop a cloud resource. Do not implement GPU execution until the approval path exists and has negative security tests.
 
 Privileged approval must be via an independent user interface/TTY and not a boolean inside an MCP tool request. A local shell-capable compromised agent operating under the same OS user may bypass weak approval storage; document this trust limitation and use stronger OS identity separation when possible.
 
 Credentials must never be checked into Git, echoed in MCP stdout, or sent to a model container as provisioning secrets. No maintainer-owned telemetry is collected by default.
+
+### Automatic post-job stop contract
+
+- Apply only to resources that the bridge created and whose ownership is recorded with a provider identity, workspace, resource ID, deployment request ID and ownership marker. **Never touch pre-existing, shared or unidentified resources.**
+- After successful, failed or cancelled jobs: check provider-backed status; wait for **all active jobs and artifact transfers** on that resource to finish. If another request is running or queued against the same resource, defer stopping. Reconcile ambiguous submissions before stopping.
+- Execute a provider-native **stop** action where it exists. Confirm stopped state through the provider; mark `STOP_PENDING`, `STOP_CONFIRMED`, `STOP_UNCERTAIN`, `STOP_FAILED` or `STOP_UNSUPPORTED` accurately. Do not claim zero cost unless billing behavior is separately verified.
+- When a provider offers **termination only** (for example some GPU VM APIs), do **not** reinterpret auto-stop consent as permission to destroy storage. Surface `STOP_UNSUPPORTED_ACTION_REQUIRED` and the remaining-charge warning. Termination requires its own explicit destructive approval.
+- Persist the bridge-owned resource/job ledger durably so restart/crash can recover and retry authorized stop reconciliation. For providers with serverless scale-to-zero, verify that idle workers actually reach zero, not an invented VM stop.
+- Stop functionality must be **implemented and safety-tested before a provider adapter exposes a production deploy/execute operation**. User confirmation occurs at the deployment stage; the subsequent stop is part of the disclosed lifecycle policy and does not require reapproval for that exact owned resource.
+
+
 
 ## 7. CLI and MCP contracts
 
@@ -159,12 +184,13 @@ Credentials must never be checked into Git, echoed in MCP stdout, or sent to a m
 cloud-media-bridge doctor
 cloud-media-bridge mcp
 cloud-media-bridge providers [provider-id]
+cloud-media-bridge policy
 cloud-media-bridge models search <query> [limit: 1..50]
 cloud-media-bridge models inspect <owner/model | https://huggingface.co/owner/model>
 cloud-media-bridge plan <model> <provider-id>
 ```
 
-**Currently implemented read-only MCP tools:** `doctor`, `providers_list`, `providers_show`, `models_search`, `models_inspect`, `plan_generation`.
+**Currently implemented read-only MCP tools:** `doctor`, `providers_list`, `providers_show`, `deployment_policy`, `models_search`, `models_inspect`, `plan_generation`.
 
 MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or private files. Search queries are bounded; model URLs must be validated against the Hugging Face HTTPS origin.
 
@@ -172,20 +198,20 @@ MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or p
 
 ## 8. Implementation order
 
-1. **Local MCP and provider catalog (offline).** MCP tests, invalid input handling, provider listing and schema validation.
+1. **Local MCP, provider catalog and policy contract (offline).** MCP tests, invalid input handling, provider listing and policy schema validation.
 2. **Dynamic catalog (no GPU).** Live model search, inspection, SHA checks, access/license states and model URL safety.
 3. **Read-only planning (no GPU).** User-selectable provider; runtime compatibility and identity checks; clear unsupported results.
-4. **Human approvals (no GPU).** Negative tests proving an agent cannot approve its own model or cloud resource.
-5. **Modal adapter (initial live provider).** Verify the user's workspace, use one compatible image/pipeline, deploy with explicit consent and retrieve a real media artifact.
-6. **Result safety and cleanup.** Verify hashes, no credential leakage, confirmed GPU scale-to-zero or explicit lingering-resource report.
-7. **Other provider drivers.** Implement and live-test separately. A generic HTTPS worker can reduce duplicated inference logic, not eliminate provider API differences.
+4. **Human deployment approvals (no GPU).** Implement one-shot, non-reusable user approval for each deployment operation. Negative tests must prove an agent cannot approve itself or reuse an earlier grant.
+5. **Parallel GPU provider adapters.** Develop Modal, RunPod Serverless/Pods, Vast.ai Serverless/Instances, Lambda Cloud, generic HTTPS, SSH and Kubernetes tracks concurrently. Share runtime resolution and request/artifact contracts; implement authentication, provisioning and lifecycle per provider. Each adapter requires its own independent live evidence before an operational claim.
+6. **Result safety and automatic owned-resource stopping.** Verify hashes and secrets, track every active job, stop only bridge-owned pod/VM resources after the final job, confirm stop state and recover cleanup after restart/crash. Report unsupported stop semantics and residual fees rather than performing unapproved termination.
+7. **Independent provider verification.** Unit and contract tests run together without GPUs; each provider's live deployment, cancellation, cleanup and artifact tests require separate authorization and evidence. A generic HTTPS worker can reduce duplicated inference logic without removing provider API differences.
 
 ## 9. Testing and release claims
 
 The [test plan](Cloud-Media-Bridge-TESTING.md) retains 82 detailed cases, with the initial deployment milestone gated by the seven capabilities above. Advanced load testing, durable video/music jobs and multiple live providers are later phases.
 
 - Default CI uses Rust unit/integration tests and synthetic fixtures; **no GPU or paid cloud services**.
-- **First real GPU tests: Modal only**, after separately approved use of the user's account.
+- All provider adapters are developed concurrently; each provider's real GPU tests require separately approved access and must not run by default. Modal may be used first for economical validation, but is not an implementation dependency.
 - A configuration/mock test does not prove real inference or provider compatibility.
 - Every report must distinguish PASS, FAIL, NOT RUN, BLOCKED and explicitly planned features.
 - Do not claim production readiness or broad media support until actual output and cleanup have evidence.
