@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 1);
+    assert_eq!(tools.len(), 6);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -84,4 +84,34 @@ fn h02_invalid_requests_leave_session_usable() {
         assert_eq!(replies[index]["error"]["code"], code);
     }
     assert_eq!(replies[7]["result"]["tools"][0]["name"], "doctor");
+    assert!(replies[7]["result"]["tools"].as_array().unwrap().iter().any(|t| t["name"] == "models_search"));
+}
+
+#[test]
+fn provider_listing_is_read_only_and_does_not_need_credentials() {
+    let replies = exchange(&[
+        INIT,
+        READY,
+        r#"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"providers_list","arguments":{}}}"#,
+    ]);
+    let data = &replies[1]["result"]["structuredContent"];
+    let providers = data["providers"].as_array().unwrap();
+    assert!(providers.len() >= 7);
+    assert!(providers.iter().any(|provider| provider["id"] == "modal"));
+    assert!(providers.iter().any(|provider| provider["id"] == "runpod-serverless"));
+    assert!(providers.iter().any(|provider| provider["id"] == "vast-instances"));
+}
+
+#[test]
+fn invalid_model_url_and_missing_plan_args_fail_safely() {
+    let replies = exchange(&[
+        INIT,
+        READY,
+        r#"{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"models_inspect","arguments":{"model":"http://169.254.169.254/secret"}}}"#,
+        r#"{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{"name":"plan_generation","arguments":{"model":"author/model"}}}"#,
+        r#"{"jsonrpc":"2.0","id":32,"method":"tools/call","params":{"name":"models_search","arguments":{"query":"test","limit":9999}}}"#,
+    ]);
+    assert_eq!(replies[1]["result"]["isError"], true);
+    assert_eq!(replies[2]["error"]["code"], -32602);
+    assert_eq!(replies[3]["error"]["code"], -32602);
 }
