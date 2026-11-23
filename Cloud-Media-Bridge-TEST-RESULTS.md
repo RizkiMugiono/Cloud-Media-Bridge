@@ -16,7 +16,7 @@ This file records **actual observations only**. Passing documentation checks do 
 | Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on `main` |
 | Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on `main` |
 | Markdown code fences in both documents are balanced | PASS | Architecture: 4 fence delimiters; test plan: 6; balanced = true |
-| Test case IDs are unique and complete | PASS | 82 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15 |
+| Test case IDs are unique and complete | PASS | 92 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
 | Application Rust source compilation and static analysis | PASS | GitHub Actions offline CI on Linux, Windows and macOS passed on main commit `86f93e6bc43d727fbbe6187150282c689ad178ac` |
 | CLI integration tests | PASS | 8 tests passed (4 Rust unit + 4 MCP process integration) on Linux, Windows and macOS in GitHub Actions offline CI |
@@ -29,7 +29,7 @@ Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-Two mapped test IDs (H01, H02) passed on Linux, Windows and macOS; the other six unit/integration tests provide additional offline checks but do not automatically mark other scenario IDs PASS. The remaining 80 cases have no execution evidence. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+Two mapped test IDs (H01, H02) passed on Linux, Windows and macOS; the other six unit/integration tests provide additional offline checks but do not automatically mark other scenario IDs PASS. The remaining 90 cases (including the ten new decision tests) have no independent execution evidence recorded in this ledger yet. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
@@ -116,6 +116,23 @@ Two mapped test IDs (H01, H02) passed on Linux, Windows and macOS; the other six
 | J14 | Inference fails in the middle of output streaming | **NOT RUN** | No execution evidence |
 | J15 | Remote completes but local state write crashes | **NOT RUN** | No execution evidence |
 
+## 2a. Approved deployment decision tests (U01–U10)
+
+The following new cases enforce the four user decisions as a **versioned specification**. Until a matching CI or real-cloud test actually executes and reports evidence, they remain `NOT RUN`. In particular, the current policy tool is read-only and does **not** implement a deployment grant or a GPU stop call.
+
+| Test ID | Scenario requiring verification | Status | Evidence |
+|---|---|---|---|
+| U01 | Bundled deployment policy declares both a verified prebuilt OCI image and a vetted base-image runtime recipe | **NOT RUN** | No independent execution evidence yet |
+| U02 | Each configured provider is in the same parallel development matrix | **NOT RUN** | No independent execution evidence yet |
+| U03 | CLI/MCP exposes the policy without provisioning or allowing approval injection | **NOT RUN** | No independent execution evidence yet |
+| U04 | Identical deployment requested twice, or reconfigure/redeploy after approval | **NOT RUN** | No independent execution evidence yet |
+| U05 | Model family matches prebuilt image versus vetted installation recipe | **NOT RUN** | No independent execution evidence yet |
+| U06 | Two in-flight jobs share one bridge-owned GPU pod | **NOT RUN** | No independent execution evidence yet |
+| U07 | Owned pod/VM job succeeds, fails or is cancelled | **NOT RUN** | No independent execution evidence yet |
+| U08 | Resource is preexisting, external, shared, wrong workspace or ownership unknown | **NOT RUN** | No independent execution evidence yet |
+| U09 | Provider exposes terminate only, stop fails or stop response is ambiguous | **NOT RUN** | No independent execution evidence yet |
+| U10 | Bridge crashes after job completion but before stop confirmation | **NOT RUN** | No independent execution evidence yet |
+
 ## 3. Test level status
 
 | Tier | Status | Reason |
@@ -127,7 +144,7 @@ Two mapped test IDs (H01, H02) passed on Linux, Windows and macOS; the other six
 | T4 — Modal GPU inference through an approved deployment route | NOT RUN | No GPU resources used |
 | T5 — Modal parallel, asynchronous, recovery, scale-to-zero | NOT RUN | No live executions |
 | T6 — Other-provider API contract mocks | NOT RUN | No tests executed |
-| T7 — Other-provider real-cloud tests | OUT OF SCOPE | Modal-only first phase |
+| T7 — Other-provider real-cloud tests | NOT RUN | Every provider requires its own adapter, consent and real-cloud test evidence; development is parallel |
 
 ### Local execution on 2026-11-23
 
