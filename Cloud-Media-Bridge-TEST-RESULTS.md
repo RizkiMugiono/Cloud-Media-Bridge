@@ -4,7 +4,7 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **8 offline Rust tests passed on Linux, Windows, and macOS; cloud inference and deployment remain untested**
+**Overall application status:** **11 offline Rust tests passed on Ubuntu (6 unit + 5 MCP integration); cloud inference, approval enforcement and automatic GPU stop remain untested**
 
 This file records **actual observations only**. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, live-Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
@@ -19,7 +19,7 @@ This file records **actual observations only**. Passing documentation checks do 
 | Test case IDs are unique and complete | PASS | 92 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
 | Application Rust source compilation and static analysis | PASS | GitHub Actions offline CI on Linux, Windows and macOS passed on main commit `86f93e6bc43d727fbbe6187150282c689ad178ac` |
-| CLI integration tests | PASS | 8 tests passed (4 Rust unit + 4 MCP process integration) on Linux, Windows and macOS in GitHub Actions offline CI |
+| CLI integration tests | PASS | 11 tests passed on Ubuntu (6 Rust unit + 5 MCP integration) in GitHub Actions PR CI; new policy tests not evidence of cloud execution |
 | Modal CLI authentication (current working environment) | NOT VERIFIED | No login check was performed in this GitHub CI run; earlier claims are not fresh evidence |
 | Modal resource provisioning and real GPU inference | NOT RUN | No resources created and no GPU jobs submitted |
 
@@ -29,7 +29,7 @@ Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-Two mapped test IDs (H01, H02) passed on Linux, Windows and macOS; the other six unit/integration tests provide additional offline checks but do not automatically mark other scenario IDs PASS. The remaining 90 cases (including the ten new decision tests) have no independent execution evidence recorded in this ledger yet. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+Five mapped cases have offline evidence: H01, H02, U01, U02 and U03. The other six unit/integration tests do not automatically establish success for other scenario IDs. The remaining **87 scenarios are NOT RUN**. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
@@ -118,13 +118,13 @@ Two mapped test IDs (H01, H02) passed on Linux, Windows and macOS; the other six
 
 ## 2a. Approved deployment decision tests (U01–U10)
 
-The following new cases enforce the four user decisions as a **versioned specification**. Until a matching CI or real-cloud test actually executes and reports evidence, they remain `NOT RUN`. In particular, the current policy tool is read-only and does **not** implement a deployment grant or a GPU stop call.
+The following new cases trace the four user decisions. **U01–U03 validate the read-only contract only**; U04–U10 require implementation and remain `NOT RUN`. The current policy tool does **not** enforce a deployment grant or issue a GPU stop call.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
-| U01 | Bundled deployment policy declares both a verified prebuilt OCI image and a vetted base-image runtime recipe | **NOT RUN** | No independent execution evidence yet |
-| U02 | Each configured provider is in the same parallel development matrix | **NOT RUN** | No independent execution evidence yet |
-| U03 | CLI/MCP exposes the policy without provisioning or allowing approval injection | **NOT RUN** | No independent execution evidence yet |
+| U01 | Bundled deployment policy declares both a verified prebuilt OCI image and a vetted base-image runtime recipe | **PASS (contract-only)** | Offline Rust unit `deployment_policy_has_exact_user_decisions` + policy schema validation; PR CI [45202599266](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45202599266) |
+| U02 | Each configured provider is in the same parallel development matrix | **PASS (contract-only)** | Offline Rust unit `provider_catalog_matches_parallel_workstreams_without_fake_execution` + 9-provider catalog validation; PR CI [45202599266](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45202599266) |
+| U03 | CLI/MCP exposes the policy without provisioning or allowing approval injection | **PASS (contract-only)** | MCP process test `deployment_policy_mcp_is_read_only_and_user_decisions_are_visible`; PR CI [45202599266](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45202599266) |
 | U04 | Identical deployment requested twice, or reconfigure/redeploy after approval | **NOT RUN** | No independent execution evidence yet |
 | U05 | Model family matches prebuilt image versus vetted installation recipe | **NOT RUN** | No independent execution evidence yet |
 | U06 | Two in-flight jobs share one bridge-owned GPU pod | **NOT RUN** | No independent execution evidence yet |
