@@ -293,8 +293,10 @@ fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
                 return Some(error(id, -32602, "Invalid parameters"));
             }
             match execute_readonly(name, arguments) {
-                Ok(value) => json!({"content":[{"type":"text","text":value.to_string()}],
-                                   "structuredContent": value}),
+                Ok(value) => {
+                    let text = if name == "doctor" { doctor() } else { value.to_string() };
+                    json!({"content":[{"type":"text","text":text}], "structuredContent": value})
+                },
                 Err(message) => json!({"content":[{"type":"text","text":message}],"isError":true}),
             }
         }
