@@ -109,5 +109,10 @@ jobs:
           assert catalog["implementation_status"] == "classification_only_no_gpu_runtime"
           assert catalog["classification_rules"]["no_arbitrary_remote_code"] is True
           assert catalog["classification_rules"]["unknown_task"].startswith("preserve_model")
-          print(f"Validated {len(tasks)} task hints across {len(expected)} media families")
+          for path in ("schemas/media-request.schema.json","schemas/media-result.schema.json"):
+              with open(path, encoding="utf-8") as stream:
+                  schema=json.load(stream)
+              assert schema["$schema"].endswith("2020-12/schema")
+              assert schema["properties"]["schema_version"]["const"] == 1
+          print(f"Validated {len(tasks)} task hints across {len(expected)} media families and both generic media schemas")
           PY
