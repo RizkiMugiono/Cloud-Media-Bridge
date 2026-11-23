@@ -1,12 +1,31 @@
 # Cloud-Media-Bridge
 
-**Status:** specification and test-plan stage — no verified production implementation.
+**Status:** local Rust CLI prototype. Windows and Ubuntu WSL passed the first two MCP integration tests on 2026-11-23.
 
-An open-source, local-first bridge connecting a user's AI harness to **their own** GPU compute provider account. It supports a Rust-based local control plane (MCP stdio/CLI), explicit human-approved model selection, and a dual inference-engine design (native Rust + universal Python/PyTorch runtimes).
+Cloud-Media-Bridge connects an individual's MCP-compatible agent to their own Modal workspace. The working prototype exposes a local diagnostic tool on Windows and Linux.
 
-The architecture targets many AI media workloads (image, video, speech, voice, music, audio and more) **excluding LLM hosting**. Model sources and compute providers are extensible; **Modal.com is the only provider planned for initial real-GPU testing**. Additional providers such as RunPod, Vast.ai and Lambda are future integrations, not currently verified.
+## Version 1 scope
 
-This repository **does not provide a central hosted service**, use the maintainer's cloud account to process user media, or silently select/replace models. It does not guarantee every discovered model is executable.
+| Step | Design | Status |
+|---|---|---|
+| Connect | Register the Rust CLI as a local MCP stdio server and call `doctor`. | Tested through a process-level client on Windows and Ubuntu WSL. |
+| Discover | Search the live Hugging Face Hub or paste any accessible model URL. Resolve the selected revision to a commit SHA. | Planned |
+| Plan | Match the model family and task to a compatible serving container or library pipeline. Show access requirements, workspace, GPU and compatibility evidence. | Planned |
+| Execute | After human approval of the model and resource operation, use Modal to deploy or invoke the selected workload and return its output. | Planned |
+
+New Hub entries are discoverable without a bridge release. Existing pipelines can serve additional compatible models by ID and SHA. A new architecture may require additional runtime support. The bridge reuses existing inference software. Building an inference engine is outside v1. Additional providers, durable job queues and concurrency tuning are roadmap items.
+
+## Run the local CLI
+
+With Rust installed, run these commands from the repository root:
+
+~~~sh
+cargo fetch --locked
+cargo test --offline --locked
+cargo run --offline --locked -- doctor
+~~~
+
+For an MCP client, launch the compiled `cloud-media-bridge` binary with the single argument `mcp`. It implements the 2025-11-25 initialization handshake and exposes one read-only tool, `doctor`, through `tools/list` and `tools/call`. The process uses newline-delimited JSON-RPC over stdio. It requires no credentials or network connection. Media generation and provider adapters are planned.
 
 ## Start here
 

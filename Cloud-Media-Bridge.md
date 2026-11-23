@@ -16,8 +16,9 @@ Approved design principles:
 
 1. **One repository, multiple compute providers through versioned adapters.** Modal is the only real-cloud implementation and live test target in the first phase. RunPod Serverless, RunPod Pods, Vast.ai Serverless/Instances, Lambda GPU VMs, generic SSH hosts, and optional Kubernetes are future adapters. A proposed adapter must never be advertised as operational.
 2. **Rust for the local control plane:** CLI, MCP stdio, harness integration, model source discovery, independent human approval, routing, job orchestration, local persistence, error handling, privacy and security controls.
-3. **Two inference engines:** (A) native Rust using Candle, ONNX Runtime and native C/CUDA/FFI as appropriate; (B) a modular universal engine using Python/PyTorch/Diffusers/Transformers/ComfyUI and specialized image/video/audio/voice/music runtimes. Python dependencies are confined to compatible worker families and provider-specific integration where needed.
-4. **Human model selection:** an AI agent may discover, inspect, compare and propose models; the human chooses and approves the canonical model ID, task and immutable revision SHA. The router may automatically choose a compatible engine, but **must never silently substitute another model or revision**.
+3. **Reuse inference software.** Modal runs a compatible serving image or a Modal App wrapping an existing library pipeline. Rust runs the local CLI/MCP control plane.
+
+4. **Human model selection:** an AI agent may discover, inspect, compare and propose models; the human chooses and approves the canonical model ID, task and immutable revision SHA. The router may automatically choose a compatible deployment route, but **must never silently substitute another model or revision**.
 5. **User-owned provider choice:** the selected provider, workspace and environment must belong to the user. Model approval does not authorize resource provisioning, deletion or switching accounts/providers.
 6. **Media scope, not LLM hosting:** image, video, speech/ASR/TTS, voice, music, sound effects, audio, vision, OCR, enhancement, spatial/3D and future non-LLM media tasks. Discovery is broader than runtime compatibility.
 7. **Safe, model-aware parallel execution:** replicas, batching and per-worker concurrency must follow tested model/runtime/GPU properties and provider capacity. No repository-wide one-GPU or one-job restriction.
@@ -51,7 +52,7 @@ User workstation / compatible harness execution environment
                    |                          |
                    +-------------+------------+
                                  |
-                  Rust Native or Universal worker
+                  Modal container or library pipeline
                                  |
                           Media artifacts
                                  |
@@ -69,11 +70,11 @@ then ModelScope, Civitai and other supported sources.
 
 - **ModelSource:** what model is discovered and downloaded, including source URL, metadata, file manifest, immutable SHA, license and access restrictions.
 - **ComputeProvider:** where the workload runs and how resources are authenticated, planned, provisioned, submitted, monitored, cancelled and cleaned up.
-- **InferenceEngine / RuntimeFamily:** how a compatible checkpoint is loaded, which operators exist, how inputs and outputs are serialized, and what GPU resources are required.
+- **Deployment route / RuntimeFamily:** how a compatible checkpoint is loaded, which operators exist, how inputs and outputs are serialized, and what GPU resources are required.
 - **HarnessAdapter:** how a client launches the local MCP process or invokes the CLI; no dependence on a specific underlying LLM brand.
 - **ArtifactTransport:** how input/output media and model weights are staged, checked, downloaded and retained.
 
-Use distinct fields and types for `model_source`, `compute_provider` and `runtime_engine`. They are not interchangeable.
+Use distinct fields and types for `model_source`, `compute_provider` and `deployment_route`. They are not interchangeable.
 
 ## 3. Compute provider landscape and lifecycle differences
 
@@ -168,7 +169,7 @@ Supported integration mechanisms are **MCP stdio** and an independent **local CL
 
 The `ModelSource` interface supports `resolve_url`, `get_metadata`, `list_files`, `resolve_revision` and `download_verified`.
 
-Hugging Face is the first source. ModelScope, Civitai and other sources are optional future adapters independent of the GPU provider.
+Query the Hugging Face Hub at search time with pagination and support direct model URLs. Include newly published and updated entries visible to the user without a repository-maintained list or an inference-provider filter. Model compatibility is evaluated after discovery. Hugging Face is the first source. ModelScope, Civitai and other sources are optional future adapters independent of the GPU provider.
 
 **Discovery pipeline:**
 
@@ -208,23 +209,19 @@ Example local command: `cloud-media-bridge approvals approve --request-id <ID>`.
 
 Reject before GPU submission if the SHA, model, task, trust requirements, provider/workspace, scope or expiration differs from the grant. Engine fallback may use the **same exact model SHA** only with verified compatibility and no weaker trust posture. A different model or provider requires fresh human choice.
 
-## 8. Dual inference engines and compatibility routing
+## 8. Deploying a compatible model on Modal
 
-### Engine A: Native Rust
+1. **Existing serving container.** Select a trusted image pinned by digest that accepts the approved model ID and SHA or already contains that exact revision. Check its entrypoint, port, request schema, resource requirements and response format. Use [Modal Server deployment](https://modal.com/docs/cli/latest/server) for compatible HTTP servers.
+2. **Library pipeline.** When a compatible pipeline exists for the task and architecture, package it as a Modal App with pinned dependencies. Pass the model ID and approved SHA to the loader and return the generated artifact. The [Modal Diffusers example](https://modal.com/docs/examples/text_to_image) illustrates this pattern.
+3. **Unmatched or restricted model.** Keep it discoverable. Report the missing runtime, access or evidence during planning. Planning performs no deployment or GPU allocation.
 
-Use Candle, ONNX Runtime and native C/CUDA/FFI where appropriate. Support is determined by tested model families, operators, weight formats, hardware and verified worker builds. Native Rust does not necessarily offer lower inference latency.
-
-### Engine B: Modular universal runtimes
-
-Use isolated runtime-family images for PyTorch, Diffusers, Transformers, ComfyUI, speech, voice, music, video and vetted custom pipelines. Do not build one giant image containing every library. Avoid runtime dependencies in the local Rust control plane.
-
-**Default security:** block arbitrary downloaded Python, untrusted pickle, post-install scripts and `trust_remote_code=True`. Return `MODEL_UNSUPPORTED_UNSAFE` if secure execution cannot be verified. "Universal" means broader ecosystem compatibility, not execution of every model in existence.
+Publish compatibility by task, architecture and format. Keep worker libraries isolated from the local CLI. Block arbitrary downloaded code, unsafe pickle and unapproved custom loaders. Bind execution to the approved workspace, revision, resource operation and runtime digest.
 
 ### Versioned runtime manifest
 
 ~~~yaml
-runtime_id: universal.diffusers.sdxl
-engine: universal
+runtime_id: diffusers.sdxl
+deployment_route: library_pipeline
 manifest_version: 1
 image_digest: "sha256:<image-digest>"
 tasks: [text-to-image, image-to-image]
@@ -283,7 +280,7 @@ CREATED -> APPROVAL_REQUIRED -> READY -> SUBMITTING -> QUEUED
   "revision_sha": "immutable-commit-sha",
   "task": "text-to-image",
   "model_approval_ref": "grant-id",
-  "engine": "native-or-universal",
+  "deployment_route": "library_pipeline",
   "runtime_manifest_digest": "sha256:<digest>",
   "inputs": {"prompt": "An illuminated forest"},
   "input_asset_refs": []
@@ -318,7 +315,7 @@ Mandatory controls:
 4. Lockfiles, pinned OCI digests, dependency and license scanning; safe weight formats; no arbitrary remote code by default.
 5. Human approval independent of MCP tool input; truthfully document the local same-OS-user shell limitation.
 6. Provider profile/workspace binding before every remote privileged operation, and no silent fallback across accounts.
-7. Least-privilege worker secrets, isolated Universal runtimes, limited outbound connectivity where possible, and sanitized logs.
+7. Least-privilege worker secrets, isolated worker runtimes, limited outbound connectivity where possible, and sanitized logs.
 8. Technical limits for payload, pixel count, media duration, VRAM, request concurrency, timeouts and retries; **no repository-enforced budget or price threshold**.
 9. Dry-run and human approval for destructive cleanup; preserve resources not proven to be bridge-owned.
 10. Treat model card contents and metadata as untrusted data, not shell commands, agent instructions or installer directives.
@@ -355,7 +352,7 @@ cloud-media-bridge providers capabilities --provider modal
 cloud-media-bridge providers profiles list
 cloud-media-bridge providers setup modal
 cloud-media-bridge providers use modal --profile PERSONAL
-cloud-media-bridge resources plan --runtime universal.diffusers
+cloud-media-bridge resources plan --runtime diffusers.sdxl
 cloud-media-bridge resources deploy --plan-id <ID>       # human resource approval
 cloud-media-bridge resources list
 cloud-media-bridge resources cleanup --dry-run
@@ -402,9 +399,8 @@ Cloud-Media-Bridge/
 │   ├── bridge-security/
 │   ├── bridge-types/
 │   └── bridge-telemetry/
-├── engines/
-│   ├── native/{candle,onnx,cuda-ffi}/
-│   └── universal/{diffusers,transformers,comfyui,speech,voice,music,video,custom-vetted}/
+├── workers/                                 # Modal Apps wrapping compatible library pipelines
+
 ├── providers/
 │   ├── modal/{deployment,profiles,capabilities}/
 │   ├── runpod/{serverless,pods}/
@@ -415,7 +411,7 @@ Cloud-Media-Bridge/
 ├── deployment/{modal,images,profiles}/
 ├── schemas/{provider,model,approval,job,artifact,runtime}/
 ├── migrations/
-├── docs/{ARCHITECTURE,QUICKSTART,PROVIDERS,HARNESSES,DUAL_ENGINE,SECURITY,PRIVACY,SCALE_TO_ZERO,LIMITATIONS}.md
+├── docs/{ARCHITECTURE,QUICKSTART,PROVIDERS,HARNESSES,SECURITY,PRIVACY,SCALE_TO_ZERO,LIMITATIONS}.md
 ├── examples/{harness-configs,model-requests}/
 ├── tests/{unit,contracts,security,integration,fixtures,benchmarks}/
 └── .github/workflows/                   # offline by default; live tests opt-in
@@ -453,13 +449,15 @@ Do not ignore legitimate Rust sources or lockfiles. No real provider tokens, gat
 
 ## 15. Implementation phases and release gates
 
+The v1 delivery scope is a local MCP connection, live Hub discovery and inspection, read-only planning, and an approved Modal execution route. The full contracts and production gates below also cover later milestones. SQLite recovery, multi-provider contracts, concurrency tuning and additional harness integrations can follow v1.
+
 **Phase 0 — Contracts and threat model (offline):** shared types, provider traits, capability schema, error taxonomy, approval invariants, account binding, SQLite migrations and versioned worker protocol.
 
 **Phase 1 — Local Rust bridge (offline):** MCP stdio and CLI, Hugging Face discovery/SHA resolution, inspection, model approval UI, harness configuration, runtime registry and mocked provider conformance. Approval-bypass security tests must pass before cloud actions exist.
 
 **Phase 2 — Modal account integration:** supported Modal CLI/API, workspace identity, read-only planning, separately approved provisioning/cleanup, authenticated workers, image digests and scale-to-zero. Live tests require a fresh user authorization.
 
-**Phase 3 — Both inference engines on Modal:** generate real images with one pinned Native model and one pinned Universal model; verify output hashes and measure cold/warm latency. Mocked outputs do not satisfy this gate.
+**Phase 3 — Verify a Modal execution route:** after separate authorization, run an approved model revision through a compatible serving image or library pipeline. Verify output hashes and record the route, image digest, GPU and timings. Limit verification claims to the tested combination.
 
 **Phase 4 — Async, concurrency, assets:** durable video/audio job handles; restart recovery; concurrent models/workers; secure media transfer; content-addressed cache; reliable cancellation and cleanup.
 
@@ -481,7 +479,7 @@ Every error includes a typed code, retryability, safe recommended action, correl
 - Do not deploy a maintainer-owned gateway, common user database, payment system or LLM host.
 - Do not let an AI agent approve a model, change model/provider, or create GPU resources without the required human grant.
 - Do not impose repository-level financial budgets; keep technical correctness and safety limits.
-- Do not combine all Universal dependencies into one huge image.
+- Do not combine all worker dependencies into one huge image.
 - Do not equate GPU VM stop with zero ongoing cost or local detached threads with durable async execution.
 - Do not assume every provider offers a native Rust API.
 - Do not require Kiri.
