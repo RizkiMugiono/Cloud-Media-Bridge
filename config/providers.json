@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "purpose": "Public non-secret provider catalog. Account credentials stay in each user's local environment. Entries are capabilities and connection hints, not proof of live API integration.",
+  "purpose": "Non-secret provider catalog; all platform adapters are parallel development workstreams, not operational deployment claims. User-owned credentials remain local.",
   "providers": [
     {
       "id": "modal",
@@ -20,7 +20,11 @@
         "execute": false,
         "scale_to_zero": "supported_on_eligible_services"
       },
-      "docs": "https://modal.com/docs/cli/latest/server"
+      "docs": "https://modal.com/docs/cli/latest/server",
+      "development_track": "parallel",
+      "deployment_approval": "fresh_human_consent_for_every_deployment",
+      "post_job_lifecycle_target": "serverless_scale_to_zero",
+      "lifecycle_implementation": "not_implemented"
     },
     {
       "id": "runpod-serverless",
@@ -40,7 +44,11 @@
         "execute": false,
         "scale_to_zero": "provider_dependent"
       },
-      "docs": "https://docs.runpod.io/serverless/endpoints/overview"
+      "docs": "https://docs.runpod.io/serverless/endpoints/overview",
+      "development_track": "parallel",
+      "deployment_approval": "fresh_human_consent_for_every_deployment",
+      "post_job_lifecycle_target": "serverless_scale_to_zero",
+      "lifecycle_implementation": "not_implemented"
     },
     {
       "id": "runpod-pods",
@@ -59,7 +67,11 @@
         "execute": false,
         "scale_to_zero": "manual_lifecycle"
       },
-      "docs": "https://docs.runpod.io/pods/overview"
+      "docs": "https://docs.runpod.io/pods/overview",
+      "development_track": "parallel",
+      "deployment_approval": "fresh_human_consent_for_every_deployment",
+      "post_job_lifecycle_target": "auto_stop_owned_resource_when_supported",
+      "lifecycle_implementation": "not_implemented"
     },
     {
       "id": "vast-serverless",
@@ -78,7 +90,11 @@
         "execute": false,
         "scale_to_zero": "provider_dependent"
       },
-      "docs": "https://vast.ai/developers/api"
+      "docs": "https://vast.ai/developers/api",
+      "development_track": "parallel",
+      "deployment_approval": "fresh_human_consent_for_every_deployment",
+      "post_job_lifecycle_target": "serverless_scale_to_zero",
+      "lifecycle_implementation": "not_implemented"
     },
     {
       "id": "vast-instances",
@@ -98,7 +114,11 @@
         "execute": false,
         "scale_to_zero": "manual_lifecycle"
       },
-      "docs": "https://vast.ai/developers/api"
+      "docs": "https://vast.ai/developers/api",
+      "development_track": "parallel",
+      "deployment_approval": "fresh_human_consent_for_every_deployment",
+      "post_job_lifecycle_target": "auto_stop_owned_resource_when_supported",
+      "lifecycle_implementation": "not_implemented"
     },
     {
       "id": "lambda-cloud",
@@ -117,7 +137,12 @@
         "execute": false,
         "scale_to_zero": "manual_lifecycle"
       },
-      "docs": "https://docs.lambda.com/api/cloud"
+      "docs": "https://docs.lambda.com/api/cloud",
+      "development_track": "parallel",
+      "deployment_approval": "fresh_human_consent_for_every_deployment",
+      "post_job_lifecycle_target": "auto_stop_if_stop_supported_else_manual_action",
+      "lifecycle_implementation": "not_implemented",
+      "stop_api_status": "unverified_terminate_may_be_only_supported_action"
     },
     {
       "id": "generic-https",
@@ -136,7 +161,12 @@
         "execute": false,
         "scale_to_zero": "unknown"
       },
-      "docs": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/docs/PROVIDERS.md"
+      "docs": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/docs/PROVIDERS.md",
+      "development_track": "parallel",
+      "deployment_approval": "fresh_human_consent_for_every_deployment",
+      "post_job_lifecycle_target": "externally_managed",
+      "lifecycle_implementation": "not_implemented",
+      "note": "Do not stop preexisting or externally managed hardware without verified bridge ownership and explicit scope"
     },
     {
       "id": "generic-ssh",
@@ -153,7 +183,12 @@
         "execute": false,
         "scale_to_zero": "externally_managed"
       },
-      "docs": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/docs/PROVIDERS.md"
+      "docs": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/docs/PROVIDERS.md",
+      "development_track": "parallel",
+      "deployment_approval": "fresh_human_consent_for_every_deployment",
+      "post_job_lifecycle_target": "externally_managed_unless_owned_and_stop_capable",
+      "lifecycle_implementation": "not_implemented",
+      "note": "Do not stop preexisting or externally managed hardware without verified bridge ownership and explicit scope"
     },
     {
       "id": "kubernetes-gpu",
@@ -170,7 +205,11 @@
         "execute": false,
         "scale_to_zero": "cluster_dependent"
       },
-      "docs": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/"
+      "docs": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/",
+      "development_track": "parallel",
+      "deployment_approval": "fresh_human_consent_for_every_deployment",
+      "post_job_lifecycle_target": "terminate_owned_workload_and_reconcile_node_lifecycle_if_supported",
+      "lifecycle_implementation": "not_implemented"
     }
   ]
 }
