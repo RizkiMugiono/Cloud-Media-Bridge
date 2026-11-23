@@ -49,3 +49,40 @@ jobs:
               assert provider["capabilities"]["execute"] is False
           print(f"Verified {len(ids)} non-secret provider definitions")
           PY
+      - name: Validate user-approved deployment policy (no cloud access)
+        if: runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import json
+          with open("config/deployment-policy.json", encoding="utf-8") as f:
+              policy = json.load(f)
+          with open("config/providers.json", encoding="utf-8") as f:
+              providers = json.load(f)["providers"]
+          runtime = policy["runtime_installation"]
+          assert set(runtime["allowed_routes"]) == {
+              "verified_prebuilt_oci_image",
+              "vetted_runtime_recipe_on_base_image",
+          }
+          assert runtime["selection"] == "compatibility_first"
+          assert runtime["untrusted_model_repository_scripts"] == "never_execute_automatically"
+          assert policy["provider_development"]["strategy"] == "parallel_workstreams"
+          ids = {p["id"] for p in providers}
+          assert set(policy["provider_development"]["targets"]) == ids
+          assert all(p["development_track"] == "parallel" for p in providers)
+          assert all(p["lifecycle_implementation"] == "not_implemented" for p in providers)
+          assert all(p["capabilities"]["execute"] is False for p in providers)
+          approval = policy["approval"]
+          assert approval["deployment"] == "new_human_approval_for_every_deployment_request"
+          assert approval["grants_reusable_for_deployment"] is False
+          assert approval["agent_or_mcp_may_self_approve"] is False
+          stop = policy["resource_lifecycle"]["pod_vm_instance"]
+          assert stop["after_last_job"] == "automatically_stop_bridge_owned_resource_if_provider_supports_stop"
+          assert stop["ownership_proof_required"] is True
+          assert stop["no_other_active_jobs_required"] is True
+          assert stop["auto_destroy"] is False
+          assert stop["auto_terminate"] is False
+          assert stop["stop_unsupported"] == "report_action_required_and_never_claim_stopped"
+          assert policy["implementation_status"] == "documented_contract_not_enforced"
+          assert policy["execution"]["current_capability"] == "read_only"
+          print("All four deployment decisions validated as non-executable contracts")
+          PY
