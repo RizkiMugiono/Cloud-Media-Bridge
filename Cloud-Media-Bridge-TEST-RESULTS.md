@@ -16,7 +16,7 @@ This file records **actual observations only**. All-media catalog checks demonst
 | Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on `main` |
 | Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on `main` |
 | Markdown code fences in both documents are balanced | PASS | Architecture: 4 fence delimiters; test plan: 6; balanced = true |
-| Test case IDs are unique and complete | PASS | 102 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10 |
+| Test case IDs are unique and complete | PASS | 110 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10, R01–R08 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
 | Application Rust source compilation and static analysis | PASS | GitHub Actions offline CI on Linux, Windows and macOS passed on main commit `86f93e6bc43d727fbbe6187150282c689ad178ac` |
 | CLI integration tests | PASS | 11 tests passed on Ubuntu (6 Rust unit + 5 MCP integration) in GitHub Actions PR CI; new policy tests not evidence of cloud execution |
@@ -31,7 +31,7 @@ Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-Five mapped cases have offline evidence: H01, H02, U01, U02 and U03. The other six unit/integration tests do not automatically establish success for other scenario IDs. The remaining **90 scenarios are NOT RUN**, including all media inference/runtime and deployment tests. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+Five mapped cases have offline evidence: H01, H02, U01, U02 and U03. The other six unit/integration tests do not automatically establish success for other scenario IDs. The remaining **98 scenarios are NOT RUN** until matching runtime resolver checks have verifiable evidence, including all media inference/runtime and deployment tests. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
@@ -151,6 +151,21 @@ These scenarios document whether media discovery, task classification and actual
 | A08 | Live Hub search with `task` filter across image, video, audio, music, speech and multimodal; inspect real catalog results | **NOT RUN** | Pending matching test evidence |
 | A09 | Live inspection and planning with model ID and immutable SHA, including gated models and unclassified media tags | **NOT RUN** | Pending matching test evidence |
 | A10 | Verified media inference for each **claimed runtime family** and output type, including music, voice, video and 3D where supported | **NOT RUN** | Pending matching test evidence |
+
+## 2c. Rust Runtime Resolver verification ledger (R01–R08)
+
+These tests track the read-only runtime candidate matcher. No OCI/installer is executable yet and no GPU provider deployment has been implemented. Offline fixture verification does not establish a real model test.
+
+| Test ID | Scenario requiring verification | Status | Evidence |
+|---|---|---|---|
+| R01 | Versioned Runtime Registry and OCI/installer candidates | **NOT RUN** | No matching execution evidence recorded |
+| R02 | Library/task/checkpoint signals avoid false runtime matches | **NOT RUN** | No matching execution evidence recorded |
+| R03 | Audio, music, voice, video runtime families receive candidates | **NOT RUN** | No matching execution evidence recorded |
+| R04 | Unknown, gated, remote-code and invalid-revision models fail closed | **NOT RUN** | No matching execution evidence recorded |
+| R05 | Real verification evidence required; synthetic OCI preference test | **NOT RUN** | No matching execution evidence recorded |
+| R06 | Read-only runtime CLI/MCP tools and injected approval rejection | **NOT RUN** | No matching execution evidence recorded |
+| R07 | Live Hub model metadata and runtime matching | **NOT RUN** | No matching execution evidence recorded |
+| R08 | Real GPU runtime deployment, media result and resource cleanup | **NOT RUN** | No matching execution evidence recorded |
 
 ## 3. Test level status
 
