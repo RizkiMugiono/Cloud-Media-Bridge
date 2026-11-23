@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "implementation_status": "documented_contract_not_enforced",
+  "purpose": "User-approved deployment design. This file does not authorize cloud operations or imply any deployment/cleanup implementation exists.",
+  "runtime_installation": {
+    "selection": "compatibility_first",
+    "allowed_routes": [
+      "verified_prebuilt_oci_image",
+      "vetted_runtime_recipe_on_base_image"
+    ],
+    "fallback": "only_if_same_approved_model_revision_and_explicitly_compatible",
+    "model_revision": "immutable_sha_required",
+    "recipe_provenance": "versioned_pinned_verified",
+    "untrusted_model_repository_scripts": "never_execute_automatically"
+  },
+  "provider_development": {
+    "strategy": "parallel_workstreams",
+    "targets": [
+      "modal",
+      "runpod-serverless",
+      "runpod-pods",
+      "vast-serverless",
+      "vast-instances",
+      "lambda-cloud",
+      "generic-https",
+      "generic-ssh",
+      "kubernetes-gpu"
+    ],
+    "verification": "independent_per_provider",
+    "not_live_verified_means": "not_operational",
+    "credential_ownership": "individual_end_user"
+  },
+  "approval": {
+    "deployment": "new_human_approval_for_every_deployment_request",
+    "grants_reusable_for_deployment": false,
+    "one_approval_per_exact_deployment_request": true,
+    "bind_to": [
+      "model_id",
+      "model_revision_sha",
+      "model_task",
+      "provider",
+      "user_account",
+      "workspace",
+      "runtime_recipe_digest",
+      "gpu_resource",
+      "operation",
+      "request_nonce"
+    ],
+    "agent_or_mcp_may_self_approve": false,
+    "non_deployment_generation": "governed_by_separate_model_and_worker_policy",
+    "user_must_review": "resource_cost_exposure_and_lifecycle_before_deployment"
+  },
+  "resource_lifecycle": {
+    "serverless": {
+      "after_last_job": "provider_scale_to_zero_when_supported",
+      "min_active_workers_when_idle": 0,
+      "verify_actual_idle_state": true,
+      "storage_charges_may_remain": true
+    },
+    "pod_vm_instance": {
+      "after_last_job": "automatically_stop_bridge_owned_resource_if_provider_supports_stop",
+      "ownership_proof_required": true,
+      "no_other_active_jobs_required": true,
+      "on_success_failure_or_cancellation": "reconcile_then_attempt_stop",
+      "require_provider_confirmed_stop": true,
+      "stop_unsupported": "report_action_required_and_never_claim_stopped",
+      "auto_destroy": false,
+      "auto_terminate": false,
+      "preserve_user_preexisting_and_shared_resources": true,
+      "warn_residual_storage_network_and_idle_charges": true,
+      "lost_connection_or_crash": "recover_from_durable_resource_record_and_reconcile",
+      "deployment_approval_must_disclose_auto_stop": true
+    },
+    "external_user_managed": {
+      "after_last_job": "report_external_lifecycle_no_unapproved_stop"
+    },
+    "stop_failure": "surface_resource_id_redacted_status_and_manual_next_step"
+  },
+  "execution": {
+    "current_capability": "read_only",
+    "no_cloud_actions_from_read_only_tools": true,
+    "automatic_provider_or_model_switch": false,
+    "do_not_claim_deployment_or_stop_success_without_actual_verified_operation": true
+  }
+}
