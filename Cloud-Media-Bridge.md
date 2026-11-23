@@ -1,4 +1,4 @@
-# Cloud-Media-Bridge — Minimal Implementation Specification
+# Cloud-Media-Bridge — Implementation Specification
 
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Version:** 2026-11-23 (simplified local bridge)  
@@ -36,7 +36,7 @@ One MCP bridge is sufficient. Codex, Claude Code, OpenCode, Hermes Agent, DeepSe
 | Modal account integration / deployment / GPU inference | Planned |
 | RunPod, Vast.ai, Lambda and generic host deployment | Planned, not claimed operational |
 | Media artifact download and validation | Planned |
-| Durable asynchronous jobs, advanced parallel tuning | Future, after minimal end-to-end path |
+| Durable asynchronous jobs, advanced parallel tuning | Future, after the first verified end-to-end deployment |
 
 The status above refers to code availability. A feature is **verified** only when its corresponding tests have succeeded with recorded evidence.
 
@@ -73,6 +73,37 @@ Do not hardcode a central provider account or share credentials between users. P
 
 A single compatible HTTPS media-worker contract can allow the same inference API to work on several rental platforms **after the user has provisioned that worker**. Provisioning, identity, token handling and cleanup remain provider-specific.
 
+### Model-to-runtime resolution (required for every provider)
+
+**Hugging Face model configuration is not a deployment specification.** The Hub may expose `config.json`, `model_index.json`, checkpoint weights, model-card metadata and example code. This information can identify a model family, but it cannot guarantee that CUDA, Python libraries, custom operators, assets, input/output schemas or an inference HTTP service exist.
+
+A provider-neutral **RuntimeResolver** must translate verified metadata into a **RuntimeRecipe** maintained and reviewed by this project:
+
+1. Resolve the canonical model ID and immutable commit SHA; check access, license, files, task and architecture.
+2. Match model and task to a supported runtime family and pinned environment: Diffusers for compatible image/video pipelines; Transformers for compatible media/vision/speech tasks; established audio/music runtime families; ComfyUI only with pinned vetted nodes and workflows; or a signed/prebuilt serving image.
+3. Check exact dependencies, GPU architecture, VRAM, disk/model download size, input schema, memory assumptions, trust policy, startup and artifact output.
+4. If no safe compatible recipe exists, report `RUNTIME_UNSUPPORTED` or `RUNTIME_UNVERIFIED`, including missing requirements. Do not execute arbitrary Python/install commands copied from a model card.
+5. Build a **read-only deployment plan** binding the selected model SHA, recipe digest, provider profile, GPU offer/region, source token requirements and cleanup behavior.
+6. Obtain **separate human approval** for model selection and any GPU resource creation/change.
+7. Provision the provider resource using its documented interface; use a vetted OCI runtime image or bootstrap a known runtime from a vetted base image, then download/verify the approved weights and start an authenticated task-serving worker.
+8. Submit inputs, verify output artifact integrity, retrieve results, and apply the approved lifecycle policy. For an instance/VM, report and perform a verified stop/terminate action; **do not claim serverless scale-to-zero**.
+
+Recipes should be **per runtime family**, not one file per Hugging Face model. A new model can be automatically discovered and, if compatible with an existing recipe, run by passing its ID and SHA without a repo release. A genuinely new architecture/custom operator requires a separately verified recipe or image.
+
+### Vast.ai instance deployment in particular
+
+Vast.ai instances support **standard Linux Docker images**; they are not restricted to dedicated Vast-provided inference containers. The instance/template can select a general base or PyTorch image, a pinned custom OCI image, and a startup/provisioning script. The Vast instance-creation API accepts an image and startup configuration after the user selects a GPU offer.
+
+For Cloud-Media-Bridge, the Vast adapter must: query live offers/capabilities → validate GPU/VRAM/disk/runtime → present the exact Docker image/recipe and resource lifecycle → obtain user consent → create instance in the user's account → verify the worker is healthy and authenticated → load pinned Hugging Face model → run media inference → fetch and checksum outputs → stop/destroy only bridge-owned resources with user authorization. Do not attempt nested Docker inside a Vast Docker instance.
+
+Avoid arbitrary user-supplied public startup scripts or treating a model repository's README as a trusted shell script. In SSH/Jupyter launch modes, the platform may override the image ENTRYPOINT; the adapter must choose the proper run mode or configure service startup explicitly. For cloud workers, send least-privilege, model-specific source access only when strictly required, never GPU-provider provisioning credentials.
+
+Vast.ai serverless endpoints are a **different** deployment mode, requiring their own endpoint/worker lifecycle. Provider configurations must not conflate Vast instances with Vast serverless.
+
+### Shared worker protocol vs. provider-specific infrastructure
+
+The same task-serving API may be reused on Modal, RunPod Pods, Vast instances, Lambda VMs, SSH GPU hosts and Kubernetes, provided the chosen runtime image is compatible. That **does not eliminate** provider-specific provisioning, networking, authentication, storage, cleanup and billing behavior. Modal Functions, RunPod Serverless and Vast Serverless may require native worker/handler adapters rather than an identical long-running HTTP server. A common logical request/response contract is still useful without forcing every provider into the same transport.
+
 ### Provider adapter responsibilities
 
 1. Detect correct user account/workspace and authenticated capabilities.
@@ -99,14 +130,14 @@ The repository does **not** implement an automatic per-user cost ceiling. It mus
 
 No separate native Rust inference engine or universal Python inference engine is required for **v1**. Rust only runs the local MCP/CLI and provider orchestration.
 
-There are two acceptable execution routes:
+There are two acceptable execution routes, both requiring an explicit verified runtime recipe:
 
 1. **Compatible OCI serving image**: user selects a pinned existing media-serving image that can load the model/revision and exposes an authenticated media request API.
 2. **Library-backed application**: a small provider-native deployment that invokes an existing tested library pipeline (such as Diffusers or a suitable speech/video runtime) and exposes the same media API.
 
-For both routes, runtime requirements, license/gating, task schema, input media, GPU VRAM, output format and security must be verified. A Hugging Face link alone cannot deploy itself.
+For both routes, runtime requirements, license/gating, task schema, input media, GPU VRAM, output format and security must be verified. A Hugging Face link or `config.json` alone cannot deploy itself. The recipe supplies the loader, dependencies, execution entry point, authenticated worker transport and artifact contract.
 
-**Do not build a custom scheduler, orchestration database, giant universal image, or global server until a proven use case requires it.** Use the provider's supported job/scale lifecycle for the minimal first test.
+**Do not build a custom scheduler, orchestration database, giant universal image, or global server until a proven use case requires it.** Use the provider's supported job/scale lifecycle for the first verified deployment.
 
 ## 6. Human approval and privacy
 
@@ -139,7 +170,7 @@ MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or p
 
 **Future tools after validation:** request human model approval, request resource-operation approval, generate media, poll job, cancel and fetch artifact. No success stubs or mock outputs in production paths.
 
-## 8. Minimal implementation order
+## 8. Implementation order
 
 1. **Local MCP and provider catalog (offline).** MCP tests, invalid input handling, provider listing and schema validation.
 2. **Dynamic catalog (no GPU).** Live model search, inspection, SHA checks, access/license states and model URL safety.
@@ -151,7 +182,7 @@ MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or p
 
 ## 9. Testing and release claims
 
-The [test plan](Cloud-Media-Bridge-TESTING.md) retains 82 detailed cases, but **the first release is gated by the seven small capabilities above**. Advanced load testing, durable video/music jobs and multiple live providers are later phases.
+The [test plan](Cloud-Media-Bridge-TESTING.md) retains 82 detailed cases, with the initial deployment milestone gated by the seven capabilities above. Advanced load testing, durable video/music jobs and multiple live providers are later phases.
 
 - Default CI uses Rust unit/integration tests and synthetic fixtures; **no GPU or paid cloud services**.
 - **First real GPU tests: Modal only**, after separately approved use of the user's account.
