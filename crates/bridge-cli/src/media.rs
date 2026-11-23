@@ -3,7 +3,9 @@ use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
 const MEDIA_TASKS: &str = include_str!("../../../config/media-tasks.json");
+#[cfg(test)]
 const MEDIA_REQUEST_SCHEMA: &str = include_str!("../../../schemas/media-request.schema.json");
+#[cfg(test)]
 const MEDIA_RESULT_SCHEMA: &str = include_str!("../../../schemas/media-result.schema.json");
 
 pub(crate) fn catalog() -> Result<Value, String> {
