@@ -61,6 +61,68 @@ POST /v1/media/jobs/{id}/cancel -> cancellation outcome
 
 The caller must validate the worker's HTTPS origin, response schema, output size/hash, account binding and approval. Never send provider provisioning credentials to the inference worker. Merely using a shared HTTP contract does **not** automatically provision a host, pull a model, satisfy gated license requirements, or guarantee CUDA/runtime compatibility.
 
+## How media models are deployed on a GPU rental
+
+A GPU rental provider does not need to maintain a special image-generation, video-generation, speech or music container for every model. What the selected GPU resource needs is a **compatible inference runtime**. The bridge must resolve that runtime from a **trusted, versioned runtime-family recipe**.
+
+### Hugging Face inputs are not complete deployment instructions
+
+| Hub material | What it can tell the bridge | What it does not supply |
+|---|---|---|
+| Model URL and immutable commit SHA | Exactly which model revision to use | Running service or GPU |
+| `config.json` | Model architecture and loader configuration for supported libraries | Installed library versions, CUDA compatibility, inference endpoint |
+| `model_index.json` | Diffusers pipeline components when applicable | A running Diffusers worker, validated dependencies |
+| Checkpoint files | Model weights / formats | Model loader, preprocessing, decoding, postprocessing |
+| Model card / usage examples | Suggested task and runtime clues | Trusted shell commands or security guarantees |
+| Docker/Space source (if any) | Possible runtime implementation | Automatic permission to execute untrusted code |
+
+For compatible model families, a shared vetted runtime can accept different `model_id` and `revision_sha` values; **one runtime recipe can serve many models**. New architecture, custom CUDA code, unsupported nodes or an absent loader require a separately verified recipe. Model discovery must not imply runtime compatibility.
+
+### Runtime recipe design (proposed, not yet executable)
+
+A recipe for a model family should specify: task and model-family matcher; supported file formats; pinned serving image digest **or** vetted base image and pinned library installation; Python/CUDA/driver compatibility; model loader, input/output schemas and media codecs; minimum GPU VRAM and disk requirements; authentication and endpoint transport; input/output staging; health check; cleanup; version and test evidence.
+
+Examples of runtime families—not promises of compatibility—include Diffusers image/video pipelines, established Transformer-based speech and vision runtimes, audio/music pipelines, and pinned ComfyUI graph/node combinations. Avoid one enormous image with every possible model library, and do not require one handwritten configuration file per model.
+
+**Read-only planning and human approval precede provisioning.** A generic description of a family is insufficient to label any arbitrary checkpoint `verified`.
+
+### Vast.ai instance path
+
+Vast.ai uses Linux Docker instances and accepts standard images. A template may use an existing PyTorch or base image, a custom image from a registry, or a reviewed provisioning/startup script. Vast's SSH/Jupyter launch modes can override the image's entrypoint, so worker startup must match the selected launch mode.
+
+```text
+AI harness -> local Rust bridge
+  -> Hugging Face API: model ID + exact SHA + metadata
+  -> RuntimeResolver: compatible reviewed runtime recipe?
+  -> Vast adapter: search available GPU offers, validate RAM/VRAM/disk
+  -> Human: approve exact model and separate instance creation
+  -> Vast API: create rented instance using pinned Docker image/recipe
+  -> Instance: start task worker, load verified HF weights at pinned SHA
+  -> Client: authenticated inference -> verified media artifact
+  -> Vast API: query state and stop/terminate only owned resources
+```
+
+When using an existing base/PyTorch image, a vetted bootstrap routine can install the required **pinned library versions**, download verified checkpoint files, and start the corresponding media worker. It must **not** execute arbitrary `requirements.txt`, `setup.py`, `README.md` or remote script from an untrusted model repository without a separately approved, isolated trust policy.
+
+Vast instance creation and Vast serverless endpoint deployment are separate modes. The former rents a running instance that may incur charges until stopped/terminated; neither its storage billing nor its idle behavior is identical to Modal scale-to-zero.
+
+The public Vast API documents image and startup configuration for instance creation; templates describe Docker images, image launch modes and provisioning. **This repository currently has no working Vast adapter, no runtime recipe executor and no real Vast inference results.**
+
+### Same worker protocol, different provisioners
+
+- **Modal:** deploy a compatible Modal Function/App or OCI-based server serving the selected runtime, inside the user's account.
+- **RunPod Serverless / Vast Serverless:** use provider-specific worker/endpoint handler conventions with the same logical media-task request and artifact semantics.
+- **RunPod Pods / Vast instances / Lambda GPU VMs:** provision a runtime-compatible instance/container or bootstrap a vetted runtime on the allocated machine.
+- **User-managed HTTPS/SSH/Kubernetes GPU:** connect to or provision an authenticated worker with a compatible runtime, only within permissions the user has granted.
+
+The same model selection and runtime matching logic is shared. The adapter for each provider must still handle resource offers, lifecycle, authentication, network, storage and service discovery. No adapter should silently fall back to a different provider or switch model revisions.
+
+### Recommended deployment result states
+
+`DISCOVERED` → `COMPATIBILITY_CHECKED` → `PLAN_READY` → `MODEL_APPROVED` → `RESOURCE_APPROVED` → `PROVISIONED` → `WORKER_READY` → `RUNNING` → `ARTIFACT_VERIFIED` → `CLEANUP_RECONCILED`.
+
+Unsupported or untrusted recipes must return an explicit error **before any resource is allocated**. Cancellation and resource termination require truthful confirmation rather than assuming success.
+
 ## Compute lifecycle and billing behavior
 
 | Resource class | Idle expectation |
