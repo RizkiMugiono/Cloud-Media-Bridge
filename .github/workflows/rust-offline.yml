@@ -27,7 +27,7 @@ jobs:
         with:
           components: clippy
       - name: Verify dependency lockfile
-        run: cargo metadata --locked --format-version 1 --no-deps > /dev/null
+        run: cargo metadata --locked --format-version 1 --no-deps
       - name: Compile and run local tests (no cloud accounts)
         run: cargo test --locked --workspace --all-targets
       - name: Rust lint
