@@ -481,6 +481,31 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
     #[test]
+    fn paid_deployment_requires_verified_billing_terms_within_budget() {
+        let mut plan=json!({"provider":"runpod-pods","billing_quote":null});
+        assert!(verified_billing_terms(&plan).is_err());
+
+        plan["billing_quote"]=json!({
+            "schema_version":1,"billing_model":"per_month","provider":"runpod-pods",
+            "pricing_source":"example_monthly_commitment"
+        });
+        assert!(verified_billing_terms(&plan).is_err());
+
+        plan["billing_quote"]=json!({
+            "schema_version":1,"billing_model":"per_hour",
+            "billing_increment_ms":3_600_000,"minimum_billable_ms":3_600_000,
+            "billable_elapsed_ms":5_000,"quoted_micro_usd_per_hour":1_000_000,
+            "max_approved_compute_micro_usd":50_000,
+            "provider":"runpod-pods","pricing_source":"offline_quote_not_live"
+        });
+        assert!(verified_billing_terms(&plan).is_err());
+        plan["billing_quote"]["max_approved_compute_micro_usd"]=json!(1_000_000);
+        assert!(verified_billing_terms(&plan).is_ok());
+        plan["billing_quote"]["provider"]=json!("vast-instances");
+        assert!(verified_billing_terms(&plan).is_err());
+    }
+
+    #[test]
     fn deployment_is_blocked_without_pinned_and_live_verified_runtime_evidence() {
         let dir=session();
         let plan=json!({"provider":"runpod-pods","runtime_entry_id":"hf-diffusers-image-oci",
