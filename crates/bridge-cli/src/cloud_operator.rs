@@ -107,6 +107,14 @@ pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
     // accept credentials, arbitrary commands, or remote API URLs.
     let nonce=secure_nonce()?;
     let req_id=secure_nonce()?;
+    let billing_quote=raw.get("billing_quote").cloned().unwrap_or(Value::Null);
+    let billing_preview=if billing_quote.is_null(){
+        json!({"estimate_status":"pricing_terms_unknown",
+            "requires_contract_review":true,"auto_stop_after_last_job":true,
+            "wait_until_paid_period_ends":false})
+    } else {
+        crate::billing::estimate(&billing_quote)?
+    };
     let plan=json!({
         "request_id":req_id,
         "nonce":nonce,
@@ -122,7 +130,9 @@ pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
         "offer_id":raw["offer_id"],
         "account":raw["account"],
         "workspace":raw["workspace"],
-        "automatic_owned_resource_stop":true
+        "automatic_owned_resource_stop":true,
+        "billing_quote":billing_quote,
+        "billing_estimate":billing_preview
     });
     if !plan["runtime_entry_id"].is_string()
         || !plan["account"].is_string()
@@ -155,7 +165,8 @@ pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
         "status":"awaiting_human_approval","session":root.to_string_lossy(),
         "plan_sha256":plan_sha,"request_id":req_id,
         "human_challenge":format!("DEPLOY {nonce}"),
-        "message":"This is a REAL resource plan. Deployment is disabled until a verified runtime and explicit terminal approval are present. No GPU is provisioned by prepare."
+        "billing_estimate":plan["billing_estimate"],
+        "message":"This is a REAL resource plan, not a GPU operation. Live GPU deployment requires verified model/worker, actual provider pricing terms and explicit terminal approval. No GPU is provisioned by prepare."
     }))
 }
 
@@ -181,6 +192,28 @@ fn verified_runtime(plan:&Value)->Result<(),String>{
     Ok(())
 }
 
+fn verified_billing_terms(plan:&Value)->Result<(),String>{
+    let quote=&plan["billing_quote"];
+    if quote.is_null() {
+        return Err("Actual provider billing granularity, minimum, runtime estimate and compute budget must be confirmed before paid deployment".into());
+    }
+    let forecast=crate::billing::estimate(quote)?;
+    if forecast["requires_contract_review"]==true {
+        return Err("Calendar/prepaid/unknown GPU contracts require separate human contract review; automated paid deployment remains disabled".into());
+    }
+    if forecast["over_approved_compute_budget"]==true
+        || forecast["max_approved_compute_micro_usd"].is_null()
+    {
+        return Err("GPU compute estimate exceeds an explicitly approved budget or no compute budget is supplied".into());
+    }
+    if quote["pricing_source"].as_str().is_none_or(|v|v.is_empty()||v.len()>512)
+        || quote["provider"]!=plan["provider"]
+    {
+        return Err("GPU pricing source and quoted provider must match the deployment".into());
+    }
+    Ok(())
+}
+
 fn approved_with_tty(plan:&Value)->Result<(),String>{
     if !io::stdin().is_terminal() || !io::stderr().is_terminal() {
         return Err("Each paid deployment requires a local human terminal. MCP/redirected input cannot approve".into());
@@ -193,6 +226,12 @@ fn approved_with_tty(plan:&Value)->Result<(),String>{
     eprintln!("Model: {} at {}",plan["model_id"],plan["model_sha"]);
     eprintln!("Image: {} | GPU: {} | Disk GB: {}",plan["image"],plan["gpu"],plan["disk_gb"]);
     eprintln!("Plan SHA256: {}",sha256(plan.to_string().as_bytes()));
+    eprintln!("Billing model: {} | estimate (micro-USD, compute only): {} | max approved compute (micro-USD): {}",
+        plan["billing_quote"]["billing_model"],
+        plan["billing_estimate"]["estimated_incremental_compute_micro_usd"],
+        plan["billing_quote"]["max_approved_compute_micro_usd"]);
+    eprintln!("Source: {}. Stopping compute does not cancel prepaid commitments, storage, network or taxes.",
+        plan["billing_quote"]["pricing_source"]);
     eprintln!("After the final job, only this bridge-owned resource may be stopped where supported; storage/IP charges can persist.");
     let nonce=plan["nonce"].as_str().ok_or("Missing nonce")?;
     eprint!("Type DEPLOY {nonce} exactly: ");
@@ -215,6 +254,7 @@ pub(crate) fn deploy(directory:&str)->Result<Value,String>{
         return Err("Deployment request was already used, changed or cancelled".into());
     }
     verified_runtime(&state["plan"])?;
+    verified_billing_terms(&state["plan"])?;
     approved_with_tty(&state["plan"])?;
     let token=env::var("CMB_WORKER_TOKEN").map_err(|_|"CMB_WORKER_TOKEN must be supplied securely in environment".to_string())?;
     let plan=state["plan"].clone();
