@@ -4,7 +4,7 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **53 Rust unit tests + 14 Rust MCP integration tests + 14 Python worker tests passed in offline CI across Linux, Windows, macOS; CPU Docker fixture verified on Linux. Real GPU deployment, inference and provider stop remain untested**
+**Overall application status:** **62 Rust unit tests + 16 Rust MCP integration tests + 14 Python worker tests passed on Linux; earlier Rust suites passed on Windows/macOS and CPU Docker fixture passed on Linux. Real GPU inference, provider stop and actual billing remain untested**
 
 This file records **actual observations only**. All-media catalog checks demonstrate classification and MCP contract behavior, **not** model inference or true universal runtime compatibility. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, media classification, evidence-based Rust runtime matching, Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
@@ -33,7 +33,7 @@ Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-**30 mapped scenarios have offline test evidence** (H01–H02, U01–U03, A01–A07, R01–R06, O01–O12). **94 scenarios remain NOT RUN**, including live Hugging Face access, real AI inference, provider provisioning and actual GPU stopping. A local mock success is not evidence of real provider compatibility. See the scenario rows and linked CI evidence below.
+**44 mapped scenarios have offline test evidence** (H01–H02, U01–U03, A01–A07, R01–R06, O01–O12, C01–C07, B01–B07). **96 scenarios remain NOT RUN**, including live Hugging Face access, real AI inference, provider provisioning and actual GPU stopping. A local mock success is not evidence of real provider compatibility. See the scenario rows and linked CI evidence below.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
@@ -213,13 +213,13 @@ The billing estimates use user-provided illustrative prices, not live provider r
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
-| B01 | Per-second billing despite USD/hour display; immediate stop | **NOT RUN** | Awaiting offline CI evidence |
-| B02 | Full-hour minimum without waiting for the hour | **NOT RUN** | Awaiting offline CI evidence |
-| B03 | Minute/day/millisecond/custom increments and minimums | **NOT RUN** | Awaiting offline CI evidence |
-| B04 | Prepaid, monthly, yearly and reserved compute contracts | **NOT RUN** | Awaiting offline CI evidence |
-| B05 | Budget estimate overrun blocks operator paid deployment | **NOT RUN** | Awaiting offline CI evidence |
-| B06 | Missing/inconsistent/unverified billing terms are refused | **NOT RUN** | Awaiting offline CI evidence |
-| B07 | Agent MCP/CLI billing policy and estimate remain read-only | **NOT RUN** | Awaiting offline CI evidence |
+| B01 | Per-second billing despite USD/hour display; immediate stop | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — hourly_display_with_per_second_billing_is_prorated_and_stops_immediately |
+| B02 | Full-hour minimum without waiting for the hour | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — true_hourly_minimum_charges_full_hour_but_does_not_hold_gpu_running |
+| B03 | Minute/day/millisecond/custom increments and minimums | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — minute_day_and_custom_quanta_round_resource_lifetime |
+| B04 | Prepaid, monthly, yearly and reserved compute contracts | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — prepaid_monthly_and_yearly_cannot_be_costed_from_five_seconds |
+| B05 | Budget estimate overrun blocks operator paid deployment | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — budget_is_an_estimate_not_an_enforced_provider_limit; paid_deployment_requires_verified_billing_terms_within_budget |
+| B06 | Missing/inconsistent/unverified billing terms are refused | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — unknown_or_inconsistent_terms_are_not_guessed; paid_deployment_requires_verified_billing_terms_within_budget |
+| B07 | Agent MCP/CLI billing policy and estimate remain read-only | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — billing_quote_mcp_estimates_five_seconds_without_provisioning_gpu; offline billing CLI examples in GitHub Actions |
 | B08 | Real GPU invoice and provider-confirmed billing stop | **NOT RUN** | Requires separately authorized GPU/provider test |
 
 ## 3. Test level status
