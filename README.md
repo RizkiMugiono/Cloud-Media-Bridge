@@ -4,7 +4,7 @@
 
 **A local MCP/CLI bridge for discovering Hugging Face media models and preparing execution in the user's own GPU account.** No central service, shared user accounts, or hosted LLMs.
 
-**Current status:** Rust MCP/CLI includes live-Hub discovery code, an evidence-based Runtime Resolver, a **fully offline mock deployment pipeline**, a task-scoped HTTP fixture worker, provider API contract previews, and artifact integrity checks. Cross-platform offline tests run in GitHub Actions. **Real cloud deployment, independently trusted human approval for billable operations, verified AI inference and actual GPU auto-stop are not yet demonstrated.**
+**Current status:** Rust MCP/CLI includes live-Hub discovery code, an evidence-based Runtime Resolver, a **fully offline mock deployment pipeline**, a task-scoped HTTP fixture worker, provider API contract previews, and artifact integrity checks. Cross-platform offline tests run in GitHub Actions. **RunPod Pods and Vast.ai Instances now have concrete Rust provider API adapters and an operator-only control plane, but neither is live-tested or enabled with a verified runtime image. Real paid deployment, independent approval strength, verified model inference and actual GPU auto-stop remain unproven.**
 
 ## System architecture
 
@@ -47,6 +47,28 @@ The project adopts four user-approved requirements. The [versioned policy contra
 
 Serverless providers use provider-supported scale-to-zero after idleness rather than a VM stop call. Preexisting user-managed hardware must never be shut down without an authorized ownership scope. Shutdown must be reconciled after failures/cancellation and survives process crashes once durable lifecycle tracking is implemented.
 
+## Real-provider control plane (code available; GPU execution blocked)
+
+The Rust code now contains non-mock **RunPod Pods REST v2** and **Vast.ai Instances REST** request builders, response parsing, authenticated HTTPS transport, and provider-confirmed resource stop reconciliation in `provider_api.rs`, `provider_http.rs` and `cloud_operator.rs`. The operator CLI uses a private resource journal and separate one-shot terminal confirmation; MCP does **not** expose paid resource creation or destruction.
+
+```sh
+# Offline preparation only (requires a separate manifest file):
+cargo run --locked -- cloud prepare ./my-cloud-session ./my-manifest.json
+cargo run --locked -- cloud status ./my-cloud-session
+
+# The following commands are operator-only, require credentials and
+# intentionally refuse to deploy until the exact model/provider/runtime
+# has genuine verified release evidence:
+cargo run --locked -- cloud deploy ./my-cloud-session
+cargo run --locked -- cloud stop ./my-cloud-session
+```
+
+`cloud deploy` is **blocked against the bundled unverified runtime registry**. Even after runtime verification it requires `CMB_ENABLE_LIVE_GPU=I_ACCEPT_GPU_CHARGES`, a local interactive terminal, an exact `DEPLOY <nonce>` challenge, provider API credentials from the user's environment and a separate worker token. Do not treat CLI/TTY confirmation as an OS-level trust boundary against an agent with arbitrary terminal control. Creation failure is reported as uncertain until independently reconciled; **never automatically retry an uncertain creation**.
+
+Provider-specific stop requires journal-proven ownership, zero running jobs/transfers and a confirmed provider-observed stopped state. The code does not auto-delete or auto-terminate instances. If the agent or laptop disappears, there is **no always-on watchdog**. Provider-side watchdog/TTL or an externally available recovery agent is still required before claiming guaranteed auto-stop.
+
+Only RunPod Pods and Vast.ai Instances have provider REST operations in this branch; the other seven provider classes still have read-only previews. **No paid API calls or GPU tests have occurred.** See [adapter implementation and safety limits](docs/PROVIDERS.md).
+
 ## Offline end-to-end demonstration (no GPU credits)
 
 Run a full simulated deployment and verify its output:
@@ -78,7 +100,8 @@ The command `provider-preview` and MCP `provider_operation_preview` build creden
 | Human confirmation, replay defense and artifact verification | Implemented for **offline fixtures only**; real paid GPU approvals still planned |
 | Offline full-cycle simulated deployment (nine media classes) | Implemented: one-shot mock approval, fixture generation, SHA-256 artifact, owned resource auto-stop and restart reconciliation |
 | Authenticated HTTP media worker | Implemented task-scoped Python server and offline integration tests; **real AI inference unverified** |
-| Provider operation contract previews (nine classes) | Implemented as pure read-only Rust JSON requests; **not operational cloud API adapters** |
+| Provider operation contract previews (nine classes) | Implemented as pure read-only Rust JSON requests |
+| RunPod Pods and Vast.ai Instances REST adapters | Concrete request/response and HTTPS transport code, user-only CLI, offline contract tests; **no live provider calls or GPU verification** |
 | Modal deployment and image/audio/video generation | Planned; no GPU tests run |
 | RunPod / Vast.ai / Lambda / GPU host deployment | Planned; configured in the catalog, **not operational adapters** |
 
