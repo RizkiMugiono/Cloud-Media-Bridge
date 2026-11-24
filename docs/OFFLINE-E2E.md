@@ -56,6 +56,8 @@ The default fixture path must be a writable user-owned directory. Journals are a
 
 Worker HTTP contract schemas are [worker-request](../schemas/worker-request.schema.json) and [worker-result](../schemas/worker-result.schema.json). The previous [generic request](../schemas/media-request.schema.json) and [generic result](../schemas/media-result.schema.json) envelopes describe future provider-facing contracts, not the current worker wire format. In fixture mode the worker explicitly requires `schema_version=1`; production mode rejects `fixture_kind` and never returns test media.
 
+The worker refuses to listen on a non-loopback interface unless `CMB_PRIVATE_NETWORK_ACK=1` is explicitly set. That acknowledgment does not add TLS: remote deployment must still enforce TLS ingress, authentication and network isolation. The Transformers loader explicitly requests safetensors and rejects remote custom code; neither framework has been real-GPU tested.
+
 It binds `127.0.0.1` by default. Never expose a worker directly on the public internet; remote GPU use requires provider-managed TLS/authenticated ingress or trusted private networking plus a worker token provided through the user's own secret store. The worker **does not need the GPU cloud provisioning API key**.
 
 Start a local fixture worker from a shell using a random private token (illustrative shell commands):
@@ -92,6 +94,12 @@ The Python worker has **real inference code paths** for the following compatible
 | Video, motion, document and arbitrary any-to-any | Classification and media contract only | Verified runtime-family implementation; fixture JSON is **not video inference** |
 
 An official upstream library does not imply every arbitrary model works. The code does not install arbitrary model-card scripts, accept `trust_remote_code` or silently substitute another model. Real workers must be built into pinned and reviewed OCI images or audited installers before being enabled on billable hardware.
+
+### CPU-only Docker worker test image
+
+[`workers/Dockerfile.fixture`](../workers/Dockerfile.fixture) builds the Python standard-library worker as a **non-root CPU-only test container**. It includes no CUDA, PyTorch, Diffusers, Transformers or model weights. In Ubuntu GitHub Actions CI the image runs with `--network none` (only its own local loopback is available), a test token and a fake model SHA. A Docker-exec HTTP request retrieves a fixture artifact and verifies its SHA-256.
+
+The image uses an ordinary development Python base tag and must **not** be promoted to a verified production OCI runtime without digest pinning, audit, dependency/revision testing and explicit approval.
 
 ## Provider operation previews (offline)
 
