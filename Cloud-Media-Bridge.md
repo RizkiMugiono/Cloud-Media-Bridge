@@ -241,7 +241,7 @@ See [the runnable offline end-to-end guide](docs/OFFLINE-E2E.md). The Rust mock-
 
 ## 9. Testing and release claims
 
-The [test plan](Cloud-Media-Bridge-TESTING.md) retains the original 82 detailed cases plus 10 deployment-decision cases (110 total), with the initial deployment milestone gated by the seven capabilities above. Advanced load testing, durable video/music jobs and multiple live providers are later phases.
+The [test plan](Cloud-Media-Bridge-TESTING.md) retains the original 82 cases, 10 deployment-decision cases, 10 all-media cases, 8 Runtime Resolver cases, and 14 offline end-to-end cases (124 total), with the initial deployment milestone gated by the seven capabilities above. Advanced load testing, durable video/music jobs and multiple live providers are later phases.
 
 - Default CI uses Rust unit/integration tests and synthetic fixtures; **no GPU or paid cloud services**.
 - All provider adapters are developed concurrently; each provider's real GPU tests require separately approved access and must not run by default. Modal may be used first for economical validation, but is not an implementation dependency.
