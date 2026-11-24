@@ -137,6 +137,7 @@ class Worker:
         self.asset_bytes = 0
         self.lock = threading.RLock()
         self.pipeline: Any = None
+        self.inference_lock = threading.Lock()
 
     def authorize(self, header: str) -> bool:
         return hmac.compare_digest(header, f"Bearer {self.token}")
@@ -271,7 +272,12 @@ class Worker:
                 raise WorkerError("INVALID_FIXTURE", "Unknown fixture kind")
             kind, mime, data = _fixture(kind)
         elif self.smoke_release is not None:
-            kind, mime, data = self._real_generate(items, params)
+            if not self.inference_lock.acquire(blocking=False):
+                raise WorkerError("WORKER_BUSY", "One inference at a time on this worker", 409)
+            try:
+                kind, mime, data = self._real_generate(items, params)
+            finally:
+                self.inference_lock.release()
         else:
             raise WorkerError("PRODUCTION_DISABLED", "Production runtime and authorization are not release-verified", 403)
         artifact = self.store(kind, mime, data)

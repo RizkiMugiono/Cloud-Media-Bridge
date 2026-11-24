@@ -42,7 +42,7 @@ fn request(origin:&str,token:&str,method:&str,path:&str,body:Option<&[u8]>)->Res
     }
     let url=format!("{origin}{path}");
     let mut child=Command::new("curl")
-        .args(["--silent","--show-error","--fail","--proto","=https",
+        .args(["--disable","--silent","--show-error","--fail","--proto","=https",
             "--max-redirs","0","--connect-timeout","10","--max-time","120",
             "--max-filesize","33554432","--request",method,
             "--config","-","--url",&url])
