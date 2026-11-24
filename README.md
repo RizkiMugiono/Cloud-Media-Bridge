@@ -49,7 +49,7 @@ Serverless providers use provider-supported scale-to-zero after idleness rather 
 
 ## GPU billing: five-second jobs, hourly minimums and prepaid rentals
 
-**Default:** stop bridge-owned compute immediately after the last job and verified artifact transfer, whether a provider quotes by millisecond, second, minute, hour, day, month or year. **Do not keep a GPU running until the end of an already-paid hour unless the user explicitly authorizes reuse.**
+**User choice required:** recommend immediate stop for short usage-metered workloads, but never infer the stop policy from the billing unit. The operator contract accepts `immediate_after_job` or `manual_stop` (with explicit acknowledgment of uncapped idle charges). Other lifecycle choices are documented and rejected until implemented and verified. See [user-controlled lifecycle](docs/USER-CONTROLLED-LIFECYCLE.md).
 
 A displayed `$ / hour` rate is not necessarily a one-hour minimum. Rust now reads provider-specific billing hints and supports a **read-only** billing policy/estimate for actual increments, minimums and usage-based costs. Contracts billed monthly, yearly or prepaid are marked **not estimable from a five-second job**, with separate storage/network/commitment warnings. No provider prices are invented.
 
@@ -85,7 +85,7 @@ cargo run --locked -- cloud stop ./my-cloud-session
 
 Provider-specific stop requires journal-proven ownership, zero running jobs/transfers and a confirmed provider-observed stopped state. The code does not auto-delete or auto-terminate instances. If the agent or laptop disappears, there is **no always-on watchdog**. Provider-side watchdog/TTL or an externally available recovery agent is still required before claiming guaranteed auto-stop.
 
-The `cloud generate` command uses the **same exact approved deployment session**, verifies the authenticated remote worker's model SHA, task, framework and deployment request ID, downloads output bytes, checks SHA-256 and attempts a non-destructive provider stop after the job. A worker endpoint is separately configured through `CMB_WORKER_HTTPS_ORIGIN`; it must be a trusted, TLS-protected worker belonging to this deployment. It is not discovered automatically yet. Artifact transfer and stop may fail, so the session journal reports `STOP_UNCERTAIN` and manual reconciliation when necessary. This workflow is present but intentionally blocked until a verified production runtime exists.
+The `cloud generate` command uses the **same exact approved deployment session**, verifies the authenticated remote worker's model SHA, task, framework and deployment request ID, downloads output bytes, checks SHA-256 and attempts a non-destructive provider stop after the job only when the approved lifecycle requests it; manual-stop sessions retain compute. A worker endpoint is separately configured through `CMB_WORKER_HTTPS_ORIGIN`; it must be a trusted, TLS-protected worker belonging to this deployment. It is not discovered automatically yet. Artifact transfer and stop may fail, so the session journal reports `STOP_UNCERTAIN` and manual reconciliation when necessary. This workflow is present but intentionally blocked until a verified production runtime exists.
 
 Only RunPod Pods and Vast.ai Instances have provider REST operations in this branch; the other seven provider classes still have read-only previews. **No paid API calls or GPU tests have occurred.** The user owns their keys and credits; the project remains responsible for validating implementation and clearly disclosing defects or unverified paths. See [adapter implementation and safety limits](docs/PROVIDERS.md).
 
@@ -186,7 +186,7 @@ See [Provider configuration and lifecycle](docs/PROVIDERS.md).
 ## Safety and GPU credits
 
 - Model selection and immutable revision must be explicitly approved by the human.
-- **Every deployment request requires fresh human approval**; model selection alone cannot authorize GPU resource creation. The approved plan must disclose the intended post-job auto-stop.
+- **Every deployment request requires fresh human approval**; model selection alone cannot authorize GPU resource creation. The approved plan must disclose the selected lifecycle policy, GPU alternatives, exact cost assumptions and continued-charge exposure.
 - No automatic provider switching, public unauthenticated worker, remote arbitrary Python model code, or unsafe deserialization.
 - All provider adapters are parallel development workstreams. Live provider verification is independent and requires permission and credentials for that provider. Modal may be tested first using the user's available trial credit; this does not make other providers sequential dependencies.
 - Owned pods/VMs must automatically stop after the final job where a safe stop API exists. Never silently destroy/terminate. Failed or unsupported stop must be reported, including possible residual charges.

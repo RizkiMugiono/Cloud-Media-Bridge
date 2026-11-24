@@ -44,7 +44,11 @@
       "runtime_recipe_digest",
       "gpu_resource",
       "operation",
-      "request_nonce"
+      "request_nonce",
+      "billing_quote",
+      "billing_estimate",
+      "decision_context",
+      "lifecycle_policy"
     ],
     "agent_or_mcp_may_self_approve": false,
     "non_deployment_generation": "governed_by_separate_model_and_worker_policy",
@@ -52,16 +56,16 @@
   },
   "resource_lifecycle": {
     "serverless": {
-      "after_last_job": "provider_scale_to_zero_when_supported",
-      "min_active_workers_when_idle": 0,
+      "after_last_job": "explicit_user_selected_policy_and_provider_capabilities",
+      "min_active_workers_when_idle": "user_selected_if_supported",
       "verify_actual_idle_state": true,
       "storage_charges_may_remain": true
     },
     "pod_vm_instance": {
-      "after_last_job": "automatically_stop_bridge_owned_resource_if_provider_supports_stop",
+      "after_last_job": "explicit_user_selected_policy_required",
       "ownership_proof_required": true,
       "no_other_active_jobs_required": true,
-      "on_success_failure_or_cancellation": "reconcile_then_attempt_stop",
+      "on_success_failure_or_cancellation": "apply_only_approved_policy_reconcile_uncertain_state",
       "require_provider_confirmed_stop": true,
       "stop_unsupported": "report_action_required_and_never_claim_stopped",
       "auto_destroy": false,
@@ -69,12 +73,35 @@
       "preserve_user_preexisting_and_shared_resources": true,
       "warn_residual_storage_network_and_idle_charges": true,
       "lost_connection_or_crash": "recover_from_durable_resource_record_and_reconcile",
-      "deployment_approval_must_disclose_auto_stop": true
+      "deployment_approval_must_disclose_lifecycle": true
     },
     "external_user_managed": {
       "after_last_job": "report_external_lifecycle_no_unapproved_stop"
     },
-    "stop_failure": "surface_resource_id_redacted_status_and_manual_next_step"
+    "stop_failure": "surface_resource_id_redacted_status_and_manual_next_step",
+    "choices": {
+      "selection": "required_no_implicit_default",
+      "implemented_operator_contract_not_live_verified": [
+        "immediate_after_job",
+        "manual_stop"
+      ],
+      "planned_not_executable": [
+        "idle_timeout",
+        "scheduled_stop",
+        "billing_boundary",
+        "budget_limit",
+        "session_end",
+        "disconnect_timeout",
+        "error_trigger",
+        "persistent",
+        "suspend",
+        "terminate",
+        "scale_to_zero"
+      ],
+      "manual_stop_requires_acknowledgment_of_unbounded_idle_charges": true,
+      "unsupported_choice": "reject_no_fallback",
+      "termination_requires_separate_destructive_approval": true
+    }
   },
   "execution": {
     "current_capability": "read_only",
@@ -89,11 +116,11 @@
     "actual_increment_and_minimum_must_be_checked": true,
     "billable_time_includes_provisioning_and_stop_confirmation": true,
     "user_approved_compute_budget_required": true,
-    "immediate_stop_after_final_job_even_with_prepurchased_hour": true,
     "idle_reuse_requires_separate_explicit_permission": true,
     "unknown_calendar_prepaid_reserved_charges": "contract_review_required_no_estimated_per_job_invoices",
     "continuing_storage_and_network_fees": "must_be_disclosed",
     "billing_estimate_is_not_hard_provider_budget_cap": true,
-    "provider_invoice_reconciliation_required": true
+    "provider_invoice_reconciliation_required": true,
+    "billing_model_does_not_select_lifecycle": true
   }
 }

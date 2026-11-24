@@ -11,5 +11,8 @@
   "disk_gb": 50,
   "offer_id": null,
   "account": "user-owned-runpod-account",
-  "workspace": "user-owned-workspace"
+  "workspace": "user-owned-workspace",
+  "lifecycle_policy": {
+    "mode": "immediate_after_job"
+  }
 }

@@ -24,7 +24,7 @@ The authoritative machine-readable requirements are in [`config/deployment-polic
 | Consent | **New human consent for each exact deployment request**, bound to model/revision, runtime/image digest, account/workspace, provider, GPU resource specification and unique request nonce. No reuse of a previously consumed deployment grant. |
 | Post-job resource handling | Automatically **stop bridge-created and bridge-owned pod/VM/instance resources after their final active job**, if a validated provider stop action exists. Verify stop confirmation; keep job/resource recovery records. Do not destroy/terminate automatically, or stop unrelated/pre-existing/shared resources. Stop failures or unsupported lifecycle actions must be reported, not silently treated as success. |
 
-The term **deployment** here includes initial creation, redeployment, runtime/model image changes and resource reconfiguration. Reusing an already-approved running worker for a generation call is not necessarily a new deployment; execution still requires the applicable user/model permissions. The human approves the auto-stop behavior as part of the exact resource plan. No fixed repository financial limits are imposed.
+The term **deployment** here includes initial creation, redeployment, runtime/model image changes and resource reconfiguration. Reusing an already-approved running worker for a generation call is not necessarily a new deployment; execution still requires the applicable user/model permissions. The human explicitly selects and approves the lifecycle policy as part of the exact resource plan; immediate stop is a recommendation rather than a default. No fixed repository financial limits are imposed.
 
 ## 1. Purpose
 
@@ -190,7 +190,9 @@ Privileged approval must be via an independent user interface/TTY and not a bool
 
 Credentials must never be checked into Git, echoed in MCP stdout, or sent to a model container as provisioning secrets. No maintainer-owned telemetry is collected by default.
 
-### Automatic post-job stop contract
+### User-selected lifecycle and automatic post-job stop contract
+
+The rules below apply only when the user explicitly authorizes immediate stop. The user may instead select manual stop with acknowledgment of continuing charges. Other lifecycle modes are advisory until a reliable execution mechanism exists. See [user-controlled lifecycle](docs/USER-CONTROLLED-LIFECYCLE.md).
 
 - Apply only to resources that the bridge created and whose ownership is recorded with a provider identity, workspace, resource ID, deployment request ID and ownership marker. **Never touch pre-existing, shared or unidentified resources.**
 - After successful, failed or cancelled jobs: check provider-backed status; wait for **all active jobs and artifact transfers** on that resource to finish. If another request is running or queued against the same resource, defer stopping. Reconcile ambiguous submissions before stopping.

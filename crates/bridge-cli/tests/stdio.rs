@@ -320,6 +320,7 @@ fn agent_can_prepare_and_inspect_cloud_plan_but_cannot_approve_or_deploy_via_mcp
     assert_eq!(replies[1]["result"]["structuredContent"]["status"],"awaiting_human_approval");
     assert_eq!(replies[2]["result"]["structuredContent"]["status"],"awaiting_human_approval");
     assert_eq!(replies[2]["result"]["structuredContent"]["approval"]["consumed"],false);
+    assert_eq!(replies[2]["result"]["structuredContent"]["lifecycle_policy"]["mode"],"immediate_after_job");
     assert_eq!(replies[3]["error"]["code"],-32602);
     assert_eq!(replies[4]["error"]["code"],-32602);
     let _=std::fs::remove_dir_all(root);
@@ -345,6 +346,7 @@ fn billing_quote_mcp_estimates_five_seconds_without_provisioning_gpu() {
     let estimate=&replies[2]["result"]["structuredContent"];
     assert_eq!(estimate["effective_billable_ms"],3_600_000);
     assert_eq!(estimate["estimated_incremental_compute_micro_usd"],1_000_000);
-    assert_eq!(estimate["auto_stop_after_last_job"],true);
+    assert_eq!(estimate["lifecycle_decision"],"not_selected_by_billing");
+    assert_eq!(estimate["requires_user_lifecycle_selection"],true);
     assert_eq!(replies[3]["error"]["code"],-32602);
 }

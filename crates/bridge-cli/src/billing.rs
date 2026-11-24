@@ -10,9 +10,9 @@ pub(crate) fn policy() -> Result<Value, String> {
         .map_err(|_| "Bundled GPU billing policy is invalid".to_string())?;
     if data["schema_version"] != 1
         || data["default_lifecycle"]["after_final_job"]
-            != "stop_bridge_owned_compute_immediately_when_safe_and_supported"
+            != "explicit_user_selected_policy_required"
     {
-        return Err("Bundled billing policy violates immediate-stop contract".into());
+        return Err("Bundled billing policy violates user-selected lifecycle contract".into());
     }
     Ok(data)
 }
@@ -39,8 +39,8 @@ pub(crate) fn estimate(quote: &Value) -> Result<Value, String> {
     let mut result = json!({
         "source":"user_supplied_terms_not_provider_invoice",
         "billing_model":mode,
-        "auto_stop_after_last_job":true,
-        "wait_until_paid_period_ends":false,
+        "lifecycle_decision":"not_selected_by_billing",
+        "requires_user_lifecycle_selection":true,
         "storage_and_network_charges_not_included":true,
         "invoice_reconciliation_required":true,
         "note":"Billable time includes cold start, model load, media transfer, idle and stop confirmation; not only the inference duration."
@@ -130,19 +130,19 @@ mod tests {
         })
     }
     #[test]
-    fn hourly_display_with_per_second_billing_is_prorated_and_stops_immediately() {
+    fn hourly_display_with_per_second_billing_is_prorated_without_selecting_lifecycle() {
         let out=estimate(&quote("per_second",1000,0,5000)).unwrap();
         assert_eq!(out["effective_billable_ms"],5000);
         assert_eq!(out["estimated_incremental_compute_micro_usd"],1389);
-        assert_eq!(out["auto_stop_after_last_job"],true);
-        assert_eq!(out["wait_until_paid_period_ends"],false);
+        assert_eq!(out["lifecycle_decision"],"not_selected_by_billing");
+        assert_eq!(out["requires_user_lifecycle_selection"],true);
     }
     #[test]
-    fn true_hourly_minimum_charges_full_hour_but_does_not_hold_gpu_running() {
+    fn true_hourly_minimum_charges_full_hour_without_selecting_lifecycle() {
         let out=estimate(&quote("per_hour",3_600_000,3_600_000,5000)).unwrap();
         assert_eq!(out["effective_billable_ms"],3_600_000);
         assert_eq!(out["estimated_incremental_compute_micro_usd"],1_000_000);
-        assert_eq!(out["wait_until_paid_period_ends"],false);
+        assert_eq!(out["requires_user_lifecycle_selection"],true);
     }
     #[test]
     fn minute_day_and_custom_quanta_round_resource_lifetime() {
@@ -161,7 +161,7 @@ mod tests {
             let out=estimate(&json!({"schema_version":1,"billing_model":mode})).unwrap();
             assert!(out["estimated_incremental_compute_micro_usd"].is_null());
             assert_eq!(out["requires_contract_review"],true);
-            assert_eq!(out["auto_stop_after_last_job"],true);
+            assert_eq!(out["lifecycle_decision"],"not_selected_by_billing");
         }
     }
     #[test]

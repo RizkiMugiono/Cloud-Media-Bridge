@@ -98,6 +98,34 @@ fn request<'a>(plan:&'a Value,token:&'a str)->Result<Deployment<'a>,String>{
     Ok(d)
 }
 
+// Policy is a user choice, not a consequence of the billing increment.
+fn lifecycle_mode(policy: &Value) -> Result<&str, String> {
+    let mode = policy["mode"].as_str().ok_or("Choose an explicit lifecycle mode")?;
+    match mode {
+        "immediate_after_job" | "manual_stop" => Ok(mode),
+        _ => Err("Lifecycle mode is not executable by this adapter; do not substitute another policy".into()),
+    }
+}
+
+fn validated_lifecycle(policy: &Value) -> Result<Value, String> {
+    let mode = lifecycle_mode(policy)?;
+    let fields = policy.as_object().ok_or("Lifecycle policy must be an object")?;
+    if fields.keys().any(|key| key != "mode" && key != "acknowledge_unbounded_idle_charges") {
+        return Err("Unknown lifecycle parameter; no silent fallback".into());
+    }
+    if mode == "manual_stop" && policy["acknowledge_unbounded_idle_charges"] != true {
+        return Err("Manual stop requires acknowledgment that idle charges can continue without a hard cap".into());
+    }
+    if mode == "immediate_after_job" && fields.contains_key("acknowledge_unbounded_idle_charges") {
+        return Err("Manual idle acknowledgment is not an immediate-stop parameter".into());
+    }
+    Ok(policy.clone())
+}
+
+fn should_stop_after_job(plan: &Value) -> Result<bool, String> {
+    Ok(lifecycle_mode(&validated_lifecycle(&plan["lifecycle_policy"])?)? == "immediate_after_job")
+}
+
 pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
     let data=fs::read(manifest).map_err(|_|"Cannot read user deployment manifest".to_string())?;
     if data.len()>16*1024 {return Err("Deployment manifest exceeds 16 KiB".into());}
@@ -107,11 +135,11 @@ pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
     // accept credentials, arbitrary commands, or remote API URLs.
     let nonce=secure_nonce()?;
     let req_id=secure_nonce()?;
+    let lifecycle_policy = validated_lifecycle(&raw["lifecycle_policy"])?;
     let billing_quote=raw.get("billing_quote").cloned().unwrap_or(Value::Null);
     let billing_preview=if billing_quote.is_null(){
         json!({"estimate_status":"pricing_terms_unknown",
-            "requires_contract_review":true,"auto_stop_after_last_job":true,
-            "wait_until_paid_period_ends":false})
+            "requires_contract_review":true,"lifecycle_decision":"not_selected_by_billing"})
     } else {
         crate::billing::estimate(&billing_quote)?
     };
@@ -130,7 +158,8 @@ pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
         "offer_id":raw["offer_id"],
         "account":raw["account"],
         "workspace":raw["workspace"],
-        "automatic_owned_resource_stop":true,
+        "lifecycle_policy":lifecycle_policy,
+        "decision_context":raw["decision_context"],
         "billing_quote":billing_quote,
         "billing_estimate":billing_preview
     });
@@ -166,6 +195,8 @@ pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
         "plan_sha256":plan_sha,"request_id":req_id,
         "human_challenge":format!("DEPLOY {nonce}"),
         "billing_estimate":plan["billing_estimate"],
+        "lifecycle_policy":plan["lifecycle_policy"],
+        "plan":plan,
         "message":"This is a REAL resource plan, not a GPU operation. Live GPU deployment requires verified model/worker, actual provider pricing terms and explicit terminal approval. No GPU is provisioned by prepare."
     }))
 }
@@ -214,6 +245,20 @@ fn verified_billing_terms(plan:&Value)->Result<(),String>{
     Ok(())
 }
 
+// Disclosure is caller-provided, not proof of a live quote or provider enforcement.
+fn verified_decision_context(plan: &Value) -> Result<(), String> {
+    validated_lifecycle(&plan["lifecycle_policy"])?;
+    let context = &plan["decision_context"];
+    for key in ["pricing_verified_at", "gpu_selection_reason", "alternatives_reviewed",
+        "allocation_scope", "storage_network_and_commitment_terms", "stop_billing_effect",
+        "expected_duration_and_maximum_exposure"] {
+        if context[key].as_str().is_none_or(|s| s.trim().is_empty() || s.len() > 2048) {
+            return Err(format!("Missing bounded user-review disclosure: {key}"));
+        }
+    }
+    Ok(())
+}
+
 fn approved_with_tty(plan:&Value)->Result<(),String>{
     if !io::stdin().is_terminal() || !io::stderr().is_terminal() {
         return Err("Each paid deployment requires a local human terminal. MCP/redirected input cannot approve".into());
@@ -232,7 +277,9 @@ fn approved_with_tty(plan:&Value)->Result<(),String>{
         plan["billing_quote"]["max_approved_compute_micro_usd"]);
     eprintln!("Source: {}. Stopping compute does not cancel prepaid commitments, storage, network or taxes.",
         plan["billing_quote"]["pricing_source"]);
-    eprintln!("After the final job, only this bridge-owned resource may be stopped where supported; storage/IP charges can persist.");
+    eprintln!("Exact plan (including lifecycle choice, allocation scope and cost disclosures): {}", plan);
+    eprintln!("Only an explicitly selected lifecycle policy can trigger a stop; manual retention may incur continuing, uncapped charges.");
+    eprintln!("Stopping compute does not imply deletion, termination or cancellation of commitments.");
     let nonce=plan["nonce"].as_str().ok_or("Missing nonce")?;
     eprint!("Type DEPLOY {nonce} exactly: ");
     io::stderr().flush().map_err(|_|"Cannot flush terminal".to_string())?;
@@ -255,6 +302,7 @@ pub(crate) fn deploy(directory:&str)->Result<Value,String>{
     }
     verified_runtime(&state["plan"])?;
     verified_billing_terms(&state["plan"])?;
+    verified_decision_context(&state["plan"])?;
     approved_with_tty(&state["plan"])?;
     let token=env::var("CMB_WORKER_TOKEN").map_err(|_|"CMB_WORKER_TOKEN must be supplied securely in environment".to_string())?;
     let plan=state["plan"].clone();
@@ -278,7 +326,7 @@ pub(crate) fn deploy(directory:&str)->Result<Value,String>{
             });
             save(&root,&state)?;
             Ok(json!({"status":"CREATED","provider":plan["provider"],"resource_id":id,
-                      "message":"Resource creation was accepted; worker health, output and auto-stop are still to be verified. Billing may be active."}))
+                      "message":"Resource creation was accepted; worker health, output and approved lifecycle are still to be verified. Billing may be active."}))
         }
         Err(_)=>{
             state["status"]=json!("CREATE_UNCERTAIN");
@@ -299,6 +347,7 @@ pub(crate) fn status(directory:&str)->Result<Value,String>{
         "resource":state["resource"],
         "job":state["job"],
         "approval":state["approval"],
+        "lifecycle_policy":state["plan"]["lifecycle_policy"],
         "last_error":state["last_error"],
         "possible_storage_or_network_charges":true,
         "live_cloud_operations_unverified":true
@@ -341,6 +390,7 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     {
         return Err("Session is not an approved, idle, bridge-owned cloud deployment".into());
     }
+    let auto_stop = should_stop_after_job(&state["plan"])?;
     verified_runtime(&state["plan"])?;
     let path=Path::new(inputs_manifest);
     let bytes=fs::read(path).map_err(|_|"Cannot read media input manifest".to_string())?;
@@ -376,12 +426,17 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     if let Ok(ref receipt)=result {
         state["job"]["receipt"]=receipt.clone();
     } else {
-        state["last_error"]=json!("Worker inference or artifact retrieval failed. Provider cleanup attempted; verify resource state.");
+        state["last_error"]=json!("Worker inference or artifact retrieval failed; verify resource state before further operation.");
     }
     save(&root,&state)?;
 
-    let mut api=CurlTransport;
-    let cleanup=reconcile_with(&root,&mut api);
+    let cleanup = if auto_stop {
+        let mut api = CurlTransport;
+        reconcile_with(&root, &mut api)
+    } else {
+        Ok(json!({"state":"RETAINED_BY_APPROVED_POLICY","possible_continuing_gpu_charges":true,
+            "manual_stop_required":true}))
+    };
     if let Err(ref error)=cleanup {
         let mut state=read(&root)?;
         state["status"]=json!("STOP_UNCERTAIN");
@@ -400,7 +455,7 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
             Err(_)=>json!({"state":"STOP_UNCERTAIN","manual_reconciliation_required":true,
                 "possible_continuing_gpu_charges":true})
         },
-        "message":"Provider stop was attempted after job completion/failure. A powered-off client cannot guarantee future stop/recovery."
+        "message":if auto_stop {"Approved provider stop attempted; a powered-off client cannot guarantee recovery."} else {"Manual-stop policy retained compute; charges may continue until the user stops it."}
     }))
 }
 
@@ -409,6 +464,21 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
 pub(crate) fn stop(directory:&str)->Result<Value,String>{
     let root=root_dir(directory)?;
     let _lock=Lock::acquire(&root)?;
+    let state = read(&root)?;
+    // Explicit manual CLI stop is a separate user-authorized operation.
+    if !io::stdin().is_terminal() || !io::stderr().is_terminal() {
+        return Err("Manual cloud stop requires a human terminal".into());
+    }
+    let id = state["resource"]["id"].as_str().ok_or("Missing resource id")?;
+    let challenge = format!("STOP {id}");
+    eprintln!("Non-destructive stop of recorded resource {} on {}. Storage charges may continue.", state["resource"]["id"], state["plan"]["provider"]);
+    eprint!("Type {challenge} exactly: ");
+    io::stderr().flush().map_err(|_| "Cannot flush terminal".to_string())?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer).map_err(|_| "Cannot read terminal approval".to_string())?;
+    if answer.trim_end_matches(['\r','\n']) != challenge {
+        return Err("Stop approval challenge did not match".into());
+    }
     let mut api=CurlTransport;
     reconcile_with(&root,&mut api)
 }
@@ -441,6 +511,36 @@ mod tests {
                 "created_by_bridge":true,"active_jobs":0,"active_artifact_transfers":0},
             "job":{"active_jobs":0,"active_artifact_transfers":0}})
     }
+    #[test]
+    fn explicit_lifecycle_is_required_and_billing_cannot_override_it() {
+        assert!(validated_lifecycle(&Value::Null).is_err());
+        assert!(validated_lifecycle(&json!({"mode":"idle_timeout","seconds":60})).is_err());
+        assert!(validated_lifecycle(&json!({"mode":"manual_stop"})).is_err());
+        assert!(validated_lifecycle(&json!({"mode":"immediate_after_job","typo":true})).is_err());
+        for billing in ["per_second", "per_hour", "per_year"] {
+            let mut plan = json!({"billing_quote":{"billing_model":billing},
+                "lifecycle_policy":{"mode":"immediate_after_job"}});
+            assert!(should_stop_after_job(&plan).unwrap());
+            plan["lifecycle_policy"] = json!({"mode":"manual_stop","acknowledge_unbounded_idle_charges":true});
+            assert!(!should_stop_after_job(&plan).unwrap());
+        }
+    }
+
+    #[test]
+    fn lifecycle_and_disclosures_are_required_and_digest_bound() {
+        let mut plan = json!({"lifecycle_policy":{"mode":"immediate_after_job"}});
+        assert!(verified_decision_context(&plan).is_err());
+        plan["decision_context"] = json!({
+            "pricing_verified_at":"example time", "gpu_selection_reason":"example comparison",
+            "alternatives_reviewed":"example alternatives", "allocation_scope":"example single GPU",
+            "storage_network_and_commitment_terms":"example terms", "stop_billing_effect":"example effect",
+            "expected_duration_and_maximum_exposure":"example exposure"});
+        assert!(verified_decision_context(&plan).is_ok());
+        let digest = sha256(plan.to_string().as_bytes());
+        plan["lifecycle_policy"] = json!({"mode":"manual_stop","acknowledge_unbounded_idle_charges":true});
+        assert_ne!(digest, sha256(plan.to_string().as_bytes()));
+    }
+
     #[test]
     fn a_provider_confirmed_stop_is_persisted_before_reporting_success() {
         let dir=session();

@@ -401,3 +401,16 @@ These tests distinguish **displayed hourly prices** from the provider's **actual
 | B08 | Real provider charges, stoppage and storage/contract reconciliation | Verify actual invoice against measured resource lifetime and stopped-state API; log continuing fees honestly | **Yes — deferred** |
 
 Prepaid terms and terminated-only VM providers require an independently authorized contract/destruction decision. Neither offline estimates nor an API stop acknowledgment establish that billing ceased.
+
+## User-selected lifecycle follow-up
+
+| Case | Expected offline result |
+|---|---|
+| Missing or unsupported policy | Reject without provider calls |
+| Immediate vs manual with the same quote | Only the explicit immediate choice requests automatic stop |
+| Manual without ongoing-charge acknowledgment | Reject |
+| Changes to approved lifecycle | Change exact plan digest |
+| Manual stop without human TTY | Reject; no provider calls |
+| Scheduled, budget or disconnect expiry | Not executable until independent enforcement is verified |
+
+Live runtime, provider ownership, actual charges and reliable expiry remain separate gates.

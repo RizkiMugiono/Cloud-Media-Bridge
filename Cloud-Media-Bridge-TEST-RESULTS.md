@@ -270,3 +270,7 @@ Never commit access tokens, token secrets, private account identifiers, signed U
 - **NOT RUN:** any test that lacks a traceable execution record remains explicitly unverified.
 
 This ledger must be updated **by whichever developer, maintainer or automated test runner actually performs the test**, with reproducible evidence. Do not fabricate PASS results.
+
+## User-selected lifecycle follow-up
+
+Historical PASS entries above refer to their linked commits and the old immediate-stop contract. The new user-selected policy and revised estimator have new offline assertions; status **NOT RUN at authoring time**. See the new pull request's actual CI results before promoting any claim. Live GPU, actual invoice, and independent shutdown guarantees remain NOT RUN.

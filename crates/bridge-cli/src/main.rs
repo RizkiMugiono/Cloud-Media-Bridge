@@ -490,10 +490,10 @@ fn tool_definitions() -> Value {
          "inputSchema":{"type":"object","properties":{"provider":{"type":"string"}},
                         "required":["provider"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, owned resource auto-stop intent.",
+        {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, explicit user-selected lifecycle options and implementation status.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"billing_policy","description":"Read GPU billing granularity and post-job auto-stop policy; no cloud actions.",
+        {"name":"billing_policy","description":"Read GPU billing granularity and independent user lifecycle choice; no cloud actions.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"billing_estimate","description":"Calculate an offline, caller-quoted usage-metered GPU compute estimate by actual billing increment/minimum, or mark monthly/yearly/prepaid terms not estimable. Does not guarantee invoice amounts.",
@@ -805,7 +805,7 @@ mod tests {
         assert_eq!(policy["resource_lifecycle"]["pod_vm_instance"]["auto_terminate"], false);
         assert_eq!(
             policy["resource_lifecycle"]["pod_vm_instance"]["after_last_job"],
-            "automatically_stop_bridge_owned_resource_if_provider_supports_stop"
+            "explicit_user_selected_policy_required"
         );
         assert_eq!(policy["execution"]["current_capability"], "read_only");
     }
