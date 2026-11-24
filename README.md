@@ -60,6 +60,7 @@ cargo run --locked -- cloud status ./my-cloud-session
 # intentionally refuse to deploy until the exact model/provider/runtime
 # has genuine verified release evidence:
 cargo run --locked -- cloud deploy ./my-cloud-session
+cargo run --locked -- cloud generate ./my-cloud-session ./my-media-inputs.json
 cargo run --locked -- cloud stop ./my-cloud-session
 ```
 
@@ -67,7 +68,11 @@ cargo run --locked -- cloud stop ./my-cloud-session
 
 Provider-specific stop requires journal-proven ownership, zero running jobs/transfers and a confirmed provider-observed stopped state. The code does not auto-delete or auto-terminate instances. If the agent or laptop disappears, there is **no always-on watchdog**. Provider-side watchdog/TTL or an externally available recovery agent is still required before claiming guaranteed auto-stop.
 
-Only RunPod Pods and Vast.ai Instances have provider REST operations in this branch; the other seven provider classes still have read-only previews. **No paid API calls or GPU tests have occurred.** See [adapter implementation and safety limits](docs/PROVIDERS.md).
+The `cloud generate` command uses the **same exact approved deployment session**, verifies the authenticated remote worker's model SHA, task, framework and deployment request ID, downloads output bytes, checks SHA-256 and attempts a non-destructive provider stop after the job. A worker endpoint is separately configured through `CMB_WORKER_HTTPS_ORIGIN`; it must be a trusted, TLS-protected worker belonging to this deployment. It is not discovered automatically yet. Artifact transfer and stop may fail, so the session journal reports `STOP_UNCERTAIN` and manual reconciliation when necessary. This workflow is present but intentionally blocked until a verified production runtime exists.
+
+Only RunPod Pods and Vast.ai Instances have provider REST operations in this branch; the other seven provider classes still have read-only previews. **No paid API calls or GPU tests have occurred.** The user owns their keys and credits; the project remains responsible for validating implementation and clearly disclosing defects or unverified paths. See [adapter implementation and safety limits](docs/PROVIDERS.md).
+
+A deliberately unusable example manifest is in [examples/cloud-deployment-manifest.NOT-EXECUTABLE.json](examples/cloud-deployment-manifest.NOT-EXECUTABLE.json). Its image digest and model SHA are **placeholders**, not verified runtime evidence. No agent should change the registry's verification flags based solely on this example.
 
 ## Offline end-to-end demonstration (no GPU credits)
 
