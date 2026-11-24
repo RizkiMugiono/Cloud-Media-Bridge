@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/schemas/media-request.schema.json",
-  "title": "Cloud-Media-Bridge generic media worker request (planned contract)",
-  "description": "Task-independent typed inputs for any Hugging Face media model family. The worker/request executor is NOT YET IMPLEMENTED. This schema does not authorize provisioning.",
+  "title": "Cloud-Media-Bridge future provider-facing generic media request",
+  "description": "Provider-facing generic media envelope (future). Currently the concrete local HTTP worker uses worker-request.schema.json; this generic schema is not the worker wire format and no real deployment is enabled.",
   "type": "object",
   "additionalProperties": false,
   "required": [
