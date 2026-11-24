@@ -31,7 +31,7 @@
     "unknown": "block_auto_optimize_and_require_user_review"
   },
   "default_lifecycle": {
-    "after_final_job": "stop_bridge_owned_compute_immediately_when_safe_and_supported",
+    "after_final_job": "ask_user_to_choose_stop_policy",
     "wait_until_end_of_paid_period": false,
     "idle_reuse_requires_new_explicit_permission": true,
     "minimum_billable_period_is_not_a_keep_running_instruction": true,

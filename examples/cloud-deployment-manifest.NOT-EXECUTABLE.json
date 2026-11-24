@@ -11,5 +11,63 @@
   "disk_gb": 50,
   "offer_id": null,
   "account": "user-owned-runpod-account",
-  "workspace": "user-owned-workspace"
+  "workspace": "user-owned-workspace",
+  "region": "example-zone",
+  "quantity": 1,
+  "billing_quote": {
+    "schema_version": 1,
+    "billing_model": "per_second",
+    "billing_increment_ms": 1000,
+    "minimum_billable_ms": 0,
+    "billable_elapsed_ms": 5000,
+    "quoted_micro_usd_per_hour": 1000000,
+    "max_approved_compute_micro_usd": 50000,
+    "provider": "runpod-pods",
+    "pricing_source": "ILLUSTRATION_NOT_A_REAL_PROVIDER_QUOTE",
+    "rate_basis": "whole_allocation",
+    "verified_at": "illustration only",
+    "commitment_terms": "no commitment in this example",
+    "billable_start": "allocation accepted",
+    "billable_end": "confirmed stopped",
+    "stop_effect": "compute stops, disk retained",
+    "terminate_effect": "disk deleted",
+    "ancillary_terms": "illustrative disk and egress allowance, no tax",
+    "ancillary_micro_usd": 500
+  },
+  "max_elapsed_ms": 60000,
+  "max_total_micro_usd": 50000,
+  "stop_policy": {
+    "mode": "after_job",
+    "action": "stop",
+    "provider_capability_evidence": "illustrative non-destructive stop contract"
+  },
+  "alternatives": [
+    {
+      "provider": "runpod-pods",
+      "gpu": "example-small",
+      "region": "example-zone",
+      "quantity": 1,
+      "billing_quote": {
+        "schema_version": 1,
+        "billing_model": "per_second",
+        "billing_increment_ms": 1000,
+        "minimum_billable_ms": 0,
+        "billable_elapsed_ms": 7000,
+        "quoted_micro_usd_per_hour": 500000,
+        "max_approved_compute_micro_usd": 50000,
+        "provider": "runpod-pods",
+        "pricing_source": "ILLUSTRATION_NOT_A_REAL_PROVIDER_QUOTE",
+        "rate_basis": "whole_allocation",
+        "verified_at": "illustration only",
+        "commitment_terms": "no commitment in this example",
+        "billable_start": "allocation accepted",
+        "billable_end": "confirmed stopped",
+        "stop_effect": "compute stops, disk retained",
+        "terminate_effect": "disk deleted",
+        "ancillary_terms": "illustrative disk and egress allowance, no tax",
+        "ancillary_micro_usd": 500
+      },
+      "compatibility_reason": "Illustration assumes sufficient VRAM; slower completion included."
+    }
+  ]
 }

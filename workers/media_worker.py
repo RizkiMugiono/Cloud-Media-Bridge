@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Task-scoped existing-library media worker.
-
-The local bridge remains Rust/MCP. This remote worker is Python because
-Hugging Face Diffusers/Transformers inference implementations are Python.
-Production requires a pinned, independently verified OCI image/installer,
-private networking or authenticated TLS ingress, and explicit resource approval.
-Unit tests run exclusively in FIXTURE mode, without model downloads or GPUs.
-"""
+"""Loopback worker for offline media protocol fixtures."""
 from __future__ import annotations
 
 import hashlib
@@ -63,25 +56,6 @@ def _fixture(kind: str) -> tuple[str, str, bytes]:
     ).encode()
 
 
-def _as_wav(audio: Any, sample_rate: int) -> bytes:
-    # Frameworks generally return a float NumPy array; imports occur only on
-    # actual inference paths, never during offline protocol tests.
-    if not 8000 <= sample_rate <= 192000:
-        raise WorkerError("BAD_SAMPLE_RATE", "Unsupported output sample rate")
-    import numpy as np  # type: ignore[import-not-found]
-    samples = np.asarray(audio, dtype=np.float32).reshape(-1)
-    if samples.size > 10_000_000:
-        raise WorkerError("OUTPUT_TOO_LARGE", "Audio output exceeds safety limit")
-    pcm = (np.clip(samples, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()
-    out = io.BytesIO()
-    with wave.open(out, "wb") as writer:
-        writer.setnchannels(1)
-        writer.setsampwidth(2)
-        writer.setframerate(sample_rate)
-        writer.writeframes(pcm)
-    return out.getvalue()
-
-
 class Worker:
     def __init__(self, model_id: str, revision: str, task: str, family: str,
                  token: str, fixture: bool = False,
@@ -104,7 +78,6 @@ class Worker:
         self.assets: dict[str, tuple[bytes, str, str]] = {}
         self.asset_bytes = 0
         self.lock = threading.RLock()
-        self.pipeline: Any = None
 
     def authorize(self, header: str) -> bool:
         return hmac.compare_digest(header, f"Bearer {self.token}")
@@ -143,76 +116,6 @@ class Worker:
             raise WorkerError("INVALID_PROMPT", "Expected a nonempty bounded prompt")
         return value
 
-    def _real_generate(self, inputs: list[dict[str, Any]],
-                       params: dict[str, Any]) -> tuple[str, str, bytes]:
-        if self.family == "diffusers":
-            try:
-                import torch  # type: ignore[import-not-found]
-                from diffusers import DiffusionPipeline, AutoPipelineForImage2Image  # type: ignore[import-not-found]
-                from PIL import Image  # type: ignore[import-not-found]
-            except ImportError as exc:
-                raise WorkerError("RUNTIME_DEPENDENCIES_MISSING", str(exc), 503) from exc
-            if not torch.cuda.is_available():
-                raise WorkerError("GPU_REQUIRED", "CUDA device is required", 503)
-            if self.pipeline is None:
-                cls = AutoPipelineForImage2Image if self.task == "image-to-image" else DiffusionPipeline
-                # force safetensors and never supply custom_pipeline or trust_remote_code
-                self.pipeline = cls.from_pretrained(self.model_id, revision=self.revision,
-                    torch_dtype=torch.float16, use_safetensors=True).to("cuda")
-            prompt = self._text(inputs)
-            steps = params.get("num_inference_steps", 20)
-            if not isinstance(steps, int) or not 1 <= steps <= 60:
-                raise WorkerError("INVALID_PARAMETER", "num_inference_steps must be 1..60")
-            kwargs: dict[str, Any] = {"prompt": prompt, "num_inference_steps": steps}
-            if self.task == "image-to-image":
-                item = self._input(inputs, "image")
-                raw, mime, _ = self.load(str(item.get("asset_ref", "")))
-                if mime not in {"image/png", "image/jpeg", "image/webp"} or len(raw) > MAX_INPUT:
-                    raise WorkerError("INVALID_IMAGE", "Staged image is not an allowed type")
-                src = Image.open(io.BytesIO(raw))
-                src.verify()
-                kwargs["image"] = Image.open(io.BytesIO(raw)).convert("RGB")
-            with torch.inference_mode():
-                result = self.pipeline(**kwargs)
-            picture = result.images[0]
-            buffer = io.BytesIO()
-            picture.save(buffer, format="PNG")
-            return "image", "image/png", buffer.getvalue()
-
-        if self.family == "transformers":
-            try:
-                from transformers import pipeline  # type: ignore[import-not-found]
-                import torch  # type: ignore[import-not-found]
-            except ImportError as exc:
-                raise WorkerError("RUNTIME_DEPENDENCIES_MISSING", str(exc), 503) from exc
-            if not torch.cuda.is_available():
-                raise WorkerError("GPU_REQUIRED", "CUDA device is required", 503)
-            if self.pipeline is None:
-                self.pipeline = pipeline(self.task, model=self.model_id,
-                    revision=self.revision, trust_remote_code=False, device=0,
-                    model_kwargs={"use_safetensors": True})
-            if self.task == "automatic-speech-recognition":
-                item = self._input(inputs, "audio")
-                audio, mime, _ = self.load(str(item.get("asset_ref", "")))
-                if mime not in {"audio/wav", "audio/x-wav"}:
-                    raise WorkerError("INVALID_AUDIO", "Only staged WAV input is supported")
-                import numpy as np  # type: ignore[import-not-found]
-                with wave.open(io.BytesIO(audio), "rb") as w:
-                    if w.getnchannels() != 1 or w.getsampwidth() != 2:
-                        raise WorkerError("INVALID_AUDIO", "Use mono 16-bit WAV")
-                    sample_rate = w.getframerate()
-                    samples = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float32) / 32768.0
-                result = self.pipeline({"array": samples, "sampling_rate": sample_rate})
-                return "text", "application/json", json.dumps(
-                    {"text": result["text"]}, ensure_ascii=False).encode()
-            prompt = self._text(inputs)
-            result = self.pipeline(prompt)
-            if not isinstance(result, dict) or "audio" not in result or "sampling_rate" not in result:
-                raise WorkerError("INCOMPATIBLE_PIPELINE", "Expected an audio-generating Transformers pipeline", 422)
-            data = _as_wav(result["audio"], int(result["sampling_rate"]))
-            return ("speech" if self.task == "text-to-speech" else "audio"), "audio/wav", data
-        raise WorkerError("UNSUPPORTED_RUNTIME", "No verified handler for this model family", 422)
-
     def generate(self, request: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(request, dict):
             raise WorkerError("INVALID_REQUEST", "Request must be an object")
@@ -239,7 +142,7 @@ class Worker:
                 raise WorkerError("INVALID_FIXTURE", "Unknown fixture kind")
             kind, mime, data = _fixture(kind)
         else:
-            kind, mime, data = self._real_generate(items, params)
+            raise WorkerError("ADVISORY_ONLY", "This repository supports offline fixtures only", 403)
         artifact = self.store(kind, mime, data)
         return {"schema_version": 1, "request_id": request_id, "status": "completed",
                 "simulation_only": self.fixture, "artifacts": [artifact]}
@@ -347,6 +250,8 @@ def main() -> None:
         raise SystemExit("Fixture mode is restricted to local loopback tests")
     if host not in {"127.0.0.1", "::1"} and os.getenv("CMB_PRIVATE_NETWORK_ACK") != "1":
         raise SystemExit("Non-loopback worker binding requires explicit private-network/TLS ingress acknowledgment")
+    if not fixture:
+        raise SystemExit("This worker supports offline fixtures only")
     token = os.environ["CMB_WORKER_TOKEN"]
     worker = Worker(
         os.environ["CMB_MODEL_ID"], os.environ["CMB_MODEL_SHA"],

@@ -1,5 +1,8 @@
 # Cloud-Media-Bridge — Implementation Specification
 
+**Owner decision, 2026-11-24.** The current [advisory handoff contract](docs/AGENT-HANDOFF.md) supersedes earlier operator-CLI and mandatory immediate-stop designs below. Keep production interfaces advisory. The user chooses the stop policy. Real execution and authenticated single-use approval handling belong to the external executor.
+
+
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Version:** 2026-11-23  
 **Current status:** Rust MCP/CLI includes a tested **offline fixture deployment pipeline**, resource ownership and stop reconciliation, Python task-scoped HTTP media worker, evidence-based runtime resolution and provider request-shape previews. **No real GPU resource deployment, paid-operation approval enforcement, or actual AI model inference has been tested.**  

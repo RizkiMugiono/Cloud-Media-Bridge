@@ -10,7 +10,7 @@ pub(crate) fn policy() -> Result<Value, String> {
         .map_err(|_| "Bundled GPU billing policy is invalid".to_string())?;
     if data["schema_version"] != 1
         || data["default_lifecycle"]["after_final_job"]
-            != "stop_bridge_owned_compute_immediately_when_safe_and_supported"
+            != "ask_user_to_choose_stop_policy"
     {
         return Err("Bundled billing policy violates immediate-stop contract".into());
     }
@@ -39,7 +39,7 @@ pub(crate) fn estimate(quote: &Value) -> Result<Value, String> {
     let mut result = json!({
         "source":"user_supplied_terms_not_provider_invoice",
         "billing_model":mode,
-        "auto_stop_after_last_job":true,
+        "stop_policy_requires_user_choice":true,
         "wait_until_paid_period_ends":false,
         "storage_and_network_charges_not_included":true,
         "invoice_reconciliation_required":true,
@@ -107,7 +107,7 @@ pub(crate) fn estimate(quote: &Value) -> Result<Value, String> {
     result["billing_increment_ms"] = json!(increment_ms);
     result["input_billable_elapsed_ms"] = json!(elapsed_ms);
     result["effective_billable_ms"] = json!(billable);
-    result["estimated_incremental_compute_micro_usd"] = json!(amount);
+    result["estimated_incremental_compute_micro_usd"] = json!(u64::try_from(amount).map_err(|_| "Compute estimate exceeds supported currency range")?);
     result["max_approved_compute_micro_usd"] = json!(max_budget);
     result["over_approved_compute_budget"] = json!(over_budget);
     result["requires_contract_review"] = json!(false);
@@ -134,7 +134,7 @@ mod tests {
         let out=estimate(&quote("per_second",1000,0,5000)).unwrap();
         assert_eq!(out["effective_billable_ms"],5000);
         assert_eq!(out["estimated_incremental_compute_micro_usd"],1389);
-        assert_eq!(out["auto_stop_after_last_job"],true);
+        assert_eq!(out["stop_policy_requires_user_choice"],true);
         assert_eq!(out["wait_until_paid_period_ends"],false);
     }
     #[test]
@@ -161,7 +161,7 @@ mod tests {
             let out=estimate(&json!({"schema_version":1,"billing_model":mode})).unwrap();
             assert!(out["estimated_incremental_compute_micro_usd"].is_null());
             assert_eq!(out["requires_contract_review"],true);
-            assert_eq!(out["auto_stop_after_last_job"],true);
+            assert_eq!(out["stop_policy_requires_user_choice"],true);
         }
     }
     #[test]

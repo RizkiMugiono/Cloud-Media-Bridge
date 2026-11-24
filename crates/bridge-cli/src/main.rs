@@ -3,9 +3,12 @@ mod cloud_operator;
 mod crypto;
 mod media;
 mod offline;
+#[cfg(test)]
 mod provider_api;
-mod provider_http;
+#[cfg(test)]
 mod remote_worker;
+mod advice;
+mod lifecycle;
 mod provider_ops;
 mod runtime;
 mod worker_client;
@@ -276,6 +279,8 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "providers_list" => providers_list(),
         "deployment_policy" => deployment_policy(),
         "billing_policy" => billing::policy(),
+        "lifecycle_advice" => lifecycle::advise(&arguments["plan"], &arguments["receipt"], &arguments["observed"]),
+        "cloud_review" => cloud_operator::review(&arguments["manifest"]),
         "billing_estimate" => billing::estimate(&arguments["quote"]),
         "media_tasks_list" => media::catalog(),
         "runtimes_list" => runtime::registry(),
@@ -398,6 +403,8 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
         "doctor" | "providers_list" | "deployment_policy" | "billing_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
+        "lifecycle_advice" => has_only(&["plan","receipt","observed"]) && ["plan","receipt","observed"].iter().all(|k| arguments[k].is_object()),
+        "cloud_review" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
         "billing_estimate" => has_only(&["quote"]) && arguments["quote"].is_object(),
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "models_search" => {
@@ -462,6 +469,8 @@ fn tool_names() -> &'static [&'static str] {
         "deployment_policy",
         "billing_policy",
         "billing_estimate",
+        "cloud_review",
+        "lifecycle_advice",
         "media_tasks_list",
         "runtimes_list",
         "runtime_resolve",
@@ -490,11 +499,17 @@ fn tool_definitions() -> Value {
          "inputSchema":{"type":"object","properties":{"provider":{"type":"string"}},
                         "required":["provider"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, owned resource auto-stop intent.",
+        {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, user-selected lifecycle policy.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"billing_policy","description":"Read GPU billing granularity and post-job auto-stop policy; no cloud actions.",
+        {"name":"billing_policy","description":"Read GPU billing granularity and user-selected stop policy; no cloud actions.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"lifecycle_advice","description":"Evaluate a prepared plan and caller-reported consent and observations. Returns advice only.",
+         "inputSchema":{"type":"object","properties":{"plan":{"type":"object"},"receipt":{"type":"object"},"observed":{"type":"object"}},"required":["plan","receipt","observed"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"cloud_review","description":"Review a proposed GPU plan, compare quoted costs and explain stop choices. No approval, filesystem writes or cloud operations.",
+         "inputSchema":{"type":"object","properties":{"manifest":{"type":"object"}},"required":["manifest"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"billing_estimate","description":"Calculate an offline, caller-quoted usage-metered GPU compute estimate by actual billing increment/minimum, or mark monthly/yearly/prepaid terms not estimable. Does not guarantee invoice amounts.",
          "inputSchema":{"type":"object","properties":{"quote":{"type":"object"}},
@@ -629,14 +644,14 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, sub, dir] if cmd == "cloud" && sub == "status" => {
             print_json(cloud_operator::status(dir))
         }
-        [cmd, sub, dir] if cmd == "cloud" && sub == "deploy" => {
-            print_json(cloud_operator::deploy(dir))
+        [cmd, sub, ..] if cmd == "cloud" && matches!(sub.as_str(), "deploy" | "stop" | "generate" | "terminate") => {
+            print_json(Err("Advisory only. The bridge cannot operate cloud resources.".into()))
         }
-        [cmd, sub, dir] if cmd == "cloud" && sub == "stop" => {
-            print_json(cloud_operator::stop(dir))
+        [cmd, sub, file] if cmd == "cloud" && sub == "advice" => {
+            print_json(cloud_operator::load_manifest(file, 65536).and_then(|v| lifecycle::advise(&v["plan"], &v["receipt"], &v["observed"])))
         }
-        [cmd, sub, dir, inputs] if cmd == "cloud" && sub == "generate" => {
-            print_json(cloud_operator::generate(dir,inputs))
+        [cmd, sub, file] if cmd == "cloud" && sub == "review" => {
+            print_json(cloud_operator::load_manifest(file, 16384).and_then(|m| cloud_operator::review(&m)))
         }
         [cmd, provider, image, gpu, disk] if cmd == "provider-preview" => {
             print_json(disk.parse::<u64>().map_err(|_|"Invalid disk_gb".to_string())
@@ -712,9 +727,8 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge billing estimate <quote.json>
   cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>
   cloud-media-bridge cloud status <directory>
-  cloud-media-bridge cloud deploy <directory>       (verified runtime + real human TTY + CMB_ENABLE_LIVE_GPU required)
-  cloud-media-bridge cloud stop <directory>         (only bridge-created and owned resources)
-  cloud-media-bridge cloud generate <directory> <inputs.json> (operator-only; verified worker + auto-stop)
+  cloud-media-bridge cloud advice <observations-envelope.json>
+  cloud-media-bridge cloud review <deployment-manifest.json>
   cloud-media-bridge offline worker-smoke <output-directory> <loopback-port> <media-kind>
   cloud-media-bridge offline demo <new-directory> <media-kind>
   cloud-media-bridge offline prepare <new-directory> <media-kind>
@@ -731,7 +745,7 @@ fn run_cli(args: &[String]) -> i32 {
 
 This version supports read-only model discovery/planning and an offline
 deployment simulation with synthetic fixture-media artifacts and mock auto-stop.
-Real provider API adapters for RunPod Pods and Vast.ai Instances now exist behind a human-operated CLI and verified-runtime release gate. No bundled runtime has the necessary verified evidence yet, so live paid deployment remains blocked. Offline fixture generation is not AI inference.");
+GPU decisions and consent belong to the user. Only an independently authorized external executor can perform real operations. Offline fixture generation is not AI inference.");
             0
         }
         _ => {
@@ -805,7 +819,7 @@ mod tests {
         assert_eq!(policy["resource_lifecycle"]["pod_vm_instance"]["auto_terminate"], false);
         assert_eq!(
             policy["resource_lifecycle"]["pod_vm_instance"]["after_last_job"],
-            "automatically_stop_bridge_owned_resource_if_provider_supports_stop"
+            "follow_explicit_user_selected_policy"
         );
         assert_eq!(policy["execution"]["current_capability"], "read_only");
     }

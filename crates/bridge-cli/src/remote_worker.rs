@@ -1,14 +1,5 @@
-//! Operator-only authenticated HTTPS media worker client.
-//! Does not accept an arbitrary URL from MCP arguments. The worker origin
-//! must be explicitly configured as CMB_WORKER_HTTPS_ORIGIN by the user.
-use crate::crypto::{secure_nonce,sha256};
+//! Offline worker response contract tests.
 use serde_json::{json,Value};
-use std::env;
-use std::fs::{self,OpenOptions};
-use std::io::Write;
-use std::path::Path;
-use std::process::{Command,Stdio};
-
 const MAX_RESULT: usize=32*1024*1024;
 fn valid_origin(value:&str)->bool{
     let Some(host)=value.strip_prefix("https://") else {return false};
@@ -22,39 +13,6 @@ fn valid_origin(value:&str)->bool{
     labels.len()>=2 && labels.iter().all(|part|!part.is_empty() && part.len()<=63
         && !part.starts_with('-') && !part.ends_with('-')
         && part.bytes().all(|c| c.is_ascii_alphanumeric()||c==b'-'))
-}
-fn valid_token(token:&str)->bool{
-    (24..=256).contains(&token.len()) && token.bytes().all(|c|c.is_ascii_graphic()&&c!=b'"'&&c!=b'\\')
-}
-fn cfg_escape(v:&str)->String{v.replace('\\',"\\\\").replace('"',"\\\"")}
-fn request(origin:&str,token:&str,method:&str,path:&str,body:Option<&[u8]>)->Result<Vec<u8>,String>{
-    if !valid_origin(origin) || !valid_token(token)
-        || !matches!(method,"GET"|"POST") || !path.starts_with('/')
-        || path.contains(['?','#','\r','\n']) || path.contains("..")
-    {return Err("Unsafe worker HTTPS origin, request or token".into());}
-    let mut config=format!("header = \"Authorization: Bearer {}\"\n",cfg_escape(token));
-    if let Some(bytes)=body {
-        if bytes.len()>1_048_576 {return Err("Media worker JSON request exceeds 1 MiB".into());}
-        let payload=std::str::from_utf8(bytes).map_err(|_|"Media JSON is not UTF-8".to_string())?;
-        if payload.chars().any(|c|c.is_control()) {return Err("Control character in worker JSON".into());}
-        config.push_str("header = \"Content-Type: application/json\"\n");
-        config.push_str(&format!("data = \"{}\"\n",cfg_escape(payload)));
-    }
-    let url=format!("{origin}{path}");
-    let mut child=Command::new("curl")
-        .args(["--silent","--show-error","--fail","--proto","=https",
-            "--max-redirs","0","--connect-timeout","10","--max-time","120",
-            "--max-filesize","33554432","--request",method,
-            "--config","-","--url",&url])
-        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null())
-        .spawn().map_err(|_|"curl required for authenticated media worker".to_string())?;
-    if let Some(mut input)=child.stdin.take() {
-        input.write_all(config.as_bytes()).map_err(|_|"Worker request could not be sent".to_string())?;
-    }
-    let output=child.wait_with_output().map_err(|_|"Worker request failed".to_string())?;
-    if !output.status.success(){return Err("Worker returned HTTP/transport failure; job status is uncertain".into());}
-    if output.stdout.len()>MAX_RESULT{return Err("Worker response exceeds artifact size limit".into());}
-    Ok(output.stdout)
 }
 fn artifact_id(v:&str)->bool{
     v.len()==32&&v.bytes().all(|b|b.is_ascii_hexdigit())
@@ -94,69 +52,6 @@ pub(crate) fn validate_worker_result(body:&Value,request:&Value)->Result<Vec<Val
         if size>MAX_RESULT as u64{return Err("Total result exceeds size policy".into());}
     }
     Ok(artifacts.clone())
-}
-
-/// This function is only called by a local, separately-approved operator
-/// deployment session. It never accepts a model or host supplied by an MCP
-/// tool call, and downloaded bytes are independently SHA-256 verified.
-pub(crate) fn generate(outdir:&Path,model_id:&str,revision:&str,task:&str,
-    family:&str,deployment_request_id:&str,inputs:&Value)
-    ->Result<Value,String>
-{
-    let origin=env::var("CMB_WORKER_HTTPS_ORIGIN")
-        .map_err(|_|"Set CMB_WORKER_HTTPS_ORIGIN to your authenticated HTTPS worker".to_string())?;
-    if !valid_origin(&origin){return Err("Worker requires a valid public DNS HTTPS origin, no URL path".into());}
-    let token=env::var("CMB_WORKER_TOKEN")
-        .map_err(|_|"Set CMB_WORKER_TOKEN in the local environment".to_string())?;
-    if !valid_token(&token){return Err("Invalid worker token".into());}
-    let health:Value=serde_json::from_slice(&request(&origin,&token,"GET","/health",None)?)
-        .map_err(|_|"Invalid worker health JSON".to_string())?;
-    if health["status"]!="ok"||health["simulation_only"]!=false||health["task"]!=task
-        ||health["model_id"]!=model_id ||health["revision_sha"]!=revision
-        ||health["family"]!=family ||health["deployment_request_id"]!=deployment_request_id {
-        return Err("Worker is not a real, task-compatible healthy service".into());
-    }
-    let input_items=inputs["inputs"].as_array().ok_or("inputs must be an array")?;
-    if input_items.len()>16{return Err("Too many media inputs".into());}
-    let params=inputs.get("parameters").cloned().unwrap_or(json!({}));
-    if !params.is_object(){return Err("Media parameters must be an object".into());}
-    let nonce=secure_nonce()?;
-    let payload=json!({
-        "schema_version":1,"request_id":nonce,"task":task,
-        "model":{"id":model_id,"revision_sha":revision},
-        "inputs":input_items,"parameters":params
-    });
-    let answer:Value=serde_json::from_slice(
-        &request(&origin,&token,"POST","/v1/media/generate",Some(payload.to_string().as_bytes()))?
-    ).map_err(|_|"Invalid worker JSON response".to_string())?;
-    let artifacts=validate_worker_result(&answer,&payload)?;
-    fs::create_dir_all(outdir).map_err(|_|"Cannot create private output directory".to_string())?;
-    let mut written=Vec::new();
-    for (i,asset) in artifacts.iter().enumerate() {
-        let id=asset["asset_ref"].as_str().ok_or("Missing asset handle")?;
-        let kind=asset["kind"].as_str().ok_or("Missing asset kind")?;
-        let mime=asset["media_type"].as_str().ok_or("Missing asset MIME")?;
-        let extension=artifact_ext(kind,mime).ok_or("Unapproved artifact MIME")?;
-        let bytes=request(&origin,&token,"GET",&format!("/v1/media/artifacts/{id}"),None)?;
-        if bytes.len() as u64 != asset["size_bytes"].as_u64().unwrap_or(u64::MAX)
-            || sha256(&bytes)!=asset["sha256"].as_str().unwrap_or("")
-        {return Err("Worker artifact SHA-256/byte length mismatch".into());}
-        let path=outdir.join(format!("verified-media-{nonce}-{i}.{extension}"));
-        let mut opts=OpenOptions::new();
-        opts.write(true).create_new(true);
-        #[cfg(unix)]{
-            use std::os::unix::fs::OpenOptionsExt;
-            opts.mode(0o600);
-        }
-        let mut file=opts.open(&path).map_err(|_|"Refusing overwrite of existing media".to_string())?;
-        file.write_all(&bytes).map_err(|_|"Cannot persist artifact".to_string())?;
-        file.sync_all().map_err(|_|"Cannot sync artifact".to_string())?;
-        written.push(json!({"kind":kind,"mime":mime,"bytes":bytes.len(),
-            "sha256":asset["sha256"],"path":path.to_string_lossy()}));
-    }
-    Ok(json!({"status":"ARTIFACT_VERIFIED","simulation_only":false,
-        "model_id":model_id,"revision_sha":revision,"task":task,
-        "worker_origin":origin,"results":written}))
 }
 
 #[cfg(test)]

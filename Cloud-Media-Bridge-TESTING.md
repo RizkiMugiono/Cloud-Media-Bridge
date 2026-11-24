@@ -1,5 +1,8 @@
 # Cloud-Media-Bridge — Testing and Verification Plan
 
+**Owner decision, 2026-11-24.** The current [advisory handoff contract](docs/AGENT-HANDOFF.md) supersedes earlier operator-CLI and mandatory immediate-stop designs below. Keep production interfaces advisory. The user chooses the stop policy. Real execution and authenticated single-use approval handling belong to the external executor.
+
+
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Companion architecture:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Actual results:** [Cloud-Media-Bridge-TEST-RESULTS.md](Cloud-Media-Bridge-TEST-RESULTS.md)  

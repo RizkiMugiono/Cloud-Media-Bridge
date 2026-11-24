@@ -1,12 +1,12 @@
 # GPU billing increments, commitments and stop policy
 
-**Decision:** Cloud-Media-Bridge automatically attempts to stop a **bridge-created and bridge-owned** GPU resource immediately after its last job and artifact transfer. The implementation must not wait until the end of an advertised hourly/daily billing period. The stop must be observed in the provider API; otherwise the journal must report uncertainty and continuing potential charges.
+The bridge provides advice only. The end user chooses the allocation and lifecycle policy. The external executor verifies consent, ownership, provider capability and actual final state. See [agent handoff](AGENT-HANDOFF.md).
 
 A provider's **displayed USD/hour price is not necessarily the actual billing increment**. The user/agent must distinguish quoted unit price, metering granularity, minimum charge, prepaid period, stopping effects, and unrelated fees. No rates are hardcoded as universal prices.
 
 ## Example: a five-second job
 
-| Contract | What the estimator does | Post-job operation |
+| Contract | What the estimator does | Example if the user chooses immediate stop |
 |---|---|---|
 | USD/hour displayed, actually **per second** | Uses real billable duration rounded to whole seconds | Stop compute immediately |
 | Per millisecond | Rounds by one millisecond | Stop compute immediately |
@@ -36,7 +36,7 @@ Official provider references: [Modal pricing](https://modal.com/pricing), [RunPo
 1. **Read source terms.** Fetch the actual selected offer/plan, not just the nominal price. Identify `billing_model`, `billing_increment_ms`, `minimum_billable_ms`, refundable vs. sunk commitments, storage/network fees and stop/terminate actions.
 2. **Estimate total resource lifetime.** Use expected provisioning + model load + job + transfer + shutdown-confirmation, not inference duration alone. Treat the result as a forecast; do not present it as a provider invoice.
 3. **Present a quote and maximum approved compute exposure.** Use a new human approval per deployment. If the quote is missing, monthly/yearly terms are unclear or estimated exposure exceeds the budget, the automatic paid-deploy path must fail closed.
-4. **After the last job and artifact transfer, stop immediately where supported.** Verify the provider state. If it is uncertain or unsupported, report remaining charges and require operator reconciliation. Never automatically delete persistent data or terminate committed resources.
+4. **Follow the user-selected trigger and action.** Immediate stop after the last job is one option. Verify the provider state. If it is uncertain or unsupported, report remaining charges and require operator reconciliation. Never automatically delete persistent data or terminate committed resources.
 5. **Reconcile actual provider billing.** Compare provider charges against the forecast and report discrepancies. A local MCP process cannot guarantee cleanup if the user machine or network disappears; provider-side TTL/watchdog or another independent controller is needed for stronger guarantees.
 
 ### Warm reuse is an explicit opt-in

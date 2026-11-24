@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 19);
+    assert_eq!(tools.len(), 21);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -345,6 +345,35 @@ fn billing_quote_mcp_estimates_five_seconds_without_provisioning_gpu() {
     let estimate=&replies[2]["result"]["structuredContent"];
     assert_eq!(estimate["effective_billable_ms"],3_600_000);
     assert_eq!(estimate["estimated_incremental_compute_micro_usd"],1_000_000);
-    assert_eq!(estimate["auto_stop_after_last_job"],true);
+    assert_eq!(estimate["stop_policy_requires_user_choice"],true);
     assert_eq!(replies[3]["error"]["code"],-32602);
+}
+
+#[test]
+fn cloud_commands_refuse_even_with_the_former_live_switch() {
+    for verb in ["deploy","generate","stop","terminate"] {
+        let output=std::process::Command::new(env!("CARGO_BIN_EXE_cloud-media-bridge"))
+            .args(["cloud",verb,"unused"]).env("CMB_ENABLE_LIVE_GPU","I_ACCEPT_GPU_CHARGES")
+            .output().unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("Advisory only"));
+    }
+}
+
+#[test]
+fn review_and_lifecycle_tools_never_issue_deployment_authorization() {
+    let sample: Value = serde_json::from_str(include_str!("../../../examples/cloud-deployment-manifest.NOT-EXECUTABLE.json")).unwrap();
+    let review = json!({"jsonrpc":"2.0","id":81,"method":"tools/call",
+        "params":{"name":"cloud_review","arguments":{"manifest":sample}}});
+    let mut plan = sample;
+    plan["request_id"] = json!("one-deployment");
+    let advice = json!({"jsonrpc":"2.0","id":82,"method":"tools/call",
+        "params":{"name":"lifecycle_advice","arguments":{"plan":plan,"receipt":{},"observed":{}}}});
+    let replies=exchange(&[INIT,READY,&review.to_string(),&advice.to_string()]);
+    let reviewed=&replies[1]["result"]["structuredContent"];
+    assert_eq!(reviewed["approval_granted"],false);
+    assert_eq!(reviewed["advice"]["selected_estimate"]["estimated_total_micro_usd"],1889);
+    let next=&replies[2]["result"]["structuredContent"];
+    assert_eq!(next["bridge_can_execute"],false);
+    assert_eq!(next["recommendation"],"ask_user_for_fresh_plan_bound_consent");
 }

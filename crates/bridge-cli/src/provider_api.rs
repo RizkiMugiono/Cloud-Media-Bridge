@@ -289,6 +289,7 @@ mod tests {
     #[test]
     fn runpod_and_vast_create_requests_have_exact_pinned_identity_and_private_worker_token() {
         let pod=create_operation(&plan("runpod-pods")).unwrap();
+        assert_eq!(pod.credential_env,"RUNPOD_API_KEY");
         assert_eq!(pod.method,"POST");
         assert_eq!(pod.url,"https://api.runpod.io/v2/pods");
         assert_eq!(pod.body.as_ref().unwrap()["env"]["CMB_MODEL_SHA"],plan("runpod-pods").model_sha);
