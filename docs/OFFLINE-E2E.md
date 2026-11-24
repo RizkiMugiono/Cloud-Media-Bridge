@@ -54,6 +54,8 @@ The default fixture path must be a writable user-owned directory. Journals are a
 - `POST /v1/media/generate`: authenticated, pinned model ID/SHA and task-specific inputs.
 - `GET /v1/media/artifacts/{id}`: authenticated binary download with a SHA-256 header.
 
+Worker HTTP contract schemas are [worker-request](../schemas/worker-request.schema.json) and [worker-result](../schemas/worker-result.schema.json). The previous [generic request](../schemas/media-request.schema.json) and [generic result](../schemas/media-result.schema.json) envelopes describe future provider-facing contracts, not the current worker wire format. In fixture mode the worker explicitly requires `schema_version=1`; production mode rejects `fixture_kind` and never returns test media.
+
 It binds `127.0.0.1` by default. Never expose a worker directly on the public internet; remote GPU use requires provider-managed TLS/authenticated ingress or trusted private networking plus a worker token provided through the user's own secret store. The worker **does not need the GPU cloud provisioning API key**.
 
 Start a local fixture worker from a shell using a random private token (illustrative shell commands):
