@@ -9,7 +9,6 @@ Unit tests run exclusively in FIXTURE mode, without model downloads or GPUs.
 """
 from __future__ import annotations
 
-import base64
 import hashlib
 import hmac
 import io
@@ -212,6 +211,8 @@ class Worker:
     def generate(self, request: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(request, dict):
             raise WorkerError("INVALID_REQUEST", "Request must be an object")
+        if request.get("schema_version") != 1 or isinstance(request.get("schema_version"), bool):
+            raise WorkerError("INVALID_SCHEMA_VERSION", "Worker protocol schema_version=1 required")
         model = request.get("model")
         if not isinstance(model, dict) or model.get("id") != self.model_id \
                 or model.get("revision_sha") != self.revision:
