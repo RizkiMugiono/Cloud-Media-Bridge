@@ -58,22 +58,8 @@
     "agent_or_mcp_may_self_approve": false,
     "non_deployment_generation": "governed_by_separate_model_and_worker_policy",
     "user_must_review": "resource_cost_exposure_and_lifecycle_before_deployment",
-    "signed_grant": {
-      "implementation": "detached_openssh_signature_and_one_shot_replay_marker",
-      "namespace": "cloud-media-bridge-v1",
-      "max_age_ms": 300000,
-      "signing_key_in_bridge": false,
-      "trust_boundary": "independent_operator_identity_or_host",
-      "operations": [
-        "deploy",
-        "generate",
-        "stop",
-        "terminate",
-        "suspend",
-        "scale_to_zero"
-      ],
-      "production_trust_deployment_verified": false
-    }
+    "trust_boundary": "user_approval_via_agent_host_or_provider_native_ui",
+    "built_in_cli_fallback": "interactive_exact_operation_confirmation_not_identity_authentication"
   },
   "resource_lifecycle": {
     "serverless": {
@@ -129,13 +115,6 @@
       "production_enforcement_available": false,
       "unsupported_choice": "reject_no_fallback",
       "termination_requires_separate_destructive_approval": true
-    },
-    "supervision": {
-      "mode": "independent_read_only_supervisor_tick",
-      "native_mutation_enabled": false,
-      "local_time_and_quote_estimate_only": true,
-      "external_scheduler_required": true,
-      "invoice_not_verified": true
     }
   },
   "execution": {
@@ -144,8 +123,9 @@
     "automatic_provider_or_model_switch": false,
     "do_not_claim_deployment_or_stop_success_without_actual_verified_operation": true,
     "production_authorization_verified": false,
-    "production_gate_reason": "independent_user_authorization_exact_provider_allocation_and_runtime_not_release_verified",
-    "provider_handoff": "nine_mode_native_request_drafts_and_review_items"
+    "production_gate_reason": "native_provider_runtime_and_host_approval_boundary_not_release_verified",
+    "provider_handoff": "nine_mode_native_request_drafts_and_review_items",
+    "preferred_operation_path": "agent_uses_current_provider_native_api_cli_after_user_approval"
   },
   "billing": {
     "reference": "config/billing-policy.json",

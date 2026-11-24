@@ -1,5 +1,4 @@
 mod advice;
-mod authorization;
 mod handoff;
 mod market;
 mod billing;
@@ -7,7 +6,6 @@ mod lifecycle;
 mod lifecycle_action;
 mod planning;
 mod cloud_operator;
-mod watchdog;
 mod crypto;
 mod media;
 mod offline;
@@ -669,8 +667,6 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, sub, provider] if cmd == "market" && sub == "refresh" => print_json(market::refresh(provider)),
         [cmd, sub, file] if cmd == "market" && sub == "check" => print_json(planning::load_manifest(file, 16384).and_then(|v| market::check(&v))),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
-        [cmd, sub, dir, req] if cmd == "authorization" && sub == "challenge" => print_json(authorization::challenge(dir,req)),
-        [cmd, sub, dir, grant, sig, req] if cmd == "authorization" && matches!(sub.as_str(),"verify"|"consume") => print_json(authorization::verify_cli(dir,grant,sig,req,sub=="consume")),
         [cmd] if cmd == "billing" => print_json(billing::policy()),
         [cmd, sub, file] if cmd == "billing" && sub == "estimate" => {
             print_json(fs::read(file).map_err(|_|"Cannot read local billing quote".to_string())
@@ -694,8 +690,6 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, sub, dir] if cmd == "cloud" && sub == "inspect" => print_json(cloud_operator::inspect(dir)),
         [cmd, sub, dir] if cmd == "cloud" && sub == "account-check" => print_json(cloud_operator::account_check(dir)),
         [cmd, sub, dir] if cmd == "cloud" && sub == "job-check" => print_json(cloud_operator::job_check(dir)),
-        [cmd, sub, dir] if cmd == "cloud" && sub == "watch" => print_json(cloud_operator::watch(dir,false)),
-        [cmd, sub, dir, flag] if cmd == "cloud" && sub == "watch" && flag=="--local-only" => print_json(cloud_operator::watch(dir,true)),
         [cmd, sub, dir] if cmd == "cloud" && sub == "status" => {
             print_json(cloud_operator::status(dir))
         }
@@ -787,9 +781,6 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge market sources [provider]
   cloud-media-bridge market refresh <provider>
   cloud-media-bridge market check <quote.json>
-  cloud-media-bridge authorization challenge <session> <operation.json>
-  cloud-media-bridge authorization verify <session> <grant.json> <signature> <operation.json>
-  cloud-media-bridge authorization consume <session> <grant.json> <signature> <operation.json>
   cloud-media-bridge cloud handoff <deployment-manifest.json>
   cloud-media-bridge cloud review <deployment-manifest.json> (read-only comparison)
   cloud-media-bridge cloud advice <plan-receipt-observation.json> (read-only)
@@ -798,7 +789,6 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge cloud inspect <directory> (credentialed read-only; existing resource)
   cloud-media-bridge cloud account-check <directory> (credentialed read-only; no GPU rental)
   cloud-media-bridge cloud job-check <directory> (read-only worker recovery)
-  cloud-media-bridge cloud watch <directory> [--local-only] (read-only supervisor report)
   cloud-media-bridge cloud deploy <directory>       (production release gate disabled)
   cloud-media-bridge cloud stop <directory>         (production release gate disabled; owned resources only)
   cloud-media-bridge cloud generate <directory> <inputs.json> (production release gate disabled; approved lifecycle only)

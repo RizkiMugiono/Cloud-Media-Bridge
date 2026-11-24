@@ -35,9 +35,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Require OpenSSH for independent signature integration
-        if: runner.os == 'Linux'
-        run: command -v ssh-keygen
       - name: Python media worker HTTP/security tests (fixture only, no GPU)
         run: python -m unittest discover -s workers/tests -v
       - name: Dockerized CPU-only media fixture worker round trip

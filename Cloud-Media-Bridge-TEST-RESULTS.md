@@ -294,3 +294,7 @@ Candidate runtime commit f7c4a6a passed CI 45313388510. Stop-intent/recovery com
 ## Worker job recovery follow-up
 
 Account preflight commit 9cd0fed passed CI 45315074933; CPU-only container packaging commit 80e2ec5 passed CI 45315147002. New job recovery changes require independent CI. No paid GPU or live worker requests were made.
+
+## Scope simplification
+
+Commit 2c8d642 passed offline CI 45315800849 before scope reduction. Custom OpenSSH approval and supervisor subsystems are retired; their older test results are historical only. Native provider mechanisms, plan validation, worker recovery and runtime tests remain. The simplified revision requires new CI evidence; no paid GPU has been rented.

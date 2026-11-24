@@ -9,7 +9,7 @@ use crate::runtime;
 use serde_json::{json, Value};
 use std::env;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 const JOURNAL: &str = "cloud-resource.json";
@@ -207,12 +207,29 @@ fn verified_decision_context(plan: &Value) -> Result<(), String> {
     Ok(())
 }
 
+// Manual operator fallback, not an identity system. A trusted agent host
+// must independently approve any paid native provider invocation. This CLI
+// still has its separate unverified-production gate.
+fn confirm_operator(plan:&Value,operation:&str,resource:Value,input:Value)->Result<(),String>{
+    if !io::stdin().is_terminal()||!io::stderr().is_terminal(){
+        return Err("Manual native operator fallback requires an interactive terminal; use the agent host approval and official provider tools for the agent-driven path".into());
+    }
+    let scope=json!({"operation":operation,"plan_sha256":sha256(plan.to_string().as_bytes()),
+        "resource_id":resource,"input_sha256":input});
+    let challenge=format!("CONFIRM {}",sha256(scope.to_string().as_bytes()));
+    eprintln!("Exact operation: {}\nPlan: {}\nType {} to confirm.",scope,plan,challenge);
+    let mut answer=String::new();
+    io::stdin().read_line(&mut answer).map_err(|_|"Cannot read operator confirmation")?;
+    if answer.trim_end_matches(['\r','\n'])!=challenge{return Err("Operator did not confirm exact operation".into());}
+    Ok(())
+}
+
 // This build intentionally preserves adapters without enabling paid cloud operations.
 // A registry edit or the former environment opt-in must not bypass the release gate.
 fn production_boundary() -> Result<(), String> {
     let policy = crate::deployment_policy()?;
     if policy["execution"]["production_authorization_verified"] != true {
-        return Err("Live GPU execution disabled: independent user authorization and exact provider allocation are not release-verified".into());
+        return Err("Live GPU execution disabled: native provider/runtime and host approval boundary are not release-verified".into());
     }
     Ok(())
 }
@@ -230,16 +247,15 @@ pub(crate) fn deploy(directory:&str)->Result<Value,String>{
     verified_runtime(&state["plan"])?;
     verified_billing_terms(&state["plan"])?;
     verified_decision_context(&state["plan"])?;
-    if env::var("CMB_ENABLE_LIVE_GPU").as_deref()!=Ok("I_ACCEPT_GPU_CHARGES"){return Err("Explicit live opt-in required in addition to signed consent".into());}
+    if env::var("CMB_ENABLE_LIVE_GPU").as_deref()!=Ok("I_ACCEPT_GPU_CHARGES"){return Err("Explicit live opt-in required in addition to operator confirmation".into());}
     let token=env::var("CMB_WORKER_TOKEN").map_err(|_|"CMB_WORKER_TOKEN must be supplied securely in environment".to_string())?;
     let plan=state["plan"].clone();
     let deployment=request(&plan,&token)?;
     verify_plan_account(&plan,&mut CurlTransport)?;
-    let grant=crate::authorization::consume_for_plan(&plan,"deploy",Value::Null,Value::Null)?;
+    confirm_operator(&plan,"deploy",Value::Null,Value::Null)?;
     state["status"]=json!("CREATE_IN_FLIGHT");
-    state["create_intent_unix_ms"]=json!(crate::watchdog::now_ms()?);
-    state["approval"]=json!({"status":"approved","consumed":true,"origin":"independent_signed_grant",
-        "bound_plan_sha256":state["plan_sha256"],"grant_id":grant["grant_id"]});
+    state["approval"]=json!({"status":"approved","consumed":true,"origin":"operator_terminal_confirmation",
+        "bound_plan_sha256":state["plan_sha256"]});
     save(&root,&state)?;
     let mut api=CurlTransport;
     match provider_api::create(&mut api,&deployment) {
@@ -311,7 +327,6 @@ fn reconcile_with<T:Transport>(root:&Path,api:&mut T)->Result<Value,String>{
     };
     state["status"]=answer["state"].clone();
     state["resource"]["stop_state"]=answer["state"].clone();
-    if answer["state"]=="STOP_CONFIRMED"{state["stop_confirmed_unix_ms"]=json!(crate::watchdog::now_ms()?);}
     save(root,&state)?;
     Ok(answer)
 }
@@ -335,27 +350,6 @@ fn inspect_with<T:Transport>(state:&Value,api:&mut T)->Result<Value,String>{
 }
 fn verify_plan_account<T:Transport>(plan:&Value,api:&mut T)->Result<Value,String>{
     provider_api::verify_account(api,plan["provider"].as_str().ok_or("Missing provider")?,plan["account"].as_str().ok_or("Missing account ID")?)
-}
-// Callable from an independently configured OS scheduler. It never changes
-// the cloud journal or invokes a mutating provider operation.
-pub(crate) fn watch(directory:&str,local_only:bool)->Result<Value,String>{
-    let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
-    let state=read(&root)?;
-    let mut report=crate::watchdog::evaluate(&state,crate::watchdog::now_ms()?);
-    report["local_only"]=json!(local_only);
-    report["journal_modified"]=json!(false);
-    if !local_only&&state["resource"]["id"].is_string(){
-        let observation=verify_plan_account(&state["plan"],&mut CurlTransport)
-            .and_then(|_|inspect_with(&state,&mut CurlTransport));
-        match observation{
-            Ok(v)=>report["provider_observation"]=v,
-            Err(_)=>{
-                report["provider_observation"]=json!({"status":"unavailable_or_identity_unverified"});
-                report["needs_operator_attention"]=json!(true);
-            }
-        }
-    }
-    Ok(report)
 }
 pub(crate) fn account_check(directory:&str)->Result<Value,String>{
     let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
@@ -390,7 +384,7 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     let _lock=Lock::acquire(&root)?;
     let mut state=read(&root)?;
     if state["status"]!="CREATED"
-        || state["approval"]["origin"]!="independent_signed_grant"
+        || state["approval"]["origin"]!="operator_terminal_confirmation"
         || state["approval"]["status"]!="approved"
         || state["approval"]["consumed"]!=true
         || state["approval"]["bound_plan_sha256"]!=state["plan_sha256"]
@@ -416,10 +410,9 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     verify_plan_account(&state["plan"],&mut CurlTransport)?;
     let worker_instance=crate::remote_worker::instance(&state["plan"])?;
     let job_id=secure_nonce()?;
-    let grant=crate::authorization::consume_for_plan(&state["plan"],"generate",state["resource"]["id"].clone(),json!(sha256(&bytes)))?;
+    confirm_operator(&state["plan"],"generate",state["resource"]["id"].clone(),json!(sha256(&bytes)))?;
     state["job"]["request_id"]=json!(job_id);
     state["job"]["worker_instance_id"]=json!(worker_instance);
-    state["job"]["operation_grant_id"]=grant["grant_id"].clone();
     // Save the active job state before any remote media request. If the agent
     // crashes, the operator must inspect/reconcile rather than guessing idle.
     state["status"]=json!("RUNNING");
@@ -490,7 +483,7 @@ pub(crate) fn stop(directory:&str)->Result<Value,String>{
     let state = read(&root)?;
     if state["status"]!="CREATED"{return Err("Reconcile uncertain resource before stop; never blindly replay".into());}
     verify_plan_account(&state["plan"],&mut CurlTransport)?;
-    crate::authorization::consume_for_plan(&state["plan"],"stop",state["resource"]["id"].clone(),Value::Null)?;
+    confirm_operator(&state["plan"],"stop",state["resource"]["id"].clone(),Value::Null)?;
     let mut api=CurlTransport;
     reconcile_with(&root,&mut api)
 }
