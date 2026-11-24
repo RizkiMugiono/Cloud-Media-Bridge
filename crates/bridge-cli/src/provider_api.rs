@@ -16,6 +16,40 @@ pub(crate) trait Transport {
     fn send(&mut self, op: &Operation) -> Result<Value, String>;
 }
 
+pub(crate) const RUNPOD_ACCOUNT_QUERY:&str="query myself { myself { id } }";
+
+pub(crate) fn account_operation(provider:&str)->Result<Operation,String>{
+    match provider{
+        "runpod-pods"|"runpod-serverless"=>Ok(Operation{
+            method:"POST",url:"https://api.runpod.io/graphql".into(),
+            body:Some(json!({"query":RUNPOD_ACCOUNT_QUERY})),credential_env:"RUNPOD_API_KEY"}),
+        "vast-instances"|"vast-serverless"=>Ok(Operation{
+            method:"GET",url:"https://cloud.vast.ai/api/v0/users/current".into(),
+            body:None,credential_env:"VAST_API_KEY"}),
+        _=>Err("No native account verification adapter for this provider".into()),
+    }
+}
+
+/// Only the provider's account identifier is compared. Never return raw
+/// identity responses or claim that account matching verifies a workspace.
+pub(crate) fn verify_account<T:Transport>(backend:&mut T,provider:&str,expected:&str)->Result<Value,String>{
+    if !identifier(expected){return Err("An exact provider account ID is required".into());}
+    let response=backend.send(&account_operation(provider)?)?;
+    if response.get("error").is_some()||response["success"]==false||
+        response.get("errors").is_some_and(|e|!e.is_null()&&!e.as_array().is_some_and(Vec::is_empty)){
+        return Err("Provider account lookup failed".into());
+    }
+    let raw=match provider{
+        "runpod-pods"|"runpod-serverless"=>&response["data"]["myself"]["id"],
+        "vast-instances"|"vast-serverless"=>&response["id"],
+        _=>return Err("Unsupported account verification provider".into()),
+    };
+    let matched=raw.as_str().is_some_and(|s|s==expected)||raw.as_u64().is_some_and(|n|n.to_string()==expected);
+    if !matched{return Err("Provider account ID does not match the approved plan".into());}
+    Ok(json!({"provider":provider,"account_match":true,"workspace_verified":false,
+        "provider_mutation_sent":false,"approval_granted":false}))
+}
+
 fn identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
@@ -350,6 +384,20 @@ mod tests {
         }
     }
 
+    #[test]
+    fn account_lookup_refuses_mismatch_errors_and_does_not_leak_identity(){
+        let mut r=Replay{replies:vec![json!({"data":{"myself":{"id":"user_123","pubKey":"secret"}}})],sent:vec![]};
+        let checked=verify_account(&mut r,"runpod-pods","user_123").unwrap();
+        assert_eq!(checked["account_match"],true);
+        assert_eq!(checked["workspace_verified"],false);
+        assert!(!checked.to_string().contains("secret"));
+        assert_eq!(r.sent[0].body.as_ref().unwrap()["query"],RUNPOD_ACCOUNT_QUERY);
+        let mut v=Replay{replies:vec![json!({"id":123,"email":"private@example.invalid"}),json!({"id":456}),json!({"id":123,"error":"auth_error"})],sent:vec![]};
+        assert!(verify_account(&mut v,"vast-instances","123").is_ok());
+        assert!(verify_account(&mut v,"vast-instances","123").is_err());
+        assert!(verify_account(&mut v,"vast-instances","123").is_err());
+        assert!(v.sent.iter().all(|o|o.method=="GET"&&o.body.is_none()));
+    }
     #[test]
     fn observation_is_get_only_redacted_and_never_proves_billing_or_job_state(){
         let record=json!({"owner_request_id":"req","id":"p01","provider":"runpod-pods","created_by_bridge":true});

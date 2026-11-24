@@ -286,3 +286,7 @@ The consolidated preceding commit passed offline CI (run 45309916340). Dynamic m
 ## Authorization and provider handoff follow-up
 
 Dynamic market commit 91ca8c5 passed CI 45310844087; signed authorization commit f95a2d3 passed CI 45312407341. Follow-up provider handoff and real ephemeral signature integration require fresh CI. Live catalog/account, independent operator deployment and GPU operations remain NOT RUN.
+
+## Recovery follow-up
+
+Candidate runtime commit f7c4a6a passed CI 45313388510. Stop-intent/recovery commit b986229 passed CI 45314827449. Runtime packaging and account identity follow-ups require fresh CI. No live account credentials, GPU deployment or real inference were used by these tests.

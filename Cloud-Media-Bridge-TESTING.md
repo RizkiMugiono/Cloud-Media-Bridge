@@ -426,3 +426,7 @@ Offline tests cover official-source catalog coverage, fixed GET adapter parsing,
 ## Provider handoff and signed authorization follow-up
 
 Offline tests cover nine provider drafts, exact RunPod region/count/tier, actual provider ownership/state checks, malformed provider parameters, signature verification with ephemeral OpenSSH Ed25519 keys, grant replay and tampering. None provisions GPU. Missing native dispatcher/runtime and independent trust topology must not be marked as live-ready.
+
+## Recovery and account identity checks
+
+Offline replay tests exercise persisted STOP_IN_FLIGHT and STOP_UNCERTAIN, GET-only recovery, conflicting actual states, redacted observations, exact HTTP allowlists and provider account ID comparison. RunPod fixed GraphQL query is read-only; arbitrary GraphQL operations are refused. Vast current-user lookup uses GET. Missing or mismatched identities fail closed; workspace/account billing scope still requires separate verification. Runtime lock and smoke dispatch tests require no GPU.

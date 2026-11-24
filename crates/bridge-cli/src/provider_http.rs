@@ -18,6 +18,9 @@ fn allowed_operation(op: &Operation) -> bool {
     }
     match op.credential_env {
         "RUNPOD_API_KEY" => {
+            if op.url=="https://api.runpod.io/graphql" {
+                return op.method=="POST"&&op.body.as_ref().is_some_and(|v|v==&serde_json::json!({"query":crate::provider_api::RUNPOD_ACCOUNT_QUERY}));
+            }
             let base = "https://api.runpod.io/v2/pods";
             if op.url==base{return op.method=="POST"&&op.body.is_some();}
             let Some(path)=op.url.strip_prefix(&(base.to_string()+"/")) else{return false;};
@@ -29,6 +32,7 @@ fn allowed_operation(op: &Operation) -> bool {
         "VAST_API_KEY" => {
             let base = "https://cloud.vast.ai/api/v0/";
             let Some(path) = op.url.strip_prefix(base) else {return false};
+            if path=="users/current"{return op.method=="GET"&&op.body.is_none();}
             let parts=path.split('/').collect::<Vec<_>>();
             match parts.as_slice() {
                 ["asks",id,""] => op.method=="PUT"&&op.body.is_some()&&!id.is_empty()&&id.len()<=20&&id.bytes().all(|c|c.is_ascii_digit()),
@@ -130,6 +134,16 @@ mod tests {
         assert!(allowed_operation(&o));
         o.method="GET";
         assert!(!allowed_operation(&o));
+    }
+    #[test]
+    fn account_allowlist_permits_only_fixed_query_or_get(){
+        let mut o=crate::provider_api::account_operation("runpod-pods").unwrap();
+        assert!(allowed_operation(&o));
+        o.body=Some(json!({"query":"mutation { forbidden }"}));
+        assert!(!allowed_operation(&o));
+        let mut v=crate::provider_api::account_operation("vast-instances").unwrap();
+        assert!(allowed_operation(&v));v.method="PUT";
+        assert!(!allowed_operation(&v));
     }
     #[test]
     fn secure_curl_config_keeps_token_off_argv() {

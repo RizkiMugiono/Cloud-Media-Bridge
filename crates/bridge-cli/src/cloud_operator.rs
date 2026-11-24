@@ -234,6 +234,7 @@ pub(crate) fn deploy(directory:&str)->Result<Value,String>{
     let token=env::var("CMB_WORKER_TOKEN").map_err(|_|"CMB_WORKER_TOKEN must be supplied securely in environment".to_string())?;
     let plan=state["plan"].clone();
     let deployment=request(&plan,&token)?;
+    verify_plan_account(&plan,&mut CurlTransport)?;
     let grant=crate::authorization::consume_for_plan(&plan,"deploy",Value::Null,Value::Null)?;
     state["status"]=json!("CREATE_IN_FLIGHT");
     state["approval"]=json!({"status":"approved","consumed":true,"origin":"independent_signed_grant",
@@ -330,9 +331,18 @@ fn inspect_with<T:Transport>(state:&Value,api:&mut T)->Result<Value,String>{
             _=>"monitor_and_apply_only_user_approved_policy",
         },"journal_modified":false,"provider_mutation_sent":false,"approval_granted":false}))
 }
+fn verify_plan_account<T:Transport>(plan:&Value,api:&mut T)->Result<Value,String>{
+    provider_api::verify_account(api,plan["provider"].as_str().ok_or("Missing provider")?,plan["account"].as_str().ok_or("Missing account ID")?)
+}
+pub(crate) fn account_check(directory:&str)->Result<Value,String>{
+    let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
+    let state=read(&root)?;
+    verify_plan_account(&state["plan"],&mut CurlTransport)
+}
 pub(crate) fn inspect(directory:&str)->Result<Value,String>{
     let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
     let state=read(&root)?;
+    verify_plan_account(&state["plan"],&mut CurlTransport)?;
     inspect_with(&state,&mut CurlTransport)
 }
 
@@ -368,6 +378,7 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
         return Err("Input JSON needs an inputs array".into());
     }
 
+    verify_plan_account(&state["plan"],&mut CurlTransport)?;
     let grant=crate::authorization::consume_for_plan(&state["plan"],"generate",state["resource"]["id"].clone(),json!(sha256(&bytes)))?;
     state["job"]["operation_grant_id"]=grant["grant_id"].clone();
     // Save the active job state before any remote media request. If the agent
@@ -445,6 +456,7 @@ pub(crate) fn stop(directory:&str)->Result<Value,String>{
     let _lock=Lock::acquire(&root)?;
     let state = read(&root)?;
     if state["status"]!="CREATED"{return Err("Reconcile uncertain resource before stop; never blindly replay".into());}
+    verify_plan_account(&state["plan"],&mut CurlTransport)?;
     crate::authorization::consume_for_plan(&state["plan"],"stop",state["resource"]["id"].clone(),Value::Null)?;
     let mut api=CurlTransport;
     reconcile_with(&root,&mut api)

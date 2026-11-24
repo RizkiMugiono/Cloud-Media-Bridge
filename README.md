@@ -230,3 +230,5 @@ See [independent signed authorization](docs/SIGNED-AUTHORIZATION.md) for the CLI
 ### Read-only recovery
 
 `cloud inspect SESSION` performs a provider GET for the recorded RunPod/Vast resource, checks its exact identity, and returns redacted actual-state evidence. Stop intent is persisted before dispatch; uncertain stops cannot be blindly replayed. This does not certify billing cessation, idle workers, or independent watchdog enforcement. Production mutation remains disabled.
+
+`cloud account-check SESSION` compares the exact provider account ID in the saved plan with the identity returned by the locally configured provider credential. RunPod uses a fixed read-only GraphQL query; Vast uses GET users/current. Raw account responses are never emitted. Native deploy/generate/stop additionally require this match. A workspace or billing scope is not verified by this mechanism and remains a release blocker. No live credentialed requests were run in CI.
