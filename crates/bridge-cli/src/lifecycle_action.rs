@@ -22,13 +22,15 @@ pub(crate) fn draft(plan:&Value,receipt:&Value,observed:&Value)->Result<Value,St
         ("lambda-cloud","terminate")=>json!({"transport":"rest_draft","method":"POST","url":"https://cloud.lambda.com/api/v1/instance-operations/terminate","body":{"instance_ids":[rid]},"verify_get":format!("https://cloud.lambda.com/api/v1/instances/{rid}"),"expected_state":"terminated"}),
         ("modal","scale_to_zero")=>json!({"transport":"official_cli_draft","executable":"modal","arguments":["server","autoscaler","update",rid,"--min-containers","0","--buffer-containers","0"],"verification":"Inspect current container metrics and active requests; zero minimum does not prove zero active containers"}),
         ("runpod-serverless"|"vast-serverless","scale_to_zero")=>json!({"transport":"official_agent_handoff","resource_id":rid,"requirements":["Verify exact endpoint/workergroup identity","Set only the approved minimum and idle policy if supported","Wait for zero actual workers and no in-flight requests"],"expected_state":"scaled_to_zero"}),
+        _ if !plan["provider_profile"].is_null()=>json!({"transport":"official_agent_handoff","resource_id":rid,"action":action,
+            "requirements":["Verify actual provider resource and selected action in official documentation","Use user-authorized native operation only","Verify actual final state and remaining charges"]}),
         _=>json!({"transport":"not_implemented_or_external","resource_id":rid,"reason":"Use independently authorized provider-native mechanism only; never substitute a destructive action"}),
     };
     out["action_draft"]=candidate;
     out["selected_action"]=json!(action);
     out["separate_destructive_confirmation_required"]=json!(action=="terminate");
-    out["signed_operation_scope"]=json!({"operation":action,"resource_id":rid});
-    out["official_sources"]=crate::market::sources(Some(provider))?;
+    out["operation_scope"]=json!({"operation":action,"resource_id":rid});
+    out["official_sources"]=crate::provider_profile::sources(provider,&plan["provider_profile"])?;
     Ok(out)
 }
 #[cfg(test)]

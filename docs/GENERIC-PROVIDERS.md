@@ -1,0 +1,9 @@
+# External GPU providers
+
+No repository edit is needed to plan with a new provider. A profile is local user-selected data (not executable code). Start with examples/external-provider.example.json and replace every illustrative value with official sources for the user's real provider.
+
+Validate via providers profile FILE or MCP provider_profile_review. For runtime_resolve use provider ID and profile; for market_quote_check use quote and profile. In a deployment manifest include provider_profile and matching provider ID, a current quote, exact GPU/allocation, pinned compatible image, task/model SHA, budget and user-selected lifecycle. External provider_parameters must be absent or null. Add provider_profile to an external alternative as well. The profile participates in the plan hash.
+
+Use cloud review, cloud prepare and cloud handoff normally. The agent reads official pricing, API/CLI/SDK documentation and account terms using its own read-only tools, not an arbitrary URL fetch inside the bridge. It constructs the exact native deployment request, shows the user the material terms, obtains approval through the host/provider, and dispatches using the user's existing authenticated native tools. Record the actual resource ID, check ownership and exact allocation, run the compatible upstream inference runtime, retrieve the output, and apply only the approved native lifecycle. The lifecycle_action tool returns an external-provider handoff when the selected action is due.
+
+No profile may override a bundled provider ID, embed credentials or commands, or grant permission. HTTPS links are syntactically checked; their official status and content are not independently authenticated. The bridge does not promise compatibility of arbitrary GPUs, runtime images, agent hosts or provider interfaces. Native production commands stay gated. The generic workflow is deliberately agent-operated; it is not a new provider SDK or an arbitrary command runner.

@@ -152,9 +152,12 @@ pub(crate) fn refresh(id: &str) -> Result<Value, String> {
 fn check_at(quote: &Value, now: u64) -> Result<Value, String> {
     let provider = quote["provider"].as_str().ok_or("Quote requires provider")?;
     let refs = sources(Some(provider))?;
+    check_refs(quote,now,&refs,endpoint(provider).map(|(url,_)|url))
+}
+fn check_refs(quote:&Value,now:u64,refs:&Value,api:Option<&str>)->Result<Value,String>{
     let url = quote["pricing_source"].as_str().unwrap_or("");
     let recognized = refs["pricing"].as_array().is_some_and(|links| links.iter().any(|v| v.as_str() == Some(url)))
-        || endpoint(provider).is_some_and(|(u,_)| u == url);
+        || api.is_some_and(|u|u==url);
     let at = quote["retrieved_at_unix_ms"].as_u64();
     let age = at.and_then(|t| now.checked_sub(t));
     let expiry = quote["expires_at_unix_ms"].as_u64();
@@ -168,6 +171,12 @@ fn check_at(quote: &Value, now: u64) -> Result<Value, String> {
 }
 
 pub(crate) fn check(quote: &Value) -> Result<Value, String> { check_at(quote, now_ms()?) }
+pub(crate) fn check_profile(quote:&Value,profile:&Value)->Result<Value,String>{
+    if profile.is_null(){return check(quote);}
+    let provider=quote["provider"].as_str().ok_or("Quote requires provider")?;
+    let refs=crate::provider_profile::sources(provider,profile)?;
+    check_refs(quote,now_ms()?,&refs,None)
+}
 
 #[cfg(test)]
 mod tests {

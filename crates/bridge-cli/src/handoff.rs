@@ -51,6 +51,7 @@ pub(crate) fn review(raw:&Value)->Result<Value,String>{
     let mut env=json!({"CMB_DEPLOYMENT_REQUEST_ID":plan["request_id"],"CMB_MODEL_ID":plan["model_id"],
         "CMB_MODEL_SHA":plan["model_sha"],"CMB_TASK":plan["task"],"CMB_RUNTIME_FAMILY":plan["runtime_family"]});
     if !plan["runtime_release_sha256"].is_null(){env["CMB_RUNTIME_RELEASE_SHA256"]=plan["runtime_release_sha256"].clone();}
+    let profile=&plan["provider_profile"];
     let draft=match id{
         "runpod-pods"=>{
             require(p,&["cloud"],&mut gaps);
@@ -137,13 +138,21 @@ pub(crate) fn review(raw:&Value)->Result<Value,String>{
                     "env":env.as_object().ok_or("Invalid model environment")?.iter().map(|(k,v)|json!({"name":k,"value":v})).collect::<Vec<_>>(),
                     "securityContext":{"allowPrivilegeEscalation":false}}]}},"secret_injection_requires_trusted_operator":true})
         },
+        _ if !profile.is_null()=>{
+            gaps.push("Agent must verify the user-selected provider and official native request schema, exact offer, runtime and actual lifecycle capability".into());
+            json!({"transport":"official_agent_handoff","native_interface":profile["transport"],
+                "allocation":{"gpu":gpu,"quantity":qty,"region":region,"disk_gb":plan["disk_gb"],"offer_id":plan["offer_id"],"account":plan["account"],"workspace":plan["workspace"]},
+                "runtime":{"image":plan["image"],"model_id":plan["model_id"],"model_sha":plan["model_sha"],"task":plan["task"],"family":plan["runtime_family"]},
+                "environment":env,"resource_name":name,"selected_lifecycle":plan["stop_policy"],
+                "steps":["Read current official API or CLI contract","Construct exact provider-native operation and show it to user","After host approval dispatch with user-owned credentials","Record exact resource and verify allocation, identity, inference and cleanup"]})
+        },
         _=>return Err("Unknown provider".into()),
     };
     if p["min_workers"].as_u64().zip(p["max_workers"].as_u64()).is_some_and(|(a,b)|a>b){gaps.push("Minimum workers exceeds maximum".into());}
     Ok(json!({"plan_sha256":reviewed["plan_sha256"],"provider":id,"selected_gpu":gpu,"region":region,"quantity":qty,
         "create_draft":draft,"selected_lifecycle":{"mode":mode,"action":action},"provider_review_items":gaps,
-        "cost_review_items":reviewed["advice"]["review_items"],"official_sources":crate::market::sources(Some(id))?,
-        "steps":["Recheck current quote, exact allocation and runtime","Obtain independent signed user consent","Consume grant in trusted executor","Dispatch only reviewed native operation","Record resource ID and verify ownership/health","Use separately authorized media operation","Verify artifacts and reconcile lifecycle and invoice"],
+        "cost_review_items":reviewed["advice"]["review_items"],"official_sources":crate::provider_profile::sources(id,profile)?,
+        "steps":["Recheck current quote, exact allocation and runtime","Obtain explicit user approval through agent host or provider UI","Bind consent to the exact plan and native operation","Dispatch only reviewed native operation","Record resource ID and verify ownership/health","Use separately authorized media operation","Verify artifacts and reconcile lifecycle and invoice"],
         "provider_operation_sent":false,"approval_granted":false,"production_ready":false}))
 }
 #[cfg(test)]

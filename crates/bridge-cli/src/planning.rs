@@ -47,14 +47,26 @@ pub(crate) fn review(raw: &Value) -> Result<Value, String> {
     if !matches!(sha.len(), 40 | 64) || !sha.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err("Expected immutable model SHA".into());
     }
-    crate::provider_ops::preview(
-        raw["provider"].as_str().ok_or("Missing provider")?,
-        raw["image"].as_str().ok_or("Missing pinned image")?,
-        raw["gpu"].as_str().ok_or("Missing GPU")?,
-        raw["disk_gb"].as_u64().ok_or("Missing disk allocation")?,
-        raw["offer_id"].as_u64(),
-    )?;
-    crate::handoff::validate_parameters(raw["provider"].as_str().ok_or("Missing provider")?, &raw["provider_parameters"])?;
+    let provider=raw["provider"].as_str().ok_or("Missing provider")?;
+    let profile=&raw["provider_profile"];
+    crate::provider_profile::resolve(provider,profile)?;
+    let image=raw["image"].as_str().ok_or("Missing pinned image")?;
+    let gpu=raw["gpu"].as_str().ok_or("Missing GPU")?;
+    let disk=raw["disk_gb"].as_u64().ok_or("Missing disk allocation")?;
+    if profile.is_null(){
+        crate::provider_ops::preview(provider,image,gpu,disk,raw["offer_id"].as_u64())?;
+        crate::handoff::validate_parameters(provider,&raw["provider_parameters"])?;
+    }else{
+        if !crate::provider_ops::pinned_image(image)||!crate::provider_ops::gpu_identity(gpu)||!(10..=2000).contains(&disk){
+            return Err("External provider requires pinned image, exact GPU and bounded disk".into());
+        }
+        if !raw["provider_parameters"].is_null(){
+            return Err("External provider parameters are constructed by the agent from official documentation, not embedded executable instructions".into());
+        }
+        if !profile["lifecycle_actions"].as_array().is_some_and(|v|v.contains(&raw["stop_policy"]["action"])){
+            return Err("Selected lifecycle action not declared by external profile".into());
+        }
+    }
     if let Some(v)=raw.get("runtime_release_sha256").filter(|v|!v.is_null()) {
         if !v.as_str().is_some_and(|s|s.len()==64&&s.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b))){return Err("Invalid runtime release SHA-256".into());}
     }
@@ -82,6 +94,7 @@ pub(crate) fn review(raw: &Value) -> Result<Value, String> {
         "alternatives_unavailable_reason",
         "compatibility_reason",
         "provider_parameters",
+        "provider_profile",
         "runtime_release_sha256",
     ];
     for key in raw.as_object().ok_or("Expected manifest object")?.keys() {

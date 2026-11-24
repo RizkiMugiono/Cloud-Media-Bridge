@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 26);
+    assert_eq!(tools.len(), 27);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -401,4 +401,29 @@ fn retired_custom_authorization_and_watchdog_commands_are_not_exposed(){
         assert!(!p.status.success());
         assert!(String::from_utf8_lossy(&p.stderr).contains("Use --help"));
     }
+}
+
+#[test]
+fn external_provider_uses_same_plan_cost_and_handoff_without_registration(){
+    let profile:Value=serde_json::from_str(include_str!("../../../examples/external-provider.example.json")).unwrap();
+    let mut plan:Value=serde_json::from_str(include_str!("../../../examples/cloud-deployment-manifest.NOT-EXECUTABLE.json")).unwrap();
+    plan["provider"]=profile["id"].clone();
+    plan["provider_profile"]=profile.clone();
+    plan["provider_parameters"]=Value::Null;
+    plan["billing_quote"]["provider"]=profile["id"].clone();
+    plan["billing_quote"]["pricing_source"]=profile["pricing"][0].clone();
+    plan["billing_quote"]["retrieved_at_unix_ms"]=json!(1);
+    let prof=json!({"jsonrpc":"2.0","id":201,"method":"tools/call","params":{"name":"provider_profile_review","arguments":{"profile":profile}}});
+    let review=json!({"jsonrpc":"2.0","id":202,"method":"tools/call","params":{"name":"cloud_review","arguments":{"manifest":plan}}});
+    let draft=json!({"jsonrpc":"2.0","id":203,"method":"tools/call","params":{"name":"provider_handoff","arguments":{"manifest":plan}}});
+    let replies=exchange(&[INIT,READY,&prof.to_string(),&review.to_string(),&draft.to_string()]);
+    assert_eq!(replies[1]["result"]["structuredContent"]["status"],"profile_structure_validated");
+    let p=&replies[2]["result"]["structuredContent"];
+    assert_eq!(p["advice"]["selected_estimate"]["estimated_total_micro_usd"],1889);
+    assert_eq!(p["advice"]["selected_estimate"]["quote_freshness"]["source_recognized"],true);
+    let d=&replies[3]["result"]["structuredContent"];
+    assert_eq!(d["create_draft"]["transport"],"official_agent_handoff");
+    assert_eq!(d["provider_operation_sent"],false);
+    assert_eq!(d["approval_granted"],false);
+    assert_eq!(d["plan_sha256"],p["plan_sha256"]);
 }

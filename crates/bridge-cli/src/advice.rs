@@ -17,7 +17,7 @@ fn offer(v: &Value, gaps: &mut Vec<String>) -> Result<Value, String> {
             gaps.push(format!("Specify {key}"));
         }
     }
-    if !v["provider"].as_str().is_some_and(|id| crate::provider_info(id).is_ok()) {
+    if !v["provider"].as_str().is_some_and(|id| crate::provider_profile::resolve(id,&v["provider_profile"]).is_ok()) {
         gaps.push("Use a configured provider".into());
     }
     if !positive(&v["quantity"]) {
@@ -75,7 +75,7 @@ fn offer(v: &Value, gaps: &mut Vec<String>) -> Result<Value, String> {
         _ => None,
     };
     Ok(json!({"compute":forecast,"estimated_total_micro_usd":total,
-        "quote_freshness":crate::market::check(q).unwrap_or_else(|_|json!({"status":"source_or_timestamp_requires_review"}))}))
+        "quote_freshness":crate::market::check_profile(q,&v["provider_profile"]).unwrap_or_else(|_|json!({"status":"source_or_timestamp_requires_review"}))}))
 }
 
 pub(crate) fn evaluate(plan: &Value) -> Result<Value, String> {

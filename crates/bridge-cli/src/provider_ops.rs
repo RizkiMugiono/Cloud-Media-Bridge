@@ -2,7 +2,7 @@
 //! No credential access, curl, subprocesses or live cloud operations.
 use serde_json::{json, Value};
 
-fn pinned_image(s: &str) -> bool {
+pub(crate) fn pinned_image(s: &str) -> bool {
     let Some((name, digest)) = s.rsplit_once("@sha256:") else {return false;};
     !name.is_empty() && name.len() <= 250
         && !name.bytes().any(|b| b.is_ascii_whitespace() || b < 32 || b==127)
@@ -15,7 +15,7 @@ fn safe_identity(s:&str) -> bool {
     !s.is_empty() && s.len()<=96
         && s.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_. ".contains(&b))
 }
-fn gpu_identity(s:&str) -> bool {
+pub(crate) fn gpu_identity(s:&str) -> bool {
     safe_identity(s)
 }
 pub(crate) fn preview(provider:&str,image:&str,gpu:&str,disk:u64,offer_id:Option<u64>) -> Result<Value,String> {

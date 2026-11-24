@@ -28,7 +28,8 @@
     ],
     "verification": "independent_per_provider",
     "not_live_verified_means": "not_operational",
-    "credential_ownership": "individual_end_user"
+    "credential_ownership": "individual_end_user",
+    "external_profiles": "user_selected_data_only_native_agent_handoff"
   },
   "approval": {
     "deployment": "new_human_approval_for_every_deployment_request",
@@ -53,7 +54,8 @@
       "max_elapsed_ms",
       "max_total_micro_usd",
       "stop_policy",
-      "provider_parameters"
+      "provider_parameters",
+      "provider_profile"
     ],
     "agent_or_mcp_may_self_approve": false,
     "non_deployment_generation": "governed_by_separate_model_and_worker_policy",
