@@ -1,3 +1,4 @@
+mod billing;
 mod cloud_operator;
 mod crypto;
 mod media;
@@ -274,6 +275,8 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "doctor" => Ok(json!({"message": doctor()})),
         "providers_list" => providers_list(),
         "deployment_policy" => deployment_policy(),
+        "billing_policy" => billing::policy(),
+        "billing_estimate" => billing::estimate(&arguments["quote"]),
         "media_tasks_list" => media::catalog(),
         "runtimes_list" => runtime::registry(),
         "cloud_session_prepare" => cloud_operator::prepare(
@@ -394,7 +397,8 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let Some(object) = arguments.as_object() else { return false; };
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
-        "doctor" | "providers_list" | "deployment_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
+        "doctor" | "providers_list" | "deployment_policy" | "billing_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
+        "billing_estimate" => has_only(&["quote"]) && arguments["quote"].is_object(),
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "models_search" => {
             has_only(&["query", "task", "limit"])
@@ -456,6 +460,8 @@ fn tool_names() -> &'static [&'static str] {
         "providers_list",
         "providers_show",
         "deployment_policy",
+        "billing_policy",
+        "billing_estimate",
         "media_tasks_list",
         "runtimes_list",
         "runtime_resolve",
@@ -486,6 +492,13 @@ fn tool_definitions() -> Value {
          "annotations":{"readOnlyHint":true}},
         {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, owned resource auto-stop intent.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"billing_policy","description":"Read GPU billing granularity and post-job auto-stop policy; no cloud actions.",
+         "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"billing_estimate","description":"Calculate an offline, caller-quoted usage-metered GPU compute estimate by actual billing increment/minimum, or mark monthly/yearly/prepaid terms not estimable. Does not guarantee invoice amounts.",
+         "inputSchema":{"type":"object","properties":{"quote":{"type":"object"}},
+             "required":["quote"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"media_tasks_list","description":"List categorized image, video, audio, voice, music, 3D, document, spatial and multimodal task hints. Discovery does not imply compatibility.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
@@ -601,6 +614,14 @@ fn run_cli(args: &[String]) -> i32 {
         }
         [cmd] if cmd == "providers" => print_json(providers_list()),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
+        [cmd] if cmd == "billing" => print_json(billing::policy()),
+        [cmd, sub, file] if cmd == "billing" && sub == "estimate" => {
+            print_json(fs::read(file).map_err(|_|"Cannot read local billing quote".to_string())
+                .and_then(|bytes| if bytes.len()>16*1024 {Err("Billing quote exceeds 16 KiB".to_string())} else {Ok(bytes)})
+                .and_then(|bytes|serde_json::from_slice::<Value>(&bytes)
+                    .map_err(|_|"Invalid quote JSON".to_string()))
+                .and_then(|quote|billing::estimate(&quote)))
+        },
         [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
         [cmd, sub, dir, manifest] if cmd == "cloud" && sub == "prepare" => {
             print_json(cloud_operator::prepare(dir,manifest))
@@ -687,6 +708,8 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge runtimes
   cloud-media-bridge runtimes resolve <model> <provider-id>
   cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
+  cloud-media-bridge billing
+  cloud-media-bridge billing estimate <quote.json>
   cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>
   cloud-media-bridge cloud status <directory>
   cloud-media-bridge cloud deploy <directory>       (verified runtime + real human TTY + CMB_ENABLE_LIVE_GPU required)
