@@ -122,7 +122,7 @@ pub(crate) fn create_operation(plan: &Deployment<'_>) -> Result<Operation, Strin
             // Vast uses a distinct, already selected GPU offer rather than
             // RunPod's name-based GPU allocation. No offer is invented here.
             Ok(Operation {
-                method: "POST",
+                method: "PUT",
                 url: format!("https://cloud.vast.ai/api/v0/asks/{offer}/"),
                 body: Some(json!({
                     "image":plan.image,
@@ -215,7 +215,6 @@ pub(crate) fn stopped(provider: &str, response: &Value) -> bool {
         ),
         "vast-instances" => {
             item["actual_status"] == "stopped"
-                || item["intended_status"] == "stopped"
         },
         _ => false
     }
@@ -296,7 +295,7 @@ mod tests {
         assert_eq!(pod.body.as_ref().unwrap()["env"]["CMB_MODEL_SHA"],plan("runpod-pods").model_sha);
         assert_eq!(pod.body.as_ref().unwrap()["globalNetworking"],false);
         let vast=create_operation(&plan("vast-instances")).unwrap();
-        assert_eq!(vast.method,"POST");
+        assert_eq!(vast.method,"PUT");
         assert_eq!(vast.url,"https://cloud.vast.ai/api/v0/asks/123/");
         assert_eq!(vast.body.as_ref().unwrap()["label"],"cmb-req001");
         for other in ["modal","runpod-serverless","vast-serverless","lambda-cloud","generic-https","generic-ssh","kubernetes-gpu"] {
@@ -350,6 +349,7 @@ mod tests {
         let result=stop_owned(&mut fake,"vast-instances","123","req001",&owned("vast-instances","123")).unwrap();
         assert_eq!(result["state"],"STOP_UNCERTAIN");
         assert_eq!(result["manual_reconciliation_required"],true);
+        assert!(!stopped("vast-instances",&json!({"intended_status":"stopped","actual_status":"running"})));
     }
 
     #[test]
