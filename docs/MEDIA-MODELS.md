@@ -76,7 +76,7 @@ Two **future worker interface schemas** now specify an open-ended typed-media en
 - [Generic media request schema](../schemas/media-request.schema.json) — accepts arbitrary task tags and typed text, image, audio, music, speech, video, spatial or 3D asset references, without a hardcoded image/video-only request shape.
 - [Generic media result schema](../schemas/media-result.schema.json) — supports arbitrary artifact kinds with verified byte size, MIME type, SHA-256 and authenticated references.
 
-**The Python HTTP worker now implements a limited version of these endpoints for local fixtures**, and has unverified real-loader code paths for selected compatible Diffusers and Transformers tasks. The generic schemas remain extensible; not every media task has a runnable worker. See [offline end-to-end and worker tests](OFFLINE-E2E.md). A provider's GPU runtime is not universally able to execute all of them. Never fabricate media outputs or claim tests passed without real model/worker evidence.
+**The Python HTTP worker now implements a limited version of these endpoints for local fixtures**, and has unverified real-loader code paths for selected compatible Diffusers and Transformers tasks. The [worker request](../schemas/worker-request.schema.json) and [worker result](../schemas/worker-result.schema.json) schemas describe the actual task-scoped HTTP interface; the generic schemas remain future provider-facing contracts. Not every media task has a runnable worker. See [offline end-to-end and worker tests](OFFLINE-E2E.md). A provider's GPU runtime is not universally able to execute all of them. Never fabricate media outputs or claim tests passed without real model/worker evidence.
 
 ## References
 
