@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 15);
+    assert_eq!(tools.len(), 17);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -289,4 +289,38 @@ fn worker_smoke_requires_explicit_fixture_confirmation_and_valid_port() {
         }}});
     let reply=exchange(&[INIT,READY,&case.to_string()]);
     assert_eq!(reply[1]["error"]["code"],-32602);
+}
+
+#[test]
+fn agent_can_prepare_and_inspect_cloud_plan_but_cannot_approve_or_deploy_via_mcp() {
+    use std::path::PathBuf;
+    let root=std::env::temp_dir().join(format!("cmb-mcp-cloud-{}",std::process::id()));
+    let _=std::fs::remove_dir_all(&root);
+    let example=PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/cloud-deployment-manifest.NOT-EXECUTABLE.json");
+    let directory=root.to_string_lossy().to_string();
+    let manifest=example.to_string_lossy().to_string();
+    // JSON string inputs come from locally generated safe paths, not a model card.
+    let prepare=json!({"jsonrpc":"2.0","id":70,"method":"tools/call",
+        "params":{"name":"cloud_session_prepare","arguments":{
+            "directory":directory,"manifest":manifest,"confirm_no_cloud_charge":true
+        }}});
+    let status=json!({"jsonrpc":"2.0","id":71,"method":"tools/call",
+        "params":{"name":"cloud_session_status","arguments":{"directory":directory}}});
+    let forbid=json!({"jsonrpc":"2.0","id":72,"method":"tools/call",
+        "params":{"name":"cloud_session_prepare","arguments":{
+            "directory":directory,"manifest":manifest,"approved":true
+        }}});
+    let forbid_deploy=json!({"jsonrpc":"2.0","id":73,"method":"tools/call",
+        "params":{"name":"cloud_deploy","arguments":{"directory":directory}}});
+    let messages=[INIT.to_string(),READY.to_string(),prepare.to_string(),status.to_string(),
+                  forbid.to_string(),forbid_deploy.to_string()];
+    let refs=messages.iter().map(String::as_str).collect::<Vec<_>>();
+    let replies=exchange(&refs);
+    assert_eq!(replies[1]["result"]["structuredContent"]["status"],"awaiting_human_approval");
+    assert_eq!(replies[2]["result"]["structuredContent"]["status"],"awaiting_human_approval");
+    assert_eq!(replies[2]["result"]["structuredContent"]["approval"]["consumed"],false);
+    assert_eq!(replies[3]["error"]["code"],-32602);
+    assert_eq!(replies[4]["error"]["code"],-32602);
+    let _=std::fs::remove_dir_all(root);
 }
