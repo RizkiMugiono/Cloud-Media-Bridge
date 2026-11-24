@@ -204,3 +204,37 @@ jobs:
           assert runtime["runtime_registry_policy"]["require_new_human_approval_per_deployment"]
           print(f"Validated {len(entries)} non-executable runtime routes across all upstream families")
           PY
+      - name: Check real billing increments and immediate owned-resource stop (offline)
+        if: runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          policy = json.loads(Path("config/billing-policy.json").read_text())
+          providers = json.loads(Path("config/providers.json").read_text())["providers"]
+          assert policy["schema_version"] == 1
+          life = policy["default_lifecycle"]
+          assert life["after_final_job"] == "stop_bridge_owned_compute_immediately_when_safe_and_supported"
+          assert life["wait_until_end_of_paid_period"] is False
+          assert life["idle_reuse_requires_new_explicit_permission"] is True
+          assert life["no_destructive_fallback_without_separate_approval"] is True
+          assert len(providers) == 9
+          assert all(item["billing"]["live_quote_required_before_deployment"] for item in providers)
+          assert all(item["billing"]["actual_minimum_and_increment_must_be_confirmed"] for item in providers)
+          def estimate(name):
+              path = "examples/billing-" + name + ".example.json"
+              cmd = ["cargo", "run", "--quiet", "--locked", "--", "billing", "estimate", path]
+              p = subprocess.run(cmd, text=True, capture_output=True, check=True, timeout=60)
+              return json.loads(p.stdout)
+          second = estimate("per-second-5s")
+          hour = estimate("hour-minimum-5s")
+          prepaid = estimate("prepaid-monthly")
+          assert second["effective_billable_ms"] == 5000
+          assert second["estimated_incremental_compute_micro_usd"] == 1389
+          assert hour["effective_billable_ms"] == 3600000
+          assert hour["estimated_incremental_compute_micro_usd"] == 1000000
+          assert prepaid["estimate_status"] == "not_estimable_from_job_duration"
+          assert all(v["auto_stop_after_last_job"] and not v["wait_until_paid_period_ends"]
+                     for v in [second,hour,prepaid])
+          print("Validated per-second/per-hour/prepaid billing contracts and immediate auto-stop")
+          PY
