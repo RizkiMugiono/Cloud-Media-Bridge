@@ -210,10 +210,8 @@ pub(crate) fn stopped(provider: &str, response: &Value) -> bool {
         _ => return false
     };
     match provider {
-        "runpod-pods" => matches!(
-            item["desiredStatus"].as_str().or_else(||item["status"].as_str()),
-            Some("EXITED" | "STOPPED")
-        ),
+        "runpod-pods" => item["status"]=="EXITED"
+            || (item["desiredStatus"]=="EXITED" && item["runtimeStatus"]=="stopped"),
         "vast-instances" => {
             item["actual_status"] == "stopped"
         },
@@ -331,7 +329,7 @@ mod tests {
         let mut fake=Replay{replies:vec![
             json!({"desiredStatus":"RUNNING"}),
             json!({"success":true}),
-            json!({"desiredStatus":"EXITED"})
+            json!({"status":"EXITED","runtimeStatus":"stopped"})
         ],sent:vec![]};
         let result=stop_owned(&mut fake,"runpod-pods","p01","req001",&owned("runpod-pods","p01")).unwrap();
         assert_eq!(result["state"],"STOP_CONFIRMED");
@@ -351,6 +349,19 @@ mod tests {
         assert_eq!(result["state"],"STOP_UNCERTAIN");
         assert_eq!(result["manual_reconciliation_required"],true);
         assert!(!stopped("vast-instances",&json!({"intended_status":"stopped","actual_status":"running"})));
+    }
+
+    #[test]
+    fn desired_stop_is_not_actual_stopped_evidence() {
+        assert!(!stopped("runpod-pods",&json!({
+            "desiredStatus":"EXITED","runtimeStatus":"running","status":"RUNNING"
+        })));
+        assert!(stopped("runpod-pods",&json!({
+            "desiredStatus":"EXITED","runtimeStatus":"stopped"
+        })));
+        assert!(!stopped("vast-instances",&json!({
+            "intended_status":"stopped","actual_status":"running"
+        })));
     }
 
     #[test]
