@@ -26,7 +26,7 @@ fn ceil_div(n: u128, d: u128) -> Result<u128, String> {
     if d == 0 {
         return Err("Billing increment must be nonzero".into());
     }
-    Ok(n / d + u128::from(n % d != 0))
+    Ok(n / d + u128::from(!n.is_multiple_of(d)))
 }
 
 /// A caller-provided quote is not independently verified. Billable elapsed
