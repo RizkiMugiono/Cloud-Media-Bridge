@@ -2,7 +2,7 @@
 //! NO real model inference, GPU, provider API, or paid resource is used.
 use crate::crypto::{secure_nonce, sha256};
 use serde_json::{json, Value};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
@@ -365,7 +365,7 @@ pub(crate) fn verify(directory:&str) -> Result<Value,String> {
 }
 
 fn sync_resource(root:&Path, state:&mut Value, provider:&MockProvider) -> Result<(),String> {
-    let request=state["plan"]["request_id"].as_str().ok_or("Missing request ID")?;
+    let request=state["plan"]["request_id"].as_str().ok_or("Missing request ID")?.to_string();
     let Some(observed)=provider.read()? else {
         return Ok(());
     };
