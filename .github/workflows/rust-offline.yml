@@ -30,6 +30,63 @@ jobs:
         run: cargo metadata --locked --format-version 1 --no-deps
       - name: Compile and run local tests (no cloud accounts)
         run: cargo test --locked --workspace --all-targets
+      - name: Build standalone Rust binary for cross-language worker tests
+        run: cargo build --locked --workspace
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python media worker HTTP/security tests (fixture only, no GPU)
+        run: python -m unittest discover -s workers/tests -v
+      - name: Dockerized CPU-only media fixture worker round trip
+        if: runner.os == 'Linux'
+        run: |
+          docker build -f workers/Dockerfile.fixture -t cmb-offline-fixture:ci .
+          container=$(docker run -d --rm --network none \
+            -e CMB_WORKER_TOKEN=ci-fixture-token-not-for-production \
+            -e CMB_MODEL_ID=fixture/offline-model \
+            -e CMB_MODEL_SHA=0000000000000000000000000000000000000000 \
+            -e CMB_TASK=text-to-image \
+            -e CMB_RUNTIME_FAMILY=diffusers \
+            -e CMB_ENABLE_TEST_FIXTURE=1 \
+            cmb-offline-fixture:ci)
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          docker exec -i "$container" python - <<'PY'
+          import hashlib, json, time, urllib.request
+          base="http://127.0.0.1:8000"
+          for attempt in range(25):
+              try:
+                  with urllib.request.urlopen(base+"/health",timeout=2) as response:
+                      assert json.load(response)["simulation_only"] is True
+                  break
+              except OSError:
+                  time.sleep(0.2)
+          else:
+              raise AssertionError("CPU fixture Docker worker did not become healthy")
+          body=json.dumps({
+              "schema_version":1,
+              "request_id":"docker-ci-001",
+              "task":"text-to-image",
+              "model":{"id":"fixture/offline-model",
+                       "revision_sha":"0000000000000000000000000000000000000000"},
+              "inputs":[],
+              "fixture_kind":"image"
+          }).encode()
+          headers={"Authorization":"Bearer ci-fixture-token-not-for-production",
+                   "Content-Type":"application/json"}
+          request=urllib.request.Request(base+"/v1/media/generate",data=body,headers=headers)
+          with urllib.request.urlopen(request,timeout=5) as response:
+              result=json.load(response)
+          assert result["simulation_only"] is True
+          artifact=result["artifacts"][0]
+          request=urllib.request.Request(
+              base+"/v1/media/artifacts/"+artifact["asset_ref"],
+              headers={"Authorization":"Bearer ci-fixture-token-not-for-production"})
+          with urllib.request.urlopen(request,timeout=5) as response:
+              data=response.read()
+          assert hashlib.sha256(data).hexdigest()==artifact["sha256"]
+          assert data.startswith(b"<svg")
+          print("Docker CPU-only fixture generated and checksum-verified artifact")
+          PY
       - name: Rust lint
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Check provider catalog syntax and required entries
@@ -109,12 +166,13 @@ jobs:
           assert catalog["implementation_status"] == "classification_only_no_gpu_runtime"
           assert catalog["classification_rules"]["no_arbitrary_remote_code"] is True
           assert catalog["classification_rules"]["unknown_task"].startswith("preserve_model")
-          for path in ("schemas/media-request.schema.json","schemas/media-result.schema.json"):
+          for path in ("schemas/media-request.schema.json","schemas/media-result.schema.json",
+                       "schemas/worker-request.schema.json","schemas/worker-result.schema.json"):
               with open(path, encoding="utf-8") as stream:
                   schema=json.load(stream)
               assert schema["$schema"].endswith("2020-12/schema")
               assert schema["properties"]["schema_version"]["const"] == 1
-          print(f"Validated {len(tasks)} task hints across {len(expected)} media families and both generic media schemas")
+          print(f"Validated {len(tasks)} task hints across {len(expected)} media families and all four media schemas")
           PY
       - name: Validate runtime registry fail-closed contracts (no GPU)
         if: runner.os == 'Linux'

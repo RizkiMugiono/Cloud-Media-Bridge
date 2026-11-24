@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/schemas/media-result.schema.json",
-  "title": "Cloud-Media-Bridge generic media worker result (planned contract)",
-  "description": "Planned, extensible result envelope for images, video, audio/music, speech, 3D, spatial outputs, document understanding, multimodal output, and media analyses. Not an implemented or verified endpoint.",
+  "title": "Cloud-Media-Bridge future provider-facing generic media result",
+  "description": "Provider-facing generic media artifact envelope for all media families. Currently the task-scoped HTTP worker uses worker-result.schema.json, which adds an explicit simulation_only flag.",
   "type": "object",
   "additionalProperties": false,
   "required": [

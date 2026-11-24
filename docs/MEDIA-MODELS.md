@@ -1,6 +1,6 @@
 # Media Model Coverage and Runtime Compatibility
 
-**Current implementation:** broad model **discovery and classification** via the Hugging Face Hub, using a data-driven task catalog. **No model-generation, inference runtime deployment or media-artifact retrieval is operational yet.** There is no guarantee that every public model can be run on any GPU.
+**Current implementation:** broad **discovery and classification** via the Hugging Face Hub; a **mock-only** local media lifecycle and authenticated Python worker protocol have been implemented and tested offline. **No real GPU deployment or model inference has been validated.** There is no guarantee that every public model can be run on any GPU.
 
 The canonical, extendable classification catalog is [`config/media-tasks.json`](../config/media-tasks.json). These task names are a mixture of current Hub pipeline tags and anticipated community-extension aliases. A recognized task means **cataloged**, not **executed**.
 
@@ -76,7 +76,7 @@ Two **future worker interface schemas** now specify an open-ended typed-media en
 - [Generic media request schema](../schemas/media-request.schema.json) — accepts arbitrary task tags and typed text, image, audio, music, speech, video, spatial or 3D asset references, without a hardcoded image/video-only request shape.
 - [Generic media result schema](../schemas/media-result.schema.json) — supports arbitrary artifact kinds with verified byte size, MIME type, SHA-256 and authenticated references.
 
-**These are interface contracts, not implemented RPC endpoints or an inference engine.** A provider's GPU runtime is not universally able to execute all of them. Never fabricate media outputs or claim tests passed without real model/worker evidence.
+**The Python HTTP worker now implements a limited version of these endpoints for local fixtures**, and has unverified real-loader code paths for selected compatible Diffusers and Transformers tasks. The [worker request](../schemas/worker-request.schema.json) and [worker result](../schemas/worker-result.schema.json) schemas describe the actual task-scoped HTTP interface; the generic schemas remain future provider-facing contracts. Not every media task has a runnable worker. See [offline end-to-end and worker tests](OFFLINE-E2E.md). A provider's GPU runtime is not universally able to execute all of them. Never fabricate media outputs or claim tests passed without real model/worker evidence.
 
 ## References
 

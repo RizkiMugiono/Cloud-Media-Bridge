@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 10);
+    assert_eq!(tools.len(), 15);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -195,4 +195,98 @@ fn runtime_registry_cli_never_calls_cloud_providers() {
     let entries = registry["entries"].as_array().unwrap();
     assert!(entries.iter().any(|entry| entry["delivery_route"] == "verified_prebuilt_oci_image"));
     assert!(entries.iter().any(|entry| entry["delivery_route"] == "vetted_runtime_recipe_on_base_image"));
+}
+
+fn new_fixture_directory() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let epoch=SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    std::env::temp_dir()
+        .join(format!("cmb-mcp-e2e-{}-{epoch}",std::process::id()))
+        .to_string_lossy()
+        .into_owned()
+}
+
+#[test]
+fn mcp_offline_e2e_runs_mock_provider_worker_artifact_sha_and_owned_resource_stop() {
+    let dir=new_fixture_directory();
+    let demo=json!({"jsonrpc":"2.0","id":70,"method":"tools/call",
+        "params":{"name":"offline_fixture_demo","arguments":{
+           "directory":dir,"kind":"music","confirm_fixture_only":true
+        }}});
+    let status=json!({"jsonrpc":"2.0","id":71,"method":"tools/call",
+        "params":{"name":"offline_fixture_status","arguments":{"directory":dir}}});
+    let verify=json!({"jsonrpc":"2.0","id":72,"method":"tools/call",
+        "params":{"name":"offline_fixture_verify","arguments":{"directory":dir}}});
+    let d=demo.to_string();let s=status.to_string();let v=verify.to_string();
+    let replies=exchange(&[INIT,READY,&d,&s,&v]);
+    let result=&replies[1]["result"]["structuredContent"];
+    assert_eq!(result["simulation_only"],true);
+    assert_eq!(result["real_ai_inference"],false);
+    assert_eq!(result["auto_stop_confirmed"],true);
+    assert_eq!(result["result"]["artifacts"][0]["kind"],"music");
+    let state=&replies[2]["result"]["structuredContent"];
+    assert_eq!(state["journal"]["approval"]["origin"],"test_fixture_only");
+    assert_eq!(state["journal"]["approval"]["consumed"],true);
+    assert_eq!(state["provider_observation"]["stop_calls"],1);
+    assert_eq!(replies[3]["result"]["structuredContent"]["artifact_verified"],true);
+    let _=std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn mcp_offline_demo_does_not_accept_unapproved_or_unknown_actions() {
+    let dir=new_fixture_directory();
+    let cases=[
+        json!({"jsonrpc":"2.0","id":80,"method":"tools/call",
+               "params":{"name":"offline_fixture_demo","arguments":{"directory":dir,"kind":"image"}}}),
+        json!({"jsonrpc":"2.0","id":81,"method":"tools/call",
+               "params":{"name":"offline_fixture_demo","arguments":{"directory":dir,"kind":"image","confirm_fixture_only":false}}}),
+        json!({"jsonrpc":"2.0","id":82,"method":"tools/call",
+               "params":{"name":"offline_fixture_demo","arguments":{"directory":dir,"kind":"exec-shell","confirm_fixture_only":true}}}),
+    ];
+    let strings=cases.iter().map(Value::to_string).collect::<Vec<_>>();
+    let replies=exchange(&[INIT,READY,&strings[0],&strings[1],&strings[2]]);
+    for reply in replies.iter().skip(1) {
+        assert_eq!(reply["error"]["code"],-32602);
+    }
+    assert!(!std::path::Path::new(&dir).join("journal.json").exists());
+}
+
+#[test]
+fn piped_cli_cannot_issue_fake_human_approval() {
+    let dir=new_fixture_directory();
+    let prepare=Command::new(BINARY).args(["offline","prepare",&dir,"image"]).output().unwrap();
+    assert!(prepare.status.success());
+    let approve=Command::new(BINARY).args(["offline","approve",&dir]).output().unwrap();
+    assert!(!approve.status.success());
+    let run=Command::new(BINARY).args(["offline","run",&dir]).output().unwrap();
+    assert!(!run.status.success());
+    assert!(String::from_utf8(run.stderr).unwrap().contains("approval"));
+    let _=std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn provider_operation_previews_cover_safe_stop_without_network_side_effects() {
+    let image=format!("ghcr.io/example/fixture@sha256:{}", "a".repeat(64));
+    let request=json!({"jsonrpc":"2.0","id":90,"method":"tools/call",
+        "params":{"name":"provider_operation_preview","arguments":{
+            "provider":"runpod-pods","image":image,"gpu":"NVIDIA RTX 4090","disk_gb":50
+        }}});
+    let line=request.to_string();
+    let replies=exchange(&[INIT,READY,&line]);
+    let p=&replies[1]["result"]["structuredContent"];
+    assert_eq!(p["status"],"request_contract_preview_only");
+    assert_eq!(p["proposed_stop_or_idle_policy"]["body"]["action"],"stop");
+    assert_eq!(p["network_request_sent"],false);
+    assert_eq!(p["execution_enabled"],false);
+}
+
+#[test]
+fn worker_smoke_requires_explicit_fixture_confirmation_and_valid_port() {
+    let path=new_fixture_directory();
+    let case=json!({"jsonrpc":"2.0","id":95,"method":"tools/call",
+        "params":{"name":"offline_worker_smoke","arguments":{
+            "directory":path,"port":0,"kind":"image","confirm_fixture_only":true
+        }}});
+    let reply=exchange(&[INIT,READY,&case.to_string()]);
+    assert_eq!(reply[1]["error"]["code"],-32602);
 }

@@ -20,6 +20,12 @@ Public definitions are stored in [`config/providers.json`](../config/providers.j
 
 **Read-only discovery of a configured provider is not authentication to that provider.** The current project does not allocate, stop or terminate any GPU resource.
 
+## Current provider API contract previews
+
+Rust `provider_ops.rs` implements **read-only, credential-free request contract previews** for all nine configured provider classes. The MCP tool `provider_operation_preview` and CLI `provider-preview` require a SHA-256-pinned OCI image, explicit GPU/disk selection and (for Vast instances) a real offer ID. The output contains provider-specific proposed create/stop or worker scale-to-zero request structures and intentionally sets `execution_enabled=false` and `network_request_sent=false`. These are **not operational adapters** and cannot spend cloud credits.
+
+`docs/OFFLINE-E2E.md` documents the full mock lifecycle, local authenticated worker, and public provider API references. RunPod Pods and Vast.ai Instances have documented non-destructive stop request shapes; Lambda's lack of a verified pause/stop API remains an explicit block against silently terminating user resources.
+
 ## User-approved provider behavior
 
 Four binding requirements apply equally to all future adapters:

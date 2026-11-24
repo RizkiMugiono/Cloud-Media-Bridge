@@ -2,12 +2,12 @@
 
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Version:** 2026-11-23  
-**Current status:** Local Rust MCP/CLI and a read-only evidence-based Runtime Resolver are implemented. No GPU deployment, runtime execution, human approval enforcement or media generation is implemented or verified.  
+**Current status:** Rust MCP/CLI includes a tested **offline fixture deployment pipeline**, resource ownership and stop reconciliation, Python task-scoped HTTP media worker, evidence-based runtime resolution and provider request-shape previews. **No real GPU resource deployment, paid-operation approval enforcement, or actual AI model inference has been tested.**  
 **Related:** [README](README.md) · [Media models](docs/MEDIA-MODELS.md) · [Runtime selection](docs/RUNTIME-RESOLUTION.md) · [GPU providers](docs/PROVIDERS.md) · [Test plan](Cloud-Media-Bridge-TESTING.md) · [Results](Cloud-Media-Bridge-TEST-RESULTS.md)
 
 ## User-approved deployment requirements (2026-11-23)
 
-The authoritative machine-readable requirements are in [`config/deployment-policy.json`](config/deployment-policy.json). The Rust CLI/MCP currently exposes this contract **read-only**; no GPU deployment, human approval enforcement or automatic stopping is implemented yet.
+The authoritative machine-readable requirements are in [`config/deployment-policy.json`](config/deployment-policy.json). The cloud deployment policy remains **read-only and not enforced for billable GPU operations**. Rust now enforces one-shot approvals and automatic mock-resource stopping for **local fixture simulations only**; these cannot authorize real deployment.
 
 | Requirement | Binding architecture decision |
 |---|---|
@@ -48,10 +48,13 @@ One MCP bridge is sufficient. Codex, Claude Code, OpenCode, Hermes Agent, DeepSe
 | Inspect model ID/URL and immutable revision | Implemented; needs real Hub verification |
 | Rust upstream Runtime Registry and evidence-scored Runtime Resolver | Implemented, **read-only candidate matching**, no verified executable runtime bundle |
 | Provider-aware, non-mutating generation plan | Implemented; includes runtime resolution and always returns `safe_to_deploy=false` until deployment and authorization are real |
-| Human authorization grants | Planned; execution must not be offered as approved until built |
+| Offline mock deployment engine, one-shot consent and owned-resource auto-stop | **Implemented and offline-tested** with a test-only provider; no cloud credentials or GPU |
+| Authenticated task-scoped HTTP media worker | Python worker and Rust loopback client implemented; fixture interop tested, real HF inference **not GPU-verified** |
+| Provider HTTP/CLI request contract previews | Nine provider classes covered by offline Rust builders; **no live provisioning or stop calls** |
+| Human authorization grants for actual cloud billing | Planned; offline terminal-only proof is not an independent production approval boundary |
 | Modal account integration / deployment / GPU inference | Planned |
 | RunPod, Vast.ai, Lambda and generic host deployment | Planned, not claimed operational |
-| Media artifact download and validation | Planned |
+| Media artifact download and validation | Implemented for **offline fixtures**, including HTTP loopback and SHA-256 checks; real remote artifact staging still planned |
 | Durable asynchronous jobs, advanced parallel tuning | Future, after the first verified end-to-end deployment |
 
 The status above refers to code availability. A feature is **verified** only when its corresponding tests have succeeded with recorded evidence.
@@ -192,7 +195,7 @@ Credentials must never be checked into Git, echoed in MCP stdout, or sent to a m
 
 ## 7. CLI and MCP contracts
 
-**Currently implemented read-only CLI:**
+**Current CLI (read-only operations unless explicitly labeled offline fixture):**
 
 ```text
 cloud-media-bridge doctor
@@ -206,13 +209,25 @@ cloud-media-bridge models search <query> [limit: 1..50]
 cloud-media-bridge models search-task <pipeline_tag> [limit: 1..50]
 cloud-media-bridge models inspect <owner/model | https://huggingface.co/owner/model>
 cloud-media-bridge plan <model> <provider-id>
+cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
+cloud-media-bridge offline demo <new-directory> <media-kind>
+cloud-media-bridge offline prepare|approve|run|status|verify|reconcile <directory> [media-kind]
+cloud-media-bridge offline worker-smoke <directory> <loopback-port> <media-kind>
 ```
 
-**Currently implemented read-only MCP tools:** `doctor`, `providers_list`, `providers_show`, `deployment_policy`, `media_tasks_list`, `models_search`, `models_inspect`, `runtimes_list`, `runtime_resolve`, `plan_generation`.
+**Read-only MCP tools:** `doctor`, `providers_list`, `providers_show`, `deployment_policy`, `media_tasks_list`, `models_search`, `models_inspect`, `runtimes_list`, `runtime_resolve`, `plan_generation`, `provider_operation_preview`.
+
+**Explicitly simulated MCP tools:** `offline_fixture_demo`, `offline_fixture_status`, `offline_fixture_verify`, `offline_worker_smoke`. Only fixture-demo and worker-smoke write local outputs; they require an explicit mock-only confirmation and cannot contact real GPU providers.
 
 MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or private files. Search queries are bounded; model URLs must be validated against the Hugging Face HTTPS origin.
 
 **Future tools after validation:** request human model approval, request resource-operation approval, generate media, poll job, cancel and fetch artifact. No success stubs or mock outputs in production paths.
+
+## Offline implementation and remaining production boundary
+
+See [the runnable offline end-to-end guide](docs/OFFLINE-E2E.md). The Rust mock-only workflow exercises exact deployment plan hashing, a nonce-bound one-shot approval, fixture provider resource allocation, nine typed output categories, artifact integrity and provider-observed mock stop, including error and crash-window recovery. The optional Python worker implements an authenticated media HTTP interface and real Diffusers/Transformers loader code paths for a **limited explicit task allowlist**, but GPU/model integration is NOT VERIFIED. The worker fixture path is only accessible in loopback test mode; provider previews are network-free request shapes.
+
+**A fixture is not a real AI media generation result.** Actual provider deployment must wait for vetted OCI images/installers, secure worker ingress, user credentials and a stronger approval trust boundary. Automatic resource stop must be independently verified on each provider and is not possible when a provider exposes only destructive termination or when the user's client is offline without a provider-side watchdog.
 
 ## 8. Implementation order
 
@@ -226,7 +241,7 @@ MCP stdout must contain only JSON-RPC messages; errors must not leak tokens or p
 
 ## 9. Testing and release claims
 
-The [test plan](Cloud-Media-Bridge-TESTING.md) retains the original 82 detailed cases plus 10 deployment-decision cases (110 total), with the initial deployment milestone gated by the seven capabilities above. Advanced load testing, durable video/music jobs and multiple live providers are later phases.
+The [test plan](Cloud-Media-Bridge-TESTING.md) retains the original 82 cases, 10 deployment-decision cases, 10 all-media cases, 8 Runtime Resolver cases, and 14 offline end-to-end cases (124 total), with the initial deployment milestone gated by the seven capabilities above. Advanced load testing, durable video/music jobs and multiple live providers are later phases.
 
 - Default CI uses Rust unit/integration tests and synthetic fixtures; **no GPU or paid cloud services**.
 - All provider adapters are developed concurrently; each provider's real GPU tests require separately approved access and must not run by default. Modal may be used first for economical validation, but is not an implementation dependency.
