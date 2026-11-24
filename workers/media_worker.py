@@ -288,6 +288,8 @@ class Worker:
                 raise WorkerError("INVALID_FIXTURE", "Unknown fixture kind")
             kind, mime, data = _fixture(kind)
         elif self.smoke_release is not None:
+            if request.get("worker_instance_id") != self.worker_instance_id:
+                raise WorkerError("WORKER_INSTANCE_MISMATCH", "Request must bind current worker instance", 409)
             # Retain every accepted job ID for this process; never silently evict
             # an ID and make it executable again. A restarted worker is a new
             # instance and missing IDs must be reconciled, never retried.

@@ -393,3 +393,29 @@ fn market_tools_expose_sources_and_never_authorize_gpu() {
     assert_eq!(replies[3]["result"]["structuredContent"]["status"],"refresh_required");
     assert_eq!(replies[4]["error"]["code"],-32602);
 }
+
+#[test]
+fn local_supervisor_cli_does_not_change_pending_plan_or_use_network(){
+    use std::{path::PathBuf,process::Command};
+    let root=std::env::temp_dir().join(format!("cmb-watch-cli-{}",std::process::id()));
+    let _=std::fs::remove_dir_all(&root);
+    let manifest=PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/cloud-deployment-manifest.NOT-EXECUTABLE.json");
+    let run=|args:&[&str]|{
+        let p=Command::new(env!("CARGO_BIN_EXE_cloud-media-bridge")).args(args).output().unwrap();
+        assert!(p.status.success(),"{}",String::from_utf8_lossy(&p.stderr));
+        serde_json::from_slice::<Value>(&p.stdout).unwrap()
+    };
+    let dir=root.to_str().unwrap();
+    run(&["cloud","prepare",dir,manifest.to_str().unwrap()]);
+    let journal=root.join("cloud-resource.json");
+    let before=std::fs::read(&journal).unwrap();
+    let report=run(&["cloud","watch",dir,"--local-only"]);
+    assert_eq!(report["journal_status"],"awaiting_human_approval");
+    assert_eq!(report["local_only"],true);
+    assert_eq!(report["needs_operator_attention"],false);
+    assert_eq!(report["provider_mutation_sent"],false);
+    assert_eq!(report["approval_granted"],false);
+    assert!(report["illustrative_total_exposure_micro_usd"].is_null());
+    assert_eq!(std::fs::read(&journal).unwrap(),before);
+    std::fs::remove_dir_all(root).unwrap();
+}

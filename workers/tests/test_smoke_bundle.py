@@ -45,7 +45,8 @@ class SmokeBundleTests(unittest.TestCase):
         worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN,
                         deployment_request_id="test", smoke_release=release)
         request = {"schema_version": 1, "model": {"id": MODEL, "revision_sha": SHA},
-                   "task": "text-to-image", "request_id": "test", "inputs": []}
+                   "task": "text-to-image", "request_id": "test", "inputs": [],
+                   "worker_instance_id": worker.worker_instance_id}
         with patch.object(worker, "_real_generate", side_effect=WorkerError("TEST_ONLY", "mock, no GPU")) as inference:
             worker.inference_lock.acquire()
             try:
@@ -72,7 +73,8 @@ class SmokeBundleTests(unittest.TestCase):
         worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN,
                         deployment_request_id="test", smoke_release=release)
         request = {"schema_version": 1, "model": {"id": MODEL, "revision_sha": SHA},
-                   "task": "text-to-image", "request_id": "job-1", "inputs": []}
+                   "task": "text-to-image", "request_id": "job-1", "inputs": [],
+                   "worker_instance_id": worker.worker_instance_id}
         with patch.object(worker, "_real_generate", return_value=("image", "image/png", b"mock")) as infer:
             first = worker.generate(request)
             self.assertEqual(worker.generate(request), first)
@@ -87,6 +89,11 @@ class SmokeBundleTests(unittest.TestCase):
                             deployment_request_id="test", smoke_release=release)
         self.assertEqual(new_worker.job_status("job-1")["status"], "unknown")
         self.assertNotEqual(new_worker.worker_instance_id, worker.worker_instance_id)
+        with patch.object(new_worker, "_real_generate") as infer:
+            with self.assertRaises(WorkerError) as error:
+                new_worker.generate(request)
+            self.assertEqual(error.exception.code, "WORKER_INSTANCE_MISMATCH")
+            infer.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

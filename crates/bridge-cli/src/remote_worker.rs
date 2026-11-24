@@ -159,7 +159,7 @@ pub(crate) fn generate(outdir:&Path,plan:&Value,job_id:&str,worker_instance_id:&
     if !params.is_object(){return Err("Media parameters must be an object".into());}
     let nonce=job_id;
     let payload=json!({
-        "schema_version":1,"request_id":nonce,"task":task,
+        "schema_version":1,"request_id":nonce,"task":task,"worker_instance_id":worker_instance_id,
         "model":{"id":model_id,"revision_sha":revision},
         "inputs":input_items,"parameters":params
     });
