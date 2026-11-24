@@ -276,6 +276,10 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "deployment_policy" => deployment_policy(),
         "media_tasks_list" => media::catalog(),
         "runtimes_list" => runtime::registry(),
+        "cloud_session_prepare" => cloud_operator::prepare(
+            get_string(arguments,"directory")?,get_string(arguments,"manifest")?
+        ),
+        "cloud_session_status" => cloud_operator::status(get_string(arguments,"directory")?),
         "offline_fixture_demo" => offline::demo(
             get_string(arguments, "directory")?, get_string(arguments, "kind")?
         ),
@@ -424,6 +428,16 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
                 && arguments["disk_gb"].as_u64().is_some()
                 && arguments.get("offer_id").is_none_or(|v|v.as_u64().is_some())
         }
+        "cloud_session_prepare" => {
+            has_only(&["directory","manifest","confirm_no_cloud_charge"])
+                && arguments["confirm_no_cloud_charge"]==true
+                && arguments["directory"].as_str().is_some_and(|v| !v.is_empty()&&v.len()<=1024)
+                && arguments["manifest"].as_str().is_some_and(|v| !v.is_empty()&&v.len()<=1024)
+        },
+        "cloud_session_status" => {
+            has_only(&["directory"])
+                && arguments["directory"].as_str().is_some_and(|v| !v.is_empty()&&v.len()<=1024)
+        },
         "offline_fixture_status" | "offline_fixture_verify" => {
             has_only(&["directory"])
                 && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len() <= 1024)
@@ -450,6 +464,8 @@ fn tool_names() -> &'static [&'static str] {
         "offline_fixture_verify",
         "provider_operation_preview",
         "offline_worker_smoke",
+        "cloud_session_prepare",
+        "cloud_session_status",
         "models_search",
         "models_inspect",
         "plan_generation",
@@ -508,6 +524,17 @@ fn tool_definitions() -> Value {
             "confirm_fixture_only":{"type":"boolean","const":true}},
             "required":["directory","port","kind","confirm_fixture_only"],"additionalProperties":false},
          "annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":false}},
+        {"name":"cloud_session_prepare","description":"Write a local, cost-free, immutable deployment plan journal from a manifest. No cloud API calls, no GPU, and no user approval. Requires explicit confirm_no_cloud_charge=true.",
+         "inputSchema":{"type":"object","properties":{
+             "directory":{"type":"string","minLength":1,"maxLength":1024},
+             "manifest":{"type":"string","minLength":1,"maxLength":1024},
+             "confirm_no_cloud_charge":{"type":"boolean","const":true}},
+             "required":["directory","manifest","confirm_no_cloud_charge"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":false}},
+        {"name":"cloud_session_status","description":"Read a previously prepared local deployment plan journal. Does not access GPU provider or approve spending.",
+         "inputSchema":{"type":"object","properties":{"directory":{"type":"string"}},
+             "required":["directory"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true,"openWorldHint":false}},
         {"name":"models_search","description":"Search all accessible Hugging Face models or filter by any Hub pipeline task; tags are classified without asserting inference compatibility.",
          "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"task":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},
                         "additionalProperties":false},
