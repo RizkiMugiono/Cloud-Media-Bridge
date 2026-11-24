@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 14);
+    assert_eq!(tools.len(), 15);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -278,4 +278,15 @@ fn provider_operation_previews_cover_safe_stop_without_network_side_effects() {
     assert_eq!(p["proposed_stop_or_idle_policy"]["body"]["action"],"stop");
     assert_eq!(p["network_request_sent"],false);
     assert_eq!(p["execution_enabled"],false);
+}
+
+#[test]
+fn worker_smoke_requires_explicit_fixture_confirmation_and_valid_port() {
+    let path=new_fixture_directory();
+    let case=json!({"jsonrpc":"2.0","id":95,"method":"tools/call",
+        "params":{"name":"offline_worker_smoke","arguments":{
+            "directory":path,"port":0,"kind":"image","confirm_fixture_only":true
+        }}});
+    let reply=exchange(&[INIT,READY,&case.to_string()]);
+    assert_eq!(reply[1]["error"]["code"],-32602);
 }
