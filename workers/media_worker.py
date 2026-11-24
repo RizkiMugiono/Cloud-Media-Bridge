@@ -84,7 +84,8 @@ def _as_wav(audio: Any, sample_rate: int) -> bytes:
 
 class Worker:
     def __init__(self, model_id: str, revision: str, task: str, family: str,
-                 token: str, fixture: bool = False):
+                 token: str, fixture: bool = False,
+                 deployment_request_id: str | None = None):
         if not ID_RE.fullmatch(model_id) or not SHA_RE.fullmatch(revision):
             raise ValueError("Model identifier and immutable SHA must be valid")
         if not token or len(token) < 16:
@@ -97,6 +98,9 @@ class Worker:
         self.family = family
         self.token = token
         self.fixture = fixture
+        if deployment_request_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", deployment_request_id):
+            raise ValueError("Invalid deployment request ID")
+        self.deployment_request_id = deployment_request_id
         self.assets: dict[str, tuple[bytes, str, str]] = {}
         self.asset_bytes = 0
         self.lock = threading.RLock()
@@ -276,8 +280,14 @@ def handler_for(worker: Worker) -> type[BaseHTTPRequestHandler]:
 
         def do_GET(self) -> None:
             if self.path == "/health":
-                self._response(200, {"status": "ok", "family": worker.family, "task": worker.task,
-                                     "simulation_only": worker.fixture})
+                if not worker.fixture and not self._auth():
+                    return
+                self._response(200, {
+                    "status": "ok", "family": worker.family, "task": worker.task,
+                    "model_id": worker.model_id, "revision_sha": worker.revision,
+                    "deployment_request_id": worker.deployment_request_id,
+                    "simulation_only": worker.fixture
+                })
                 return
             if not self._auth():
                 return
@@ -340,7 +350,8 @@ def main() -> None:
     token = os.environ["CMB_WORKER_TOKEN"]
     worker = Worker(
         os.environ["CMB_MODEL_ID"], os.environ["CMB_MODEL_SHA"],
-        os.environ["CMB_TASK"], os.environ["CMB_RUNTIME_FAMILY"], token, fixture
+        os.environ["CMB_TASK"], os.environ["CMB_RUNTIME_FAMILY"], token, fixture,
+        os.getenv("CMB_DEPLOYMENT_REQUEST_ID")
     )
     server = ThreadingHTTPServer((host, int(os.getenv("CMB_PORT", "8000"))), handler_for(worker))
     server.serve_forever()

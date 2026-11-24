@@ -4,7 +4,7 @@
 
 **A local MCP/CLI bridge for discovering Hugging Face media models and preparing execution in the user's own GPU account.** No central service, shared user accounts, or hosted LLMs.
 
-**Current status:** Rust MCP/CLI includes live-Hub discovery code, an evidence-based Runtime Resolver, a **fully offline mock deployment pipeline**, a task-scoped HTTP fixture worker, provider API contract previews, and artifact integrity checks. Cross-platform offline tests run in GitHub Actions. **Real cloud deployment, independently trusted human approval for billable operations, verified AI inference and actual GPU auto-stop are not yet demonstrated.**
+**Current status:** Rust MCP/CLI includes live-Hub discovery code, an evidence-based Runtime Resolver, a **fully offline mock deployment pipeline**, a task-scoped HTTP fixture worker, provider API contract previews, and artifact integrity checks. Cross-platform offline tests run in GitHub Actions. **RunPod Pods and Vast.ai Instances now have concrete Rust provider API adapters and an operator-only control plane, but neither is live-tested or enabled with a verified runtime image. Real paid deployment, independent approval strength, verified model inference and actual GPU auto-stop remain unproven.**
 
 ## System architecture
 
@@ -47,6 +47,50 @@ The project adopts four user-approved requirements. The [versioned policy contra
 
 Serverless providers use provider-supported scale-to-zero after idleness rather than a VM stop call. Preexisting user-managed hardware must never be shut down without an authorized ownership scope. Shutdown must be reconciled after failures/cancellation and survives process crashes once durable lifecycle tracking is implemented.
 
+## GPU billing: five-second jobs, hourly minimums and prepaid rentals
+
+**Default:** stop bridge-owned compute immediately after the last job and verified artifact transfer, whether a provider quotes by millisecond, second, minute, hour, day, month or year. **Do not keep a GPU running until the end of an already-paid hour unless the user explicitly authorizes reuse.**
+
+A displayed `$ / hour` rate is not necessarily a one-hour minimum. Rust now reads provider-specific billing hints and supports a **read-only** billing policy/estimate for actual increments, minimums and usage-based costs. Contracts billed monthly, yearly or prepaid are marked **not estimable from a five-second job**, with separate storage/network/commitment warnings. No provider prices are invented.
+
+```sh
+cargo run --locked -- billing
+cargo run --locked -- billing estimate examples/billing-per-second-5s.example.json
+cargo run --locked -- billing estimate examples/billing-hour-minimum-5s.example.json
+cargo run --locked -- billing estimate examples/billing-prepaid-monthly.example.json
+```
+
+AI agents can call MCP `billing_policy` and `billing_estimate` without GPU credentials or costs. A prepared real deployment stores the supplied quote and budget in the human-reviewable exact plan; unknown pricing, calendar commitments or budget overruns **block automated paid deployment**. Estimates use caller-provided terms and do not guarantee a provider-side hard spending cap or invoice. Stop may still leave storage/contract charges.
+
+See [GPU billing models and resource lifecycle](docs/GPU-BILLING.md) and [machine-readable billing policy](config/billing-policy.json).
+
+## Real-provider control plane (code available; GPU execution blocked)
+
+The Rust code now contains non-mock **RunPod Pods REST v2** and **Vast.ai Instances REST** request builders, response parsing, authenticated HTTPS transport, and provider-confirmed resource stop reconciliation in `provider_api.rs`, `provider_http.rs` and `cloud_operator.rs`. The operator CLI uses a private resource journal and separate one-shot terminal confirmation; MCP does **not** expose paid resource creation or destruction.
+
+```sh
+# Offline preparation only (requires a separate manifest file):
+cargo run --locked -- cloud prepare ./my-cloud-session ./my-manifest.json
+cargo run --locked -- cloud status ./my-cloud-session
+
+# The following commands are operator-only, require credentials and
+# intentionally refuse to deploy until the exact model/provider/runtime
+# has genuine verified release evidence:
+cargo run --locked -- cloud deploy ./my-cloud-session
+cargo run --locked -- cloud generate ./my-cloud-session ./my-media-inputs.json
+cargo run --locked -- cloud stop ./my-cloud-session
+```
+
+`cloud deploy` is **blocked against the bundled unverified runtime registry**. Even after runtime verification it requires `CMB_ENABLE_LIVE_GPU=I_ACCEPT_GPU_CHARGES`, a local interactive terminal, an exact `DEPLOY <nonce>` challenge, provider API credentials from the user's environment and a separate worker token. Do not treat CLI/TTY confirmation as an OS-level trust boundary against an agent with arbitrary terminal control. Creation failure is reported as uncertain until independently reconciled; **never automatically retry an uncertain creation**.
+
+Provider-specific stop requires journal-proven ownership, zero running jobs/transfers and a confirmed provider-observed stopped state. The code does not auto-delete or auto-terminate instances. If the agent or laptop disappears, there is **no always-on watchdog**. Provider-side watchdog/TTL or an externally available recovery agent is still required before claiming guaranteed auto-stop.
+
+The `cloud generate` command uses the **same exact approved deployment session**, verifies the authenticated remote worker's model SHA, task, framework and deployment request ID, downloads output bytes, checks SHA-256 and attempts a non-destructive provider stop after the job. A worker endpoint is separately configured through `CMB_WORKER_HTTPS_ORIGIN`; it must be a trusted, TLS-protected worker belonging to this deployment. It is not discovered automatically yet. Artifact transfer and stop may fail, so the session journal reports `STOP_UNCERTAIN` and manual reconciliation when necessary. This workflow is present but intentionally blocked until a verified production runtime exists.
+
+Only RunPod Pods and Vast.ai Instances have provider REST operations in this branch; the other seven provider classes still have read-only previews. **No paid API calls or GPU tests have occurred.** The user owns their keys and credits; the project remains responsible for validating implementation and clearly disclosing defects or unverified paths. See [adapter implementation and safety limits](docs/PROVIDERS.md).
+
+A deliberately unusable example manifest is in [examples/cloud-deployment-manifest.NOT-EXECUTABLE.json](examples/cloud-deployment-manifest.NOT-EXECUTABLE.json). Its image digest and model SHA are **placeholders**, not verified runtime evidence. No agent should change the registry's verification flags based solely on this example.
+
 ## Offline end-to-end demonstration (no GPU credits)
 
 Run a full simulated deployment and verify its output:
@@ -78,7 +122,8 @@ The command `provider-preview` and MCP `provider_operation_preview` build creden
 | Human confirmation, replay defense and artifact verification | Implemented for **offline fixtures only**; real paid GPU approvals still planned |
 | Offline full-cycle simulated deployment (nine media classes) | Implemented: one-shot mock approval, fixture generation, SHA-256 artifact, owned resource auto-stop and restart reconciliation |
 | Authenticated HTTP media worker | Implemented task-scoped Python server and offline integration tests; **real AI inference unverified** |
-| Provider operation contract previews (nine classes) | Implemented as pure read-only Rust JSON requests; **not operational cloud API adapters** |
+| Provider operation contract previews (nine classes) | Implemented as pure read-only Rust JSON requests |
+| RunPod Pods and Vast.ai Instances REST adapters | Concrete request/response and HTTPS transport code, user-only CLI, offline contract tests; **no live provider calls or GPU verification** |
 | Modal deployment and image/audio/video generation | Planned; no GPU tests run |
 | RunPod / Vast.ai / Lambda / GPU host deployment | Planned; configured in the catalog, **not operational adapters** |
 
@@ -150,13 +195,14 @@ See [Provider configuration and lifecycle](docs/PROVIDERS.md).
 ## Project documents
 
 - [Implementation specification](Cloud-Media-Bridge.md) — architecture and implementation requirements.
-- [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — initial project gates, 82 original scenarios, 10 deployment-decision tests, 10 all-media tests and 8 runtime resolver tests, and 14 offline end-to-end cases (124 total).
+- [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — initial project gates, 82 original scenarios, 10 deployment-decision tests, 10 all-media tests and 8 runtime resolver tests, and 14 offline end-to-end cases and 8 provider control-plane cases and 8 GPU billing cases (140 total).
 - [Test result ledger](Cloud-Media-Bridge-TEST-RESULTS.md) — evidence and `NOT RUN` status for unexecuted tests.
 - [Media model discovery and taxonomy](docs/MEDIA-MODELS.md).
 - [Runtime selection and verification](docs/RUNTIME-RESOLUTION.md).
 - [Runtime registry](config/runtime-registry.json) and [runtime-family guides](runtimes/README.md).
 - [Offline end-to-end execution and worker interoperability](docs/OFFLINE-E2E.md).
 - [Provider support matrix](docs/PROVIDERS.md).
+- [GPU billing granularity and post-job stop policy](docs/GPU-BILLING.md).
 - [Contributor instructions](AGENTS.md).
 
 **License:** [Apache-2.0](LICENSE).

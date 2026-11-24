@@ -101,6 +101,10 @@ An official upstream library does not imply every arbitrary model works. The cod
 
 The image uses an ordinary development Python base tag and must **not** be promoted to a verified production OCI runtime without digest pinning, audit, dependency/revision testing and explicit approval.
 
+## Provider REST adapter contract verification (offline)
+
+Rust now includes real RunPod Pods/Vast.ai Instances request constructors, strict provider response decoders, safe stop checks, and authenticated-HTTPS transport code. Offline tests use injected replay responses rather than any API keys or GPU resources. These tests **cannot** establish real cloud readiness. The actual operator CLI is controlled by a separate verified-runtime and human-consent release gate; no test invokes paid deployment.
+
 ## Provider operation previews (offline)
 
 Use `provider-preview` or MCP `provider_operation_preview` to inspect proposed request/stop shapes, without credentials or network traffic:

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "billing_model": "per_second",
+  "billing_increment_ms": 1000,
+  "minimum_billable_ms": 0,
+  "billable_elapsed_ms": 5000,
+  "quoted_micro_usd_per_hour": 1000000,
+  "max_approved_compute_micro_usd": 50000,
+  "provider": "example-provider",
+  "pricing_source": "ILLUSTRATION_NOT_A_REAL_PROVIDER_QUOTE"
+}

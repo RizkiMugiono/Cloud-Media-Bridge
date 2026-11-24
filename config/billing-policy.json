@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "status": "policy_contract_and_read_only_estimator",
+  "applies_to": "all_gpu_providers_and_resource_modes",
+  "price_display_is_not_billing_increment": true,
+  "mandatory_terms_before_paid_deploy": [
+    "pricing_source_and_verified_at",
+    "billing_increment_or_calendar_commitment",
+    "minimum_billable_duration",
+    "billable_start_and_end_events",
+    "stop_vs_terminate_effect",
+    "storage_and_network_fees",
+    "expected_provisioning_runtime_and_idle",
+    "approved_maximum_exposure"
+  ],
+  "billing_models": {
+    "usage_metered": [
+      "per_millisecond",
+      "per_second",
+      "per_minute",
+      "per_hour",
+      "per_day"
+    ],
+    "calendar_or_committed": [
+      "per_month",
+      "per_year",
+      "prepaid",
+      "reserved_commitment",
+      "fixed_subscription"
+    ],
+    "unknown": "block_auto_optimize_and_require_user_review"
+  },
+  "default_lifecycle": {
+    "after_final_job": "stop_bridge_owned_compute_immediately_when_safe_and_supported",
+    "wait_until_end_of_paid_period": false,
+    "idle_reuse_requires_new_explicit_permission": true,
+    "minimum_billable_period_is_not_a_keep_running_instruction": true,
+    "do_not_repeat_resource_creation_to_satisfy_usage_period": true,
+    "always_verify_provider_observed_stopped_state": true,
+    "no_destructive_fallback_without_separate_approval": true,
+    "crash_recovery_requires_provider_side_expiry_or_independent_controller": true
+  },
+  "special_cases": {
+    "hourly_minimum": "a five_second_job_may_be_charged_for_one_full_hour;_stop_now_anyway_by_default",
+    "pro_rata_hourly_display": "hourly_price_may_be_a_display_rate_only; use_actual_provider_increment",
+    "storage_after_stop": "may_continue_until_delete; no_automatic_deletion",
+    "calendar_prepaid": "stopping_compute_does_not_cancel_a_monthly_or_yearly_commitment",
+    "termination_only": "stop_is_not_supported; present_explicit_destructive_action_choice_and_continuing_charges",
+    "warm_pool": "optional_and_only_user_approved_idle_expiry_and_cost_limit",
+    "serverless": "request_scale_to_zero_and_verify; billed_startup_model_load_and_idle_windows_may_exceed_inference_time"
+  },
+  "cost_calculation": {
+    "currency": "USD",
+    "amount_unit": "micro_usd",
+    "time_unit": "milliseconds",
+    "price_source": "caller_supplied_verified_quote_not_a_live_market_price",
+    "formula": "estimated_compute_micro_usd = ceil(quote_micro_usd_per_hour * max(minimum_ms,ceil(total_billable_elapsed_ms/increment_ms)*increment_ms)/3600000); only for usage_metered",
+    "total_billable_elapsed": "resource_provisioning_to_confirmed_stop_not_model_inference_only",
+    "additional_costs": [
+      "storage",
+      "network_egress",
+      "reserved_contract",
+      "persistent_volume",
+      "idle_worker",
+      "taxes"
+    ],
+    "actual_invoice_reconciliation_required": true,
+    "usage_only_estimate_not_a_guarantee": true
+  },
+  "provider_notes": {
+    "modal": "per_second_serverless_compute; idle scale_to_zero; check billed_container_and_storage",
+    "runpod-pods": "per_second_compute_and_storage_metering; stopped_pod_storage_may_still_bill",
+    "runpod-serverless": "per_second_serverless_worker_compute; cold_start_and_worker_idle_may_bill",
+    "vast-instances": "per_second_compute_in_billable_running_state; stopped_storage_still_bills",
+    "vast-serverless": "underlying_compute_storage_bandwidth_and_endpoint_lifecycle",
+    "lambda-cloud": "hourly_display_but_one_minute_billing_increments_for_on_demand_instances; billing_ends_on_termination_not_OS_shutdown",
+    "generic-https": "user_supplied_contract",
+    "generic-ssh": "user_supplied_contract",
+    "kubernetes-gpu": "cluster_node_and_reservation_specific"
+  },
+  "verification": "provider_quotes_and_billing_contracts_must_be_rechecked_at_deployment_time",
+  "execution_safety": "billing_preview_never_spends_or_approves"
+}

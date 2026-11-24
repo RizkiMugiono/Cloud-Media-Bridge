@@ -1,6 +1,11 @@
+mod billing;
+mod cloud_operator;
 mod crypto;
 mod media;
 mod offline;
+mod provider_api;
+mod provider_http;
+mod remote_worker;
 mod provider_ops;
 mod runtime;
 mod worker_client;
@@ -270,8 +275,14 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "doctor" => Ok(json!({"message": doctor()})),
         "providers_list" => providers_list(),
         "deployment_policy" => deployment_policy(),
+        "billing_policy" => billing::policy(),
+        "billing_estimate" => billing::estimate(&arguments["quote"]),
         "media_tasks_list" => media::catalog(),
         "runtimes_list" => runtime::registry(),
+        "cloud_session_prepare" => cloud_operator::prepare(
+            get_string(arguments,"directory")?,get_string(arguments,"manifest")?
+        ),
+        "cloud_session_status" => cloud_operator::status(get_string(arguments,"directory")?),
         "offline_fixture_demo" => offline::demo(
             get_string(arguments, "directory")?, get_string(arguments, "kind")?
         ),
@@ -386,7 +397,8 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let Some(object) = arguments.as_object() else { return false; };
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
-        "doctor" | "providers_list" | "deployment_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
+        "doctor" | "providers_list" | "deployment_policy" | "billing_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
+        "billing_estimate" => has_only(&["quote"]) && arguments["quote"].is_object(),
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "models_search" => {
             has_only(&["query", "task", "limit"])
@@ -420,6 +432,16 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
                 && arguments["disk_gb"].as_u64().is_some()
                 && arguments.get("offer_id").is_none_or(|v|v.as_u64().is_some())
         }
+        "cloud_session_prepare" => {
+            has_only(&["directory","manifest","confirm_no_cloud_charge"])
+                && arguments["confirm_no_cloud_charge"]==true
+                && arguments["directory"].as_str().is_some_and(|v| !v.is_empty()&&v.len()<=1024)
+                && arguments["manifest"].as_str().is_some_and(|v| !v.is_empty()&&v.len()<=1024)
+        },
+        "cloud_session_status" => {
+            has_only(&["directory"])
+                && arguments["directory"].as_str().is_some_and(|v| !v.is_empty()&&v.len()<=1024)
+        },
         "offline_fixture_status" | "offline_fixture_verify" => {
             has_only(&["directory"])
                 && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len() <= 1024)
@@ -438,6 +460,8 @@ fn tool_names() -> &'static [&'static str] {
         "providers_list",
         "providers_show",
         "deployment_policy",
+        "billing_policy",
+        "billing_estimate",
         "media_tasks_list",
         "runtimes_list",
         "runtime_resolve",
@@ -446,6 +470,8 @@ fn tool_names() -> &'static [&'static str] {
         "offline_fixture_verify",
         "provider_operation_preview",
         "offline_worker_smoke",
+        "cloud_session_prepare",
+        "cloud_session_status",
         "models_search",
         "models_inspect",
         "plan_generation",
@@ -466,6 +492,13 @@ fn tool_definitions() -> Value {
          "annotations":{"readOnlyHint":true}},
         {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, owned resource auto-stop intent.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"billing_policy","description":"Read GPU billing granularity and post-job auto-stop policy; no cloud actions.",
+         "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"billing_estimate","description":"Calculate an offline, caller-quoted usage-metered GPU compute estimate by actual billing increment/minimum, or mark monthly/yearly/prepaid terms not estimable. Does not guarantee invoice amounts.",
+         "inputSchema":{"type":"object","properties":{"quote":{"type":"object"}},
+             "required":["quote"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"media_tasks_list","description":"List categorized image, video, audio, voice, music, 3D, document, spatial and multimodal task hints. Discovery does not imply compatibility.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
@@ -504,6 +537,17 @@ fn tool_definitions() -> Value {
             "confirm_fixture_only":{"type":"boolean","const":true}},
             "required":["directory","port","kind","confirm_fixture_only"],"additionalProperties":false},
          "annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":false}},
+        {"name":"cloud_session_prepare","description":"Write a local, cost-free, immutable deployment plan journal from a manifest. No cloud API calls, no GPU, and no user approval. Requires explicit confirm_no_cloud_charge=true.",
+         "inputSchema":{"type":"object","properties":{
+             "directory":{"type":"string","minLength":1,"maxLength":1024},
+             "manifest":{"type":"string","minLength":1,"maxLength":1024},
+             "confirm_no_cloud_charge":{"type":"boolean","const":true}},
+             "required":["directory","manifest","confirm_no_cloud_charge"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":false}},
+        {"name":"cloud_session_status","description":"Read a previously prepared local deployment plan journal. Does not access GPU provider or approve spending.",
+         "inputSchema":{"type":"object","properties":{"directory":{"type":"string"}},
+             "required":["directory"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true,"openWorldHint":false}},
         {"name":"models_search","description":"Search all accessible Hugging Face models or filter by any Hub pipeline task; tags are classified without asserting inference compatibility.",
          "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"task":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},
                         "additionalProperties":false},
@@ -570,7 +614,30 @@ fn run_cli(args: &[String]) -> i32 {
         }
         [cmd] if cmd == "providers" => print_json(providers_list()),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
+        [cmd] if cmd == "billing" => print_json(billing::policy()),
+        [cmd, sub, file] if cmd == "billing" && sub == "estimate" => {
+            print_json(fs::read(file).map_err(|_|"Cannot read local billing quote".to_string())
+                .and_then(|bytes| if bytes.len()>16*1024 {Err("Billing quote exceeds 16 KiB".to_string())} else {Ok(bytes)})
+                .and_then(|bytes|serde_json::from_slice::<Value>(&bytes)
+                    .map_err(|_|"Invalid quote JSON".to_string()))
+                .and_then(|quote|billing::estimate(&quote)))
+        },
         [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
+        [cmd, sub, dir, manifest] if cmd == "cloud" && sub == "prepare" => {
+            print_json(cloud_operator::prepare(dir,manifest))
+        }
+        [cmd, sub, dir] if cmd == "cloud" && sub == "status" => {
+            print_json(cloud_operator::status(dir))
+        }
+        [cmd, sub, dir] if cmd == "cloud" && sub == "deploy" => {
+            print_json(cloud_operator::deploy(dir))
+        }
+        [cmd, sub, dir] if cmd == "cloud" && sub == "stop" => {
+            print_json(cloud_operator::stop(dir))
+        }
+        [cmd, sub, dir, inputs] if cmd == "cloud" && sub == "generate" => {
+            print_json(cloud_operator::generate(dir,inputs))
+        }
         [cmd, provider, image, gpu, disk] if cmd == "provider-preview" => {
             print_json(disk.parse::<u64>().map_err(|_|"Invalid disk_gb".to_string())
                 .and_then(|gb| provider_ops::preview(provider,image,gpu,gb,None)))
@@ -641,6 +708,13 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge runtimes
   cloud-media-bridge runtimes resolve <model> <provider-id>
   cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
+  cloud-media-bridge billing
+  cloud-media-bridge billing estimate <quote.json>
+  cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>
+  cloud-media-bridge cloud status <directory>
+  cloud-media-bridge cloud deploy <directory>       (verified runtime + real human TTY + CMB_ENABLE_LIVE_GPU required)
+  cloud-media-bridge cloud stop <directory>         (only bridge-created and owned resources)
+  cloud-media-bridge cloud generate <directory> <inputs.json> (operator-only; verified worker + auto-stop)
   cloud-media-bridge offline worker-smoke <output-directory> <loopback-port> <media-kind>
   cloud-media-bridge offline demo <new-directory> <media-kind>
   cloud-media-bridge offline prepare <new-directory> <media-kind>
@@ -657,7 +731,7 @@ fn run_cli(args: &[String]) -> i32 {
 
 This version supports read-only model discovery/planning and an offline
 deployment simulation with synthetic fixture-media artifacts and mock auto-stop.
-No real provider deployment, AI model inference, or GPU billing is implemented.");
+Real provider API adapters for RunPod Pods and Vast.ai Instances now exist behind a human-operated CLI and verified-runtime release gate. No bundled runtime has the necessary verified evidence yet, so live paid deployment remains blocked. Offline fixture generation is not AI inference.");
             0
         }
         _ => {

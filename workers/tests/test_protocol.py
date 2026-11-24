@@ -171,6 +171,32 @@ class WorkerSecurityTests(unittest.TestCase):
             Worker(MODEL, SHA, "text-to-image", "diffusers", "short", fixture=False)
         self.assertTrue(SHA_RE.fullmatch(SHA))
 
+    def test_real_worker_health_requires_auth_and_identifies_exact_deployment(self):
+        worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN,
+                        fixture=False, deployment_request_id="deployment-123")
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler_for(worker))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(base + "/health", timeout=3)
+            self.assertEqual(error.exception.code, 401)
+            req = urllib.request.Request(
+                base + "/health",
+                headers={"Authorization": f"Bearer {TOKEN}"}
+            )
+            with urllib.request.urlopen(req, timeout=3) as response:
+                data = json.load(response)
+                self.assertFalse(data["simulation_only"])
+                self.assertEqual(data["model_id"], MODEL)
+                self.assertEqual(data["revision_sha"], SHA)
+                self.assertEqual(data["deployment_request_id"], "deployment-123")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
     def test_nonfixture_runtime_does_not_silently_use_test_artifacts(self):
         worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN, fixture=False)
         self.assertFalse(worker.fixture)
