@@ -1,0 +1,11 @@
+{
+  "comment": "Illustrative local MCP stdio configuration. Syntax differs among AI coding harnesses; adapt to the installed client's supported config format.",
+  "mcpServers": {
+    "cloud-media-bridge": {
+      "command": "cloud-media-bridge",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
