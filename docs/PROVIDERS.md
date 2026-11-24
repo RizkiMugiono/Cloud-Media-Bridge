@@ -64,6 +64,22 @@ cargo run --locked -- providers
 
 Do not commit provider keys, profile-specific secrets, instance identifiers, signed URLs, or user-specific SSH credentials. Never paste them into an AI chat.
 
+## Operator-only Rust REST provider adapters
+
+Code paths:
+
+- `crates/bridge-cli/src/provider_api.rs` — typed RunPod Pods REST v2 / Vast.ai Instances REST create, GET status, supported non-destructive stop and strict response parsing.
+- `crates/bridge-cli/src/provider_http.rs` — cURL-backed HTTPS transport with exact provider endpoint allowlist, 2 MiB response size limit, no redirects, bounded timeouts and API keys passed over stdin config rather than command-line arguments.
+- `crates/bridge-cli/src/cloud_operator.rs` — private per-request resource journal, plan digest, exclusive lock, non-replayable live deployment request, independent terminal challenge and owner-bound resource stop reconciliation.
+
+**Actual cloud operations have not been tested.** Cloud APIs can change. A successful offline mock proves only the application logic at the supplied response shapes. Creation is disabled until a compiled, independently verified runtime image/worker for the **exact** model SHA and provider is present. An image digest alone is not sufficient.
+
+Real worker invocation/endpoint discovery is not yet integrated into `cloud_operator`, though the existing loopback fixture HTTP client and Python task worker are separately testable. This means **a full real-cloud generated-media workflow is not operational**.
+
+The operator CLI never automatically creates resources when the agent simply lists MCP tools. The user must separately run `cloud deploy` in a TTY, explicitly enable live GPU operations, and approve each unique request; protection against a shell-capable agent that can control the same PTY is not guaranteed by this design.
+
+For RunPod Pods, an accepted stop is not a confirmed stop until the account API reports `EXITED` or equivalent. For Vast.ai Instances, an API update is not proof until instance status confirms stopped. If an operation is uncertain, retry **reconciliation**, not resource creation. Provider-dependent storage/network charges can continue after compute is stopped.
+
 ## How one project can support arbitrary GPU rental services
 
 A new adapter only needs to implement five concepts:
