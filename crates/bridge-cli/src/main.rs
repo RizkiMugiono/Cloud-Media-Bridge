@@ -1,6 +1,7 @@
 mod crypto;
 mod media;
 mod offline;
+mod provider_ops;
 mod runtime;
 
 use serde_json::{json, Value};
@@ -275,6 +276,13 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         ),
         "offline_fixture_status" => offline::status(get_string(arguments, "directory")?),
         "offline_fixture_verify" => offline::verify(get_string(arguments, "directory")?),
+        "provider_operation_preview" => provider_ops::preview(
+            get_string(arguments,"provider")?,
+            get_string(arguments,"image")?,
+            get_string(arguments,"gpu")?,
+            arguments["disk_gb"].as_u64().ok_or("Missing integer disk_gb")?,
+            arguments["offer_id"].as_u64()
+        ),
         "runtime_resolve" => {
             let inspected = inspect_model(get_string(arguments, "model")?)?;
             let provider = provider_info(get_string(arguments, "provider")?)?;
@@ -391,6 +399,14 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
                 && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len() <= 1024)
                 && arguments["kind"].as_str().is_some_and(|v| offline::supported_kinds().contains(&v))
         }
+        "provider_operation_preview" => {
+            has_only(&["provider","image","gpu","disk_gb","offer_id"])
+                && arguments["provider"].is_string()
+                && arguments["image"].is_string()
+                && arguments["gpu"].is_string()
+                && arguments["disk_gb"].as_u64().is_some()
+                && arguments.get("offer_id").is_none_or(|v|v.as_u64().is_some())
+        }
         "offline_fixture_status" | "offline_fixture_verify" => {
             has_only(&["directory"])
                 && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len() <= 1024)
@@ -415,6 +431,7 @@ fn tool_names() -> &'static [&'static str] {
         "offline_fixture_demo",
         "offline_fixture_status",
         "offline_fixture_verify",
+        "provider_operation_preview",
         "models_search",
         "models_inspect",
         "plan_generation",
@@ -459,6 +476,13 @@ fn tool_definitions() -> Value {
         {"name":"offline_fixture_verify","description":"Verify a local fixture artifact's size and SHA-256; never claim real AI inference.",
          "inputSchema":{"type":"object","properties":{"directory":{"type":"string"}},"required":["directory"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
+        {"name":"provider_operation_preview","description":"Pure offline preview of pinned OCI GPU deployment and provider-specific safe stop/idle API request shapes. No credentials, API calls or cost.",
+         "inputSchema":{"type":"object","properties":{
+            "provider":{"type":"string"},"image":{"type":"string"},
+            "gpu":{"type":"string"},"disk_gb":{"type":"integer","minimum":10,"maximum":2000},
+            "offer_id":{"type":"integer","minimum":1}
+           },"required":["provider","image","gpu","disk_gb"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true,"openWorldHint":false}},
         {"name":"models_search","description":"Search all accessible Hugging Face models or filter by any Hub pipeline task; tags are classified without asserting inference compatibility.",
          "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"task":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},
                         "additionalProperties":false},
@@ -526,6 +550,15 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd] if cmd == "providers" => print_json(providers_list()),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
         [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
+        [cmd, provider, image, gpu, disk] if cmd == "provider-preview" => {
+            print_json(disk.parse::<u64>().map_err(|_|"Invalid disk_gb".to_string())
+                .and_then(|gb| provider_ops::preview(provider,image,gpu,gb,None)))
+        }
+        [cmd, provider, image, gpu, disk, offer] if cmd == "provider-preview" => {
+            print_json(disk.parse::<u64>().map_err(|_|"Invalid disk_gb".to_string())
+                .and_then(|gb| offer.parse::<u64>().map_err(|_|"Invalid offer_id".to_string())
+                    .and_then(|id|provider_ops::preview(provider,image,gpu,gb,Some(id)))))
+        },
         [cmd, sub, dir, kind] if cmd == "offline" && sub == "prepare" => {
             print_json(offline::prepare(dir, kind))
         }
@@ -582,6 +615,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge policy
   cloud-media-bridge runtimes
   cloud-media-bridge runtimes resolve <model> <provider-id>
+  cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
   cloud-media-bridge offline demo <new-directory> <media-kind>
   cloud-media-bridge offline prepare <new-directory> <media-kind>
   cloud-media-bridge offline approve <directory>      (human TTY required)
