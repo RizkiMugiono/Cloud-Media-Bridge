@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cloud-Media-Bridge task-scoped worker request",
+  "description": "Wire format sent from authorized bridge to a separately hosted worker. Real cloud deployment requires independent model/provider approval; fixture_kind is accepted only by a loopback-only test worker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "model",
+    "task",
+    "inputs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "revision_sha"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}/[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "revision_sha": {
+          "type": "string",
+          "pattern": "^(?:[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})$"
+        }
+      }
+    },
+    "task": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "inputs": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string"
+          },
+          "asset_ref": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Only the selected verified worker task handler may interpret task-specific parameters."
+    },
+    "fixture_kind": {
+      "type": "string",
+      "enum": [
+        "image",
+        "video",
+        "audio",
+        "speech",
+        "music",
+        "three_d",
+        "spatial",
+        "document",
+        "multimodal"
+      ],
+      "description": "SIMULATION ONLY; rejected by real inference workers."
+    }
+  }
+}
