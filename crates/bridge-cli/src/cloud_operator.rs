@@ -15,6 +15,11 @@ use std::path::{Path, PathBuf};
 const JOURNAL: &str = "cloud-resource.json";
 const VERSION: u64 = 1;
 
+fn safe_scope(value:&str)->bool{
+    !value.is_empty() && value.len()<=128
+        && value.bytes().all(|b|b.is_ascii_alphanumeric()||b"-_./".contains(&b))
+}
+
 fn root_dir(directory: &str) -> Result<PathBuf,String> {
     let path=PathBuf::from(directory);
     if path.as_os_str().is_empty(){return Err("Cloud session directory is required".into());}
@@ -122,8 +127,8 @@ pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
     if !plan["runtime_entry_id"].is_string()
         || !plan["account"].is_string()
         || !plan["workspace"].is_string()
-        || plan["account"].as_str().is_some_and(str::is_empty)
-        || plan["workspace"].as_str().is_some_and(str::is_empty)
+        || !plan["account"].as_str().is_some_and(safe_scope)
+        || !plan["workspace"].as_str().is_some_and(safe_scope)
     {
         return Err("Specific runtime entry, cloud account and workspace are required".into());
     }
