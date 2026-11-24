@@ -90,6 +90,22 @@ jobs:
           assert data.startswith(b"<svg")
           print("Docker CPU-only fixture generated and checksum-verified artifact")
           PY
+      - name: Build digest-pinned candidate image on CPU with offline wheel install
+        if: runner.os == 'Linux'
+        run: |
+          docker pull python:3.12-slim
+          base=$(docker image inspect python:3.12-slim --format '{{index .RepoDigests 0}}')
+          context=$(mktemp -d)
+          trap 'rm -rf "$context"' EXIT
+          python workers/tests/build_smoke_bundle.py "$context" "$base"
+          target/debug/cloud-media-bridge runtimes bundle-verify "$context"
+          docker build --network none --build-arg BASE_IMAGE="$base" -t cmb-smoke-ci:local "$context"
+          docker run --rm --network none --entrypoint python cmb-smoke-ci:local -I -c 'import os, cmb_smoke_probe; assert cmb_smoke_probe.CI_ONLY; assert os.getuid() == 10001; assert os.access(os.environ["HF_HOME"], os.W_OK)'
+          if docker run --rm --network none cmb-smoke-ci:local; then
+            echo "Unexpected default worker startup"
+            exit 1
+          fi
+          echo "CPU-only candidate image built; pinned wheel installed without network; default worker refused"
       - name: Rust lint
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Check provider catalog syntax and required entries
