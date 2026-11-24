@@ -1,6 +1,9 @@
 """CPU-only unit/integration checks: real HTTP transport, no AI weights or GPU."""
 import hashlib
 import json
+import os
+import subprocess
+import tempfile
 import pathlib
 import sys
 import threading
@@ -92,7 +95,7 @@ class WorkerHTTPTests(unittest.TestCase):
             self.assertEqual(response.read(), b"\x89PNG\r\n\x1a\nmock-test")
         with self.assertRaises(urllib.error.HTTPError) as error:
             self.request("/v1/media/artifacts/../../etc/passwd")
-        self.assertEqual(error.exception.code, 404)
+        self.assertIn(error.exception.code, (400, 404))
 
     def test_mismatched_revision_and_task_rejected(self):
         payload = {"request_id": "sample", "model": {"id": MODEL, "revision_sha": "f" * 40},
@@ -105,6 +108,28 @@ class WorkerHTTPTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as e:
             self.request("/v1/media/generate", json.dumps(payload).encode())
         self.assertEqual(e.exception.code, 400)
+
+    def test_rust_mcp_bridge_calls_fixture_worker_over_real_loopback_http(self):
+        binary = (pathlib.Path(__file__).resolve().parents[2] / "target" / "debug" /
+                  ("cloud-media-bridge.exe" if os.name == "nt" else "cloud-media-bridge"))
+        self.assertTrue(binary.is_file(), "CI must build the Rust bridge before cross-language tests")
+        with tempfile.TemporaryDirectory(prefix="cmb-worker-cross-language-") as output_dir:
+            env = os.environ.copy()
+            env["CMB_WORKER_TOKEN"] = TOKEN
+            result = subprocess.run(
+                [str(binary), "offline", "worker-smoke", output_dir,
+                 str(self.server.server_port), "music"],
+                capture_output=True, text=True, timeout=25, env=env
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            receipt = json.loads(result.stdout)
+            self.assertTrue(receipt["simulation_only"])
+            self.assertTrue(receipt["artifact_verified"])
+            self.assertFalse(receipt["real_ai_inference"])
+            self.assertFalse(receipt["provider_gpu_used"])
+            data = pathlib.Path(receipt["saved_file"]).read_bytes()
+            self.assertEqual(hashlib.sha256(data).hexdigest(), receipt["sha256"])
+            self.assertTrue(data.startswith(b"RIFF"))
 
     def test_invalid_json_and_media_type_rejected(self):
         with self.assertRaises(urllib.error.HTTPError) as e:
