@@ -46,9 +46,13 @@
       "operation",
       "request_nonce",
       "billing_quote",
-      "billing_estimate",
-      "decision_context",
-      "lifecycle_policy"
+      "region",
+      "quantity",
+      "alternatives",
+      "compatibility_reason",
+      "max_elapsed_ms",
+      "max_total_micro_usd",
+      "stop_policy"
     ],
     "agent_or_mcp_may_self_approve": false,
     "non_deployment_generation": "governed_by_separate_model_and_worker_policy",
@@ -82,23 +86,30 @@
     "choices": {
       "selection": "required_no_implicit_default",
       "implemented_operator_contract_not_live_verified": [
-        "immediate_after_job",
-        "manual_stop"
+        "after_job",
+        "manual",
+        "persistent"
       ],
-      "planned_not_executable": [
+      "read_only_guidance": [
+        "after_job",
+        "manual",
+        "persistent",
         "idle_timeout",
-        "scheduled_stop",
+        "reuse",
+        "scheduled",
         "billing_boundary",
         "budget_limit",
         "session_end",
         "disconnect_timeout",
-        "error_trigger",
-        "persistent",
+        "error_trigger"
+      ],
+      "read_only_actions": [
+        "stop",
         "suspend",
         "terminate",
         "scale_to_zero"
       ],
-      "manual_stop_requires_acknowledgment_of_unbounded_idle_charges": true,
+      "production_enforcement_available": false,
       "unsupported_choice": "reject_no_fallback",
       "termination_requires_separate_destructive_approval": true
     }
@@ -107,7 +118,9 @@
     "current_capability": "read_only",
     "no_cloud_actions_from_read_only_tools": true,
     "automatic_provider_or_model_switch": false,
-    "do_not_claim_deployment_or_stop_success_without_actual_verified_operation": true
+    "do_not_claim_deployment_or_stop_success_without_actual_verified_operation": true,
+    "production_authorization_verified": false,
+    "production_gate_reason": "independent_user_authorization_exact_provider_allocation_and_runtime_not_release_verified"
   },
   "billing": {
     "reference": "config/billing-policy.json",

@@ -49,7 +49,7 @@ Serverless providers use provider-supported scale-to-zero after idleness rather 
 
 ## GPU billing: five-second jobs, hourly minimums and prepaid rentals
 
-**User choice required:** recommend immediate stop for short usage-metered workloads, but never infer the stop policy from the billing unit. The operator contract accepts `immediate_after_job` or `manual_stop` (with explicit acknowledgment of uncapped idle charges). Other lifecycle choices are documented and rejected until implemented and verified. See [user-controlled lifecycle](docs/USER-CONTROLLED-LIFECYCLE.md).
+**User choice required:** recommend immediate stop for short usage-metered workloads, but never infer the stop policy from the billing unit. The unified `stop_policy` supports read-only guidance for multiple triggers and actions; live execution stays disabled until production authorization and provider allocation are verified. See [user-controlled lifecycle](docs/USER-CONTROLLED-LIFECYCLE.md).
 
 A displayed `$ / hour` rate is not necessarily a one-hour minimum. Rust now reads provider-specific billing hints and supports a **read-only** billing policy/estimate for actual increments, minimums and usage-based costs. Contracts billed monthly, yearly or prepaid are marked **not estimable from a five-second job**, with separate storage/network/commitment warnings. No provider prices are invented.
 
@@ -62,7 +62,7 @@ cargo run --locked -- billing estimate examples/billing-prepaid-monthly.example.
 
 AI agents can call MCP `billing_policy` and `billing_estimate` without GPU credentials or costs. A prepared real deployment stores the supplied quote and budget in the human-reviewable exact plan; unknown pricing, calendar commitments or budget overruns **block automated paid deployment**. Estimates use caller-provided terms and do not guarantee a provider-side hard spending cap or invoice. Stop may still leave storage/contract charges.
 
-See [GPU billing models and resource lifecycle](docs/GPU-BILLING.md) and [machine-readable billing policy](config/billing-policy.json).
+Use `cloud review` / MCP `cloud_review` to compare same-model offers, and `cloud advice` / MCP `lifecycle_advice` to evaluate caller-supplied lifecycle evidence. Neither grants approval. See [GPU billing models and resource lifecycle](docs/GPU-BILLING.md) and [machine-readable billing policy](config/billing-policy.json).
 
 ## Real-provider control plane (code available; GPU execution blocked)
 

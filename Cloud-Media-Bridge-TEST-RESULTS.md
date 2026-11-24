@@ -274,3 +274,7 @@ This ledger must be updated **by whichever developer, maintainer or automated te
 ## User-selected lifecycle follow-up
 
 Historical PASS entries above refer to their linked commits and the old immediate-stop contract. The new user-selected policy and revised estimator have new offline assertions; status **NOT RUN at authoring time**. See the new pull request's actual CI results before promoting any claim. Live GPU, actual invoice, and independent shutdown guarantees remain NOT RUN.
+
+## Consolidated planning follow-up
+
+The advisory source branch reports 76 Rust tests and 15 Python tests across its local environments; those results do not apply to this consolidated commit. New CI evidence is required; no new tests are claimed as PASS at authoring time.

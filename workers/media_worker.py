@@ -239,7 +239,7 @@ class Worker:
                 raise WorkerError("INVALID_FIXTURE", "Unknown fixture kind")
             kind, mime, data = _fixture(kind)
         else:
-            kind, mime, data = self._real_generate(items, params)
+            raise WorkerError("PRODUCTION_DISABLED", "Production runtime and authorization are not release-verified", 403)
         artifact = self.store(kind, mime, data)
         return {"schema_version": 1, "request_id": request_id, "status": "completed",
                 "simulation_only": self.fixture, "artifacts": [artifact]}
@@ -347,6 +347,8 @@ def main() -> None:
         raise SystemExit("Fixture mode is restricted to local loopback tests")
     if host not in {"127.0.0.1", "::1"} and os.getenv("CMB_PRIVATE_NETWORK_ACK") != "1":
         raise SystemExit("Non-loopback worker binding requires explicit private-network/TLS ingress acknowledgment")
+    if not fixture:
+        raise SystemExit("Production runtime and authorization are not release-verified")
     token = os.environ["CMB_WORKER_TOKEN"]
     worker = Worker(
         os.environ["CMB_MODEL_ID"], os.environ["CMB_MODEL_SHA"],

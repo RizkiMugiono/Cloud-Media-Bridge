@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 19);
+    assert_eq!(tools.len(), 21);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -320,7 +320,7 @@ fn agent_can_prepare_and_inspect_cloud_plan_but_cannot_approve_or_deploy_via_mcp
     assert_eq!(replies[1]["result"]["structuredContent"]["status"],"awaiting_human_approval");
     assert_eq!(replies[2]["result"]["structuredContent"]["status"],"awaiting_human_approval");
     assert_eq!(replies[2]["result"]["structuredContent"]["approval"]["consumed"],false);
-    assert_eq!(replies[2]["result"]["structuredContent"]["lifecycle_policy"]["mode"],"immediate_after_job");
+    assert_eq!(replies[2]["result"]["structuredContent"]["stop_policy"]["mode"],"after_job");
     assert_eq!(replies[3]["error"]["code"],-32602);
     assert_eq!(replies[4]["error"]["code"],-32602);
     let _=std::fs::remove_dir_all(root);
@@ -349,4 +349,32 @@ fn billing_quote_mcp_estimates_five_seconds_without_provisioning_gpu() {
     assert_eq!(estimate["lifecycle_decision"],"not_selected_by_billing");
     assert_eq!(estimate["requires_user_lifecycle_selection"],true);
     assert_eq!(replies[3]["error"]["code"],-32602);
+}
+
+#[test]
+fn review_and_lifecycle_tools_never_issue_deployment_authorization() {
+    let sample: Value = serde_json::from_str(include_str!("../../../examples/cloud-deployment-manifest.NOT-EXECUTABLE.json")).unwrap();
+    let review = json!({"jsonrpc":"2.0","id":81,"method":"tools/call",
+        "params":{"name":"cloud_review","arguments":{"manifest":sample}}});
+    let mut plan = sample;
+    plan["request_id"] = json!("one-deployment");
+    let advice = json!({"jsonrpc":"2.0","id":82,"method":"tools/call",
+        "params":{"name":"lifecycle_advice","arguments":{"plan":plan,"receipt":{},"observed":{}}}});
+    let replies=exchange(&[INIT,READY,&review.to_string(),&advice.to_string()]);
+    let reviewed=&replies[1]["result"]["structuredContent"];
+    assert_eq!(reviewed["approval_granted"],false);
+    assert_eq!(reviewed["advice"]["selected_estimate"]["estimated_total_micro_usd"],1889);
+    let next=&replies[2]["result"]["structuredContent"];
+    assert_eq!(next["bridge_can_execute"],false);
+    assert_eq!(next["recommendation"],"ask_user_for_fresh_plan_bound_consent");
+}
+
+#[test]
+fn live_commands_remain_blocked_even_with_legacy_opt_in() {
+    for args in [vec!["cloud","deploy","unused"],vec!["cloud","generate","unused","inputs"],vec!["cloud","stop","unused"]] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_cloud-media-bridge"))
+            .args(args).env("CMB_ENABLE_LIVE_GPU","I_ACCEPT_GPU_CHARGES").output().unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("Live GPU execution disabled"));
+    }
 }

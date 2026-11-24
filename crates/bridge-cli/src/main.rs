@@ -1,4 +1,7 @@
+mod advice;
 mod billing;
+mod lifecycle;
+mod planning;
 mod cloud_operator;
 mod crypto;
 mod media;
@@ -276,6 +279,8 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "providers_list" => providers_list(),
         "deployment_policy" => deployment_policy(),
         "billing_policy" => billing::policy(),
+        "cloud_review" => planning::review(&arguments["manifest"]),
+        "lifecycle_advice" => lifecycle::advise(&arguments["plan"], &arguments["receipt"], &arguments["observed"]),
         "billing_estimate" => billing::estimate(&arguments["quote"]),
         "media_tasks_list" => media::catalog(),
         "runtimes_list" => runtime::registry(),
@@ -398,6 +403,8 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
         "doctor" | "providers_list" | "deployment_policy" | "billing_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
+        "cloud_review" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
+        "lifecycle_advice" => has_only(&["plan","receipt","observed"]) && ["plan","receipt","observed"].iter().all(|k| arguments[k].is_object()),
         "billing_estimate" => has_only(&["quote"]) && arguments["quote"].is_object(),
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "models_search" => {
@@ -462,6 +469,8 @@ fn tool_names() -> &'static [&'static str] {
         "deployment_policy",
         "billing_policy",
         "billing_estimate",
+        "cloud_review",
+        "lifecycle_advice",
         "media_tasks_list",
         "runtimes_list",
         "runtime_resolve",
@@ -495,6 +504,12 @@ fn tool_definitions() -> Value {
          "annotations":{"readOnlyHint":true}},
         {"name":"billing_policy","description":"Read GPU billing granularity and independent user lifecycle choice; no cloud actions.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"lifecycle_advice","description":"Evaluate a prepared plan and caller-reported consent and observations. Returns advice only.",
+         "inputSchema":{"type":"object","properties":{"plan":{"type":"object"},"receipt":{"type":"object"},"observed":{"type":"object"}},"required":["plan","receipt","observed"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"cloud_review","description":"Review a proposed GPU plan, compare quoted costs and explain stop choices. No approval, filesystem writes or cloud operations.",
+         "inputSchema":{"type":"object","properties":{"manifest":{"type":"object"}},"required":["manifest"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"billing_estimate","description":"Calculate an offline, caller-quoted usage-metered GPU compute estimate by actual billing increment/minimum, or mark monthly/yearly/prepaid terms not estimable. Does not guarantee invoice amounts.",
          "inputSchema":{"type":"object","properties":{"quote":{"type":"object"}},
@@ -623,11 +638,20 @@ fn run_cli(args: &[String]) -> i32 {
                 .and_then(|quote|billing::estimate(&quote)))
         },
         [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
+        [cmd, sub, file] if cmd == "cloud" && sub == "review" => {
+            print_json(planning::load_manifest(file, 16384).and_then(|v| planning::review(&v)))
+        }
+        [cmd, sub, file] if cmd == "cloud" && sub == "advice" => {
+            print_json(planning::load_manifest(file, 65536).and_then(|v| lifecycle::advise(&v["plan"], &v["receipt"], &v["observed"])))
+        }
         [cmd, sub, dir, manifest] if cmd == "cloud" && sub == "prepare" => {
             print_json(cloud_operator::prepare(dir,manifest))
         }
         [cmd, sub, dir] if cmd == "cloud" && sub == "status" => {
             print_json(cloud_operator::status(dir))
+        }
+        [cmd, sub, ..] if cmd == "cloud" && sub == "terminate" => {
+            print_json(Err("Termination is not implemented; separate destructive authorization required".into()))
         }
         [cmd, sub, dir] if cmd == "cloud" && sub == "deploy" => {
             print_json(cloud_operator::deploy(dir))
@@ -710,11 +734,13 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
   cloud-media-bridge billing
   cloud-media-bridge billing estimate <quote.json>
+  cloud-media-bridge cloud review <deployment-manifest.json> (read-only comparison)
+  cloud-media-bridge cloud advice <plan-receipt-observation.json> (read-only)
   cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>
   cloud-media-bridge cloud status <directory>
-  cloud-media-bridge cloud deploy <directory>       (verified runtime + real human TTY + CMB_ENABLE_LIVE_GPU required)
-  cloud-media-bridge cloud stop <directory>         (only bridge-created and owned resources)
-  cloud-media-bridge cloud generate <directory> <inputs.json> (operator-only; verified worker + auto-stop)
+  cloud-media-bridge cloud deploy <directory>       (production release gate disabled)
+  cloud-media-bridge cloud stop <directory>         (production release gate disabled; owned resources only)
+  cloud-media-bridge cloud generate <directory> <inputs.json> (production release gate disabled; approved lifecycle only)
   cloud-media-bridge offline worker-smoke <output-directory> <loopback-port> <media-kind>
   cloud-media-bridge offline demo <new-directory> <media-kind>
   cloud-media-bridge offline prepare <new-directory> <media-kind>
