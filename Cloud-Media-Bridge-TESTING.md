@@ -367,3 +367,20 @@ These checks implement the user's requirement to finish **every test that does n
 | O14 | Real cloud provider deployment, one-shot human approval and auto-stop/scale-to-zero | Provider-confirmed provision/job/output/stop, account ownership, failure recovery and billing exposure for **each** claimed provider | **Yes — deferred** |
 
 Release claim boundary: **O01–O12 PASS is an offline end-to-end mock + worker protocol milestone, not proof of O13–O14.** The bridge does not become production-ready from fixture tests alone.
+
+## 18. Provider adapter and worker contract tests (C01–C08)
+
+These cases assess Rust provider request construction, journal and approval checks, and worker protocol. C01–C07 are offline mocked tests. C08 requires separately authorized actual GPU resources and remains NOT RUN until independently verified.
+
+| ID | Scenario | Expected evidence | GPU credits? |
+|---|---|---|---|
+| C01 | RunPod Pods REST v2 pinned image operation and actual ID parsing | Correct URL/method/model SHA/pinned image and parsed response | No |
+| C02 | Vast.ai selected offer and non-destructive stop | Offer-specific PUT request, safe resource identity, no destructive termination | No |
+| C03 | Provider HTTPS credential isolation | API token in stdin config, strict allowlist, no argv secrets/redirects | No |
+| C04 | One-shot exact-plan deployment journal | Valid SHA/journal, TTY-only approval, no deployment with unverified runtime | No |
+| C05 | Stop ownership, concurrent job and transfer checks | No stop when ownership wrong or active work exists | No |
+| C06 | Stop status reconciliation | Confirmed provider observation versus uncertain stop/error and persisted state | No |
+| C07 | Authenticated remote worker and artifact integrity | Model SHA/deployment ID in authenticated health, verified bytes/size/checksum | No |
+| C08 | End-to-end real provider and model inference | Actual output/receipt, verified runtime image, user approval, provider-confirmed stop, GPU billing | Yes — deferred |
+
+Existing nine-provider previews are not operational integrations. Even if C01–C07 pass, real GPU inference and automatic stopping remain unverified until C08.
