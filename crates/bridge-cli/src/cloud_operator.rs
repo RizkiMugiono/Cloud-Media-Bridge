@@ -276,6 +276,89 @@ fn reconcile_with<T:Transport>(root:&Path,api:&mut T)->Result<Value,String>{
     Ok(answer)
 }
 
+/// Operator-only real worker execution. The credentialed provider lifecycle
+/// remains bound to the original one-shot human-approved deployment plan.
+/// This operation never approves a new deployment.
+pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,String>{
+    let root=root_dir(directory)?;
+    let _lock=Lock::acquire(&root)?;
+    let mut state=read(&root)?;
+    if state["status"]!="CREATED"
+        || state["approval"]["origin"]!="human_terminal"
+        || state["approval"]["status"]!="approved"
+        || state["approval"]["consumed"]!=true
+        || state["approval"]["bound_plan_sha256"]!=state["plan_sha256"]
+        || state["resource"]["created_by_bridge"]!=true
+        || state["resource"]["owner_request_id"]!=state["plan"]["request_id"]
+        || state["resource"]["provider"]!=state["plan"]["provider"]
+        || state["job"]["active_jobs"].as_u64().unwrap_or(u64::MAX)!=0
+        || state["resource"]["active_jobs"].as_u64().unwrap_or(u64::MAX)!=0
+    {
+        return Err("Session is not an approved, idle, bridge-owned cloud deployment".into());
+    }
+    verified_runtime(&state["plan"])?;
+    let path=Path::new(inputs_manifest);
+    let bytes=fs::read(path).map_err(|_|"Cannot read media input manifest".to_string())?;
+    if bytes.len()>1024*1024 {return Err("Media input manifest too large".into());}
+    let input:Value=serde_json::from_slice(&bytes)
+        .map_err(|_|"Invalid media input JSON".to_string())?;
+    if !input["inputs"].is_array() {
+        return Err("Input JSON needs an inputs array".into());
+    }
+
+    // Save the active job state before any remote media request. If the agent
+    // crashes, the operator must inspect/reconcile rather than guessing idle.
+    state["status"]=json!("RUNNING");
+    state["job"]["active_jobs"]=json!(1);
+    state["job"]["state"]=json!("running");
+    state["resource"]["active_jobs"]=json!(1);
+    save(&root,&state)?;
+
+    let plan=&state["plan"];
+    let result=crate::remote_worker::generate(&root.join("artifacts"),
+        plan["model_id"].as_str().ok_or("Missing model ID")?,
+        plan["model_sha"].as_str().ok_or("Missing model SHA")?,
+        plan["task"].as_str().ok_or("Missing task")?,
+        plan["runtime_family"].as_str().ok_or("Missing family")?,
+        plan["request_id"].as_str().ok_or("Missing request ID")?,
+        &input);
+
+    let mut state=read(&root)?;
+    state["job"]["active_jobs"]=json!(0);
+    state["resource"]["active_jobs"]=json!(0);
+    state["job"]["state"]=json!(if result.is_ok(){"completed"}else{"failed_or_uncertain"});
+    state["status"]=json!("CREATED");
+    if let Ok(ref receipt)=result {
+        state["job"]["receipt"]=receipt.clone();
+    } else {
+        state["last_error"]=json!("Worker inference or artifact retrieval failed. Provider cleanup attempted; verify resource state.");
+    }
+    save(&root,&state)?;
+
+    let mut api=CurlTransport;
+    let cleanup=reconcile_with(&root,&mut api);
+    if let Err(ref error)=cleanup {
+        let mut state=read(&root)?;
+        state["status"]=json!("STOP_UNCERTAIN");
+        state["last_error"]=json!(format!("Automatic stop not confirmed: {error}; charges may continue"));
+        save(&root,&state)?;
+    }
+    // The caller sees both generation and cleanup independently. An artifact
+    // does not imply that compute stopped or provider billing has ceased.
+    Ok(json!({
+        "generation": match result {
+            Ok(receipt)=>receipt,
+            Err(_)=>json!({"status":"FAILED_OR_UNCERTAIN","artifact_verified":false})
+        },
+        "cleanup":match cleanup {
+            Ok(result)=>result,
+            Err(_)=>json!({"state":"STOP_UNCERTAIN","manual_reconciliation_required":true,
+                "possible_continuing_gpu_charges":true})
+        },
+        "message":"Provider stop was attempted after job completion/failure. A powered-off client cannot guarantee future stop/recovery."
+    }))
+}
+
 /// Executed only as an explicit operator CLI command. No model or worker
 /// generation is claimed completed merely by requesting stop.
 pub(crate) fn stop(directory:&str)->Result<Value,String>{
