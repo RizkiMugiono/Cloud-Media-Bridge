@@ -60,6 +60,33 @@ class SmokeBundleTests(unittest.TestCase):
             self.assertEqual(error.exception.code, "TEST_ONLY")
             inference.assert_called_once()
             self.assertFalse(worker.inference_lock.locked())
+            self.assertEqual(worker.job_status("test")["status"], "failed")
+            with self.assertRaises(WorkerError) as error:
+                worker.generate(request)
+            self.assertEqual(error.exception.code, "JOB_ALREADY_ACCEPTED")
+            inference.assert_called_once()
+
+    def test_completed_request_replay_and_changed_input_are_not_second_inference(self):
+        release = {"model_id": MODEL, "model_sha": SHA, "task": "text-to-image",
+                   "runtime_family": "diffusers"}
+        worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN,
+                        deployment_request_id="test", smoke_release=release)
+        request = {"schema_version": 1, "model": {"id": MODEL, "revision_sha": SHA},
+                   "task": "text-to-image", "request_id": "job-1", "inputs": []}
+        with patch.object(worker, "_real_generate", return_value=("image", "image/png", b"mock")) as infer:
+            first = worker.generate(request)
+            self.assertEqual(worker.generate(request), first)
+            self.assertEqual(worker.job_status("job-1")["result"], first)
+            self.assertEqual(worker.job_status("job-1")["status"], "completed")
+            self.assertFalse(worker.job_status("job-1")["active_transfers_verified"])
+            with self.assertRaises(WorkerError) as error:
+                worker.generate(dict(request, inputs=[{"kind": "text", "text": "changed"}]))
+            self.assertEqual(error.exception.code, "REQUEST_CONFLICT")
+            infer.assert_called_once()
+        new_worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN,
+                            deployment_request_id="test", smoke_release=release)
+        self.assertEqual(new_worker.job_status("job-1")["status"], "unknown")
+        self.assertNotEqual(new_worker.worker_instance_id, worker.worker_instance_id)
 
 if __name__ == "__main__":
     unittest.main()

@@ -692,6 +692,7 @@ fn run_cli(args: &[String]) -> i32 {
         }
         [cmd, sub, dir] if cmd == "cloud" && sub == "inspect" => print_json(cloud_operator::inspect(dir)),
         [cmd, sub, dir] if cmd == "cloud" && sub == "account-check" => print_json(cloud_operator::account_check(dir)),
+        [cmd, sub, dir] if cmd == "cloud" && sub == "job-check" => print_json(cloud_operator::job_check(dir)),
         [cmd, sub, dir] if cmd == "cloud" && sub == "status" => {
             print_json(cloud_operator::status(dir))
         }
@@ -793,6 +794,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge cloud status <directory>
   cloud-media-bridge cloud inspect <directory> (credentialed read-only; existing resource)
   cloud-media-bridge cloud account-check <directory> (credentialed read-only; no GPU rental)
+  cloud-media-bridge cloud job-check <directory> (read-only worker recovery)
   cloud-media-bridge cloud deploy <directory>       (production release gate disabled)
   cloud-media-bridge cloud stop <directory>         (production release gate disabled; owned resources only)
   cloud-media-bridge cloud generate <directory> <inputs.json> (production release gate disabled; approved lifecycle only)

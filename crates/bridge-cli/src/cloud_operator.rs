@@ -346,6 +346,18 @@ pub(crate) fn inspect(directory:&str)->Result<Value,String>{
     inspect_with(&state,&mut CurlTransport)
 }
 
+pub(crate) fn job_check(directory:&str)->Result<Value,String>{
+    let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
+    let state=read(&root)?;
+    verify_plan_account(&state["plan"],&mut CurlTransport)?;
+    let job=&state["job"];
+    let id=job["request_id"].as_str().ok_or("No recorded job request ID; do not retry uncertain work")?;
+    let instance=job["worker_instance_id"].as_str().ok_or("No recorded worker instance; reconcile manually")?;
+    let observation=crate::remote_worker::inspect_job(&state["plan"],id,instance)?;
+    Ok(json!({"journal_status":state["status"],"observation":observation,
+        "journal_modified":false,"provider_mutation_sent":false,"approval_granted":false}))
+}
+
 /// Operator-only real worker execution. The credentialed provider lifecycle
 /// remains bound to the original one-shot human-approved deployment plan.
 /// This operation never approves a new deployment.
@@ -379,7 +391,11 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     }
 
     verify_plan_account(&state["plan"],&mut CurlTransport)?;
+    let worker_instance=crate::remote_worker::instance(&state["plan"])?;
+    let job_id=secure_nonce()?;
     let grant=crate::authorization::consume_for_plan(&state["plan"],"generate",state["resource"]["id"].clone(),json!(sha256(&bytes)))?;
+    state["job"]["request_id"]=json!(job_id);
+    state["job"]["worker_instance_id"]=json!(worker_instance);
     state["job"]["operation_grant_id"]=grant["grant_id"].clone();
     // Save the active job state before any remote media request. If the agent
     // crashes, the operator must inspect/reconcile rather than guessing idle.
@@ -390,13 +406,7 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     save(&root,&state)?;
 
     let plan=&state["plan"];
-    let result=crate::remote_worker::generate(&root.join("artifacts"),
-        plan["model_id"].as_str().ok_or("Missing model ID")?,
-        plan["model_sha"].as_str().ok_or("Missing model SHA")?,
-        plan["task"].as_str().ok_or("Missing task")?,
-        plan["runtime_family"].as_str().ok_or("Missing family")?,
-        plan["request_id"].as_str().ok_or("Missing request ID")?,
-        &input);
+    let result=crate::remote_worker::generate(&root.join("artifacts"),plan,&job_id,&worker_instance,&input);
 
     let mut state=read(&root)?;
     if result.is_err(){

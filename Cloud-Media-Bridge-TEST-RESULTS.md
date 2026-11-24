@@ -290,3 +290,7 @@ Dynamic market commit 91ca8c5 passed CI 45310844087; signed authorization commit
 ## Recovery follow-up
 
 Candidate runtime commit f7c4a6a passed CI 45313388510. Stop-intent/recovery commit b986229 passed CI 45314827449. Runtime packaging and account identity follow-ups require fresh CI. No live account credentials, GPU deployment or real inference were used by these tests.
+
+## Worker job recovery follow-up
+
+Account preflight commit 9cd0fed passed CI 45315074933; CPU-only container packaging commit 80e2ec5 passed CI 45315147002. New job recovery changes require independent CI. No paid GPU or live worker requests were made.

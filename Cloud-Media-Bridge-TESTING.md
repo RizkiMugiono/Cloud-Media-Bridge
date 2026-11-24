@@ -430,3 +430,7 @@ Offline tests cover nine provider drafts, exact RunPod region/count/tier, actual
 ## Recovery and account identity checks
 
 Offline replay tests exercise persisted STOP_IN_FLIGHT and STOP_UNCERTAIN, GET-only recovery, conflicting actual states, redacted observations, exact HTTP allowlists and provider account ID comparison. RunPod fixed GraphQL query is read-only; arbitrary GraphQL operations are refused. Vast current-user lookup uses GET. Missing or mismatched identities fail closed; workspace/account billing scope still requires separate verification. Runtime lock and smoke dispatch tests require no GPU.
+
+## Worker job identity and recovery
+
+Mocked smoke inference tests cover same-ID result replay, changed inputs, failed job replay, worker restart and busy pipeline behavior. Rust tests verify redacted job observations bound to original worker and deployment, with no transfer/stop/retry permission. Worker ledger is process-local, not durable; restart recovery remains an explicit reconciliation boundary.

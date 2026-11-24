@@ -138,6 +138,8 @@ class Worker:
         self.lock = threading.RLock()
         self.pipeline: Any = None
         self.inference_lock = threading.Lock()
+        self.jobs: dict[str, dict[str, Any]] = {}
+        self.worker_instance_id = uuid.uuid4().hex
 
     def authorize(self, header: str) -> bool:
         return hmac.compare_digest(header, f"Bearer {self.token}")
@@ -246,6 +248,20 @@ class Worker:
             return ("speech" if self.task == "text-to-speech" else "audio"), "audio/wav", data
         raise WorkerError("UNSUPPORTED_RUNTIME", "No verified handler for this model family", 422)
 
+    def job_status(self, request_id: str) -> dict[str, Any]:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", request_id):
+            raise WorkerError("INVALID_REQUEST_ID", "Invalid job identifier")
+        with self.lock:
+            entry = self.jobs.get(request_id)
+            return {"schema_version": 1, "request_id": request_id,
+                    "deployment_request_id": self.deployment_request_id,
+                    "worker_instance_id": self.worker_instance_id,
+                    "status": entry["status"] if entry else "unknown",
+                    "result": entry.get("result") if entry else None,
+                    "simulation_only": self.fixture,
+                    "active_jobs": sum(job["status"] == "running" for job in self.jobs.values()),
+                    "active_transfers_verified": False, "durable": False}
+
     def generate(self, request: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(request, dict):
             raise WorkerError("INVALID_REQUEST", "Request must be an object")
@@ -258,7 +274,7 @@ class Worker:
         if request.get("task") != self.task:
             raise WorkerError("TASK_MISMATCH", "Task differs from preapproved worker")
         request_id = request.get("request_id")
-        if not isinstance(request_id, str) or not 1 <= len(request_id) <= 128:
+        if not isinstance(request_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", request_id):
             raise WorkerError("INVALID_REQUEST_ID", "Valid request ID required")
         items = request.get("inputs")
         params = request.get("parameters", {})
@@ -272,10 +288,42 @@ class Worker:
                 raise WorkerError("INVALID_FIXTURE", "Unknown fixture kind")
             kind, mime, data = _fixture(kind)
         elif self.smoke_release is not None:
+            # Retain every accepted job ID for this process; never silently evict
+            # an ID and make it executable again. A restarted worker is a new
+            # instance and missing IDs must be reconciled, never retried.
+            try:
+                fingerprint = hashlib.sha256(json.dumps(
+                    request, sort_keys=True, separators=(",", ":"), allow_nan=False
+                ).encode()).hexdigest()
+            except (TypeError, ValueError) as exc:
+                raise WorkerError("INVALID_INPUT", "Invalid request content") from exc
             if not self.inference_lock.acquire(blocking=False):
                 raise WorkerError("WORKER_BUSY", "One inference at a time on this worker", 409)
             try:
-                kind, mime, data = self._real_generate(items, params)
+                with self.lock:
+                    existing = self.jobs.get(request_id)
+                    if existing is not None:
+                        if existing["fingerprint"] != fingerprint:
+                            raise WorkerError("REQUEST_CONFLICT", "Job ID already bound to different inputs", 409)
+                        if existing["status"] == "completed":
+                            return existing["result"]
+                        raise WorkerError("JOB_ALREADY_ACCEPTED", "Inspect previous job; never rerun", 409)
+                    if len(self.jobs) >= 128:
+                        raise WorkerError("JOB_LEDGER_FULL", "Job ledger capacity exhausted", 503)
+                    self.jobs[request_id] = {"status": "running", "fingerprint": fingerprint}
+                try:
+                    kind, mime, data = self._real_generate(items, params)
+                    artifact = self.store(kind, mime, data)
+                    result = {"schema_version": 1, "request_id": request_id,
+                              "status": "completed", "simulation_only": False,
+                              "artifacts": [artifact]}
+                    with self.lock:
+                        self.jobs[request_id].update(status="completed", result=result)
+                    return result
+                except BaseException:
+                    with self.lock:
+                        self.jobs[request_id]["status"] = "failed"
+                    raise
             finally:
                 self.inference_lock.release()
         else:
@@ -326,10 +374,17 @@ def handler_for(worker: Worker) -> type[BaseHTTPRequestHandler]:
                     "status": "ok", "family": worker.family, "task": worker.task,
                     "model_id": worker.model_id, "revision_sha": worker.revision,
                     "deployment_request_id": worker.deployment_request_id,
-                    "simulation_only": worker.fixture
+                    "simulation_only": worker.fixture,
+                    "worker_instance_id": worker.worker_instance_id
                 })
                 return
             if not self._auth():
+                return
+            if self.path.startswith("/v1/media/jobs/"):
+                try:
+                    self._response(200, worker.job_status(self.path.removeprefix("/v1/media/jobs/")))
+                except WorkerError as e:
+                    self._response(e.status, {"error": {"code": e.code, "message": str(e)}})
                 return
             if not self.path.startswith("/v1/media/artifacts/"):
                 self._response(404, {"error": {"code": "NOT_FOUND", "message": "Unknown endpoint"}})

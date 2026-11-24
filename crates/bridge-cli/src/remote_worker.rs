@@ -1,7 +1,7 @@
 //! Operator-only authenticated HTTPS media worker client.
 //! Does not accept an arbitrary URL from MCP arguments. The worker origin
 //! must be explicitly configured as CMB_WORKER_HTTPS_ORIGIN by the user.
-use crate::crypto::{secure_nonce,sha256};
+use crate::crypto::sha256;
 use serde_json::{json,Value};
 use std::env;
 use std::fs::{self,OpenOptions};
@@ -96,31 +96,68 @@ pub(crate) fn validate_worker_result(body:&Value,request:&Value)->Result<Vec<Val
     Ok(artifacts.clone())
 }
 
+fn job_id_valid(id:&str)->bool{
+    !id.is_empty()&&id.len()<=128&&id.bytes().all(|b|b.is_ascii_alphanumeric()||b"-_".contains(&b))
+}
+fn verified_worker(plan:&Value)->Result<(String,String,Value),String>{
+    let origin=env::var("CMB_WORKER_HTTPS_ORIGIN").map_err(|_|"Configure trusted HTTPS worker origin")?;
+    let token=env::var("CMB_WORKER_TOKEN").map_err(|_|"Configure trusted worker token")?;
+    let health:Value=serde_json::from_slice(&request(&origin,&token,"GET","/health",None)?)
+        .map_err(|_|"Invalid worker health JSON")?;
+    for (actual,expected) in [("task","task"),("model_id","model_id"),("revision_sha","model_sha"),
+        ("family","runtime_family"),("deployment_request_id","request_id")]{
+        if plan[expected].as_str().is_none_or(str::is_empty)||health[actual]!=plan[expected]{
+            return Err("Worker identity does not match exact deployment plan".into());
+        }
+    }
+    if health["status"]!="ok"||health["simulation_only"]!=false||
+        !health["worker_instance_id"].as_str().is_some_and(artifact_id){
+        return Err("Worker is not a real identified healthy service".into());
+    }
+    Ok((origin,token,health))
+}
+pub(crate) fn instance(plan:&Value)->Result<String,String>{
+    let (_,_,health)=verified_worker(plan)?;
+    Ok(health["worker_instance_id"].as_str().ok_or("Missing worker identity")?.to_string())
+}
+fn status_view(data:&Value,plan:&Value,job_id:&str,expected_instance:&str)->Result<Value,String>{
+    if data["schema_version"]!=1||data["simulation_only"]!=false||data["request_id"]!=job_id||
+        data["deployment_request_id"]!=plan["request_id"]||data["worker_instance_id"]!=expected_instance{
+        return Err("Worker job identity changed or invalid; no retry".into());
+    }
+    let status=data["status"].as_str().ok_or("Missing job status")?;
+    if !matches!(status,"running"|"completed"|"failed"|"unknown"){return Err("Unrecognized job status".into());}
+    Ok(json!({"request_id":job_id,"worker_instance_id":expected_instance,"status":status,
+        "active_jobs":data["active_jobs"].as_u64(),"artifact_transfer_verified":false,
+        "worker_ledger_durable":false,"retry_authorized":false,"provider_mutation_sent":false}))
+}
+pub(crate) fn inspect_job(plan:&Value,job_id:&str,expected_instance:&str)->Result<Value,String>{
+    if !job_id_valid(job_id)||!artifact_id(expected_instance){return Err("Missing original worker/job identity".into());}
+    let (origin,token,health)=verified_worker(plan)?;
+    if health["worker_instance_id"]!=expected_instance{return Err("Worker restarted; job state unknown; never retry blindly".into());}
+    let data:Value=serde_json::from_slice(&request(&origin,&token,"GET",&format!("/v1/media/jobs/{job_id}"),None)?)
+        .map_err(|_|"Invalid worker job response")?;
+    status_view(&data,plan,job_id,expected_instance)
+}
+
 /// This function is only called by a local, separately-approved operator
 /// deployment session. It never accepts a model or host supplied by an MCP
 /// tool call, and downloaded bytes are independently SHA-256 verified.
-pub(crate) fn generate(outdir:&Path,model_id:&str,revision:&str,task:&str,
-    family:&str,deployment_request_id:&str,inputs:&Value)
+pub(crate) fn generate(outdir:&Path,plan:&Value,job_id:&str,worker_instance_id:&str,inputs:&Value)
     ->Result<Value,String>
 {
-    let origin=env::var("CMB_WORKER_HTTPS_ORIGIN")
-        .map_err(|_|"Set CMB_WORKER_HTTPS_ORIGIN to your authenticated HTTPS worker".to_string())?;
-    if !valid_origin(&origin){return Err("Worker requires a valid public DNS HTTPS origin, no URL path".into());}
-    let token=env::var("CMB_WORKER_TOKEN")
-        .map_err(|_|"Set CMB_WORKER_TOKEN in the local environment".to_string())?;
-    if !valid_token(&token){return Err("Invalid worker token".into());}
-    let health:Value=serde_json::from_slice(&request(&origin,&token,"GET","/health",None)?)
-        .map_err(|_|"Invalid worker health JSON".to_string())?;
-    if health["status"]!="ok"||health["simulation_only"]!=false||health["task"]!=task
-        ||health["model_id"]!=model_id ||health["revision_sha"]!=revision
-        ||health["family"]!=family ||health["deployment_request_id"]!=deployment_request_id {
-        return Err("Worker is not a real, task-compatible healthy service".into());
+    let (origin,token,health)=verified_worker(plan)?;
+    if health["worker_instance_id"]!=worker_instance_id||!job_id_valid(job_id){
+        return Err("Worker instance changed or job ID invalid; do not send inference".into());
     }
+    let model_id=plan["model_id"].as_str().ok_or("Missing model ID")?;
+    let revision=plan["model_sha"].as_str().ok_or("Missing model SHA")?;
+    let task=plan["task"].as_str().ok_or("Missing task")?;
     let input_items=inputs["inputs"].as_array().ok_or("inputs must be an array")?;
     if input_items.len()>16{return Err("Too many media inputs".into());}
     let params=inputs.get("parameters").cloned().unwrap_or(json!({}));
     if !params.is_object(){return Err("Media parameters must be an object".into());}
-    let nonce=secure_nonce()?;
+    let nonce=job_id;
     let payload=json!({
         "schema_version":1,"request_id":nonce,"task":task,
         "model":{"id":model_id,"revision_sha":revision},
@@ -162,6 +199,20 @@ pub(crate) fn generate(outdir:&Path,model_id:&str,revision:&str,task:&str,
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn job_observation_is_bound_to_original_worker_and_never_authorizes_retry(){
+        let plan=json!({"request_id":"deployment"});
+        let instance="a".repeat(32);
+        let mut data=json!({"schema_version":1,"simulation_only":false,"request_id":"job","deployment_request_id":"deployment",
+            "worker_instance_id":instance,"status":"completed","active_jobs":0,"result":{"private":"secret"}});
+        let v=status_view(&data,&plan,"job",&instance).unwrap();
+        assert_eq!(v["retry_authorized"],false);
+        assert_eq!(v["artifact_transfer_verified"],false);
+        assert!(!v.to_string().contains("secret"));
+        data["worker_instance_id"]=json!("b".repeat(32));
+        assert!(status_view(&data,&plan,"job",&instance).is_err());
+        assert!(!job_id_valid("../other"));
+    }
     #[test]
     fn remote_worker_requires_https_hostname_and_never_local_metadata_address() {
         for bad in ["http://example.com","https://127.0.0.1","https://169.254.169.254",
