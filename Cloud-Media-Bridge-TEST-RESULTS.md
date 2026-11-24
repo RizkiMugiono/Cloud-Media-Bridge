@@ -282,3 +282,7 @@ The advisory source branch reports 76 Rust tests and 15 Python tests across its 
 ## Dynamic market follow-up
 
 The consolidated preceding commit passed offline CI (run 45309916340). Dynamic market changes require their own CI result. Live credentialed catalog calls, actual quote accuracy, production authorization, inference and GPU lifecycle are NOT RUN at authoring time.
+
+## Authorization and provider handoff follow-up
+
+Dynamic market commit 91ca8c5 passed CI 45310844087; signed authorization commit f95a2d3 passed CI 45312407341. Follow-up provider handoff and real ephemeral signature integration require fresh CI. Live catalog/account, independent operator deployment and GPU operations remain NOT RUN.

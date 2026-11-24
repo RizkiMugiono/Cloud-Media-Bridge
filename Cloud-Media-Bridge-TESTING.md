@@ -422,3 +422,7 @@ Test caller-quoted whole-allocation comparisons, alternative model SHA mismatche
 ## Live-source discovery tests
 
 Offline tests cover official-source catalog coverage, fixed GET adapter parsing, quote timestamps, expired/unknown sources, invalid provider identifiers and MCP non-authorization. Real provider catalog credentials and current offer schemas require independent live read-only checks; no GPU allocation in CI.
+
+## Provider handoff and signed authorization follow-up
+
+Offline tests cover nine provider drafts, exact RunPod region/count/tier, actual provider ownership/state checks, malformed provider parameters, signature verification with ephemeral OpenSSH Ed25519 keys, grant replay and tampering. None provisions GPU. Missing native dispatcher/runtime and independent trust topology must not be marked as live-ready.

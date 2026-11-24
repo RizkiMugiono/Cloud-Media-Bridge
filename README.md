@@ -220,3 +220,5 @@ See [Provider configuration and lifecycle](docs/PROVIDERS.md).
 **License:** [Apache-2.0](LICENSE).
 
 See [independent signed authorization](docs/SIGNED-AUTHORIZATION.md) for the CLI-only grant mechanism. Production remains gated; the signer and credentials must be outside the agent's control.
+
+[Provider-specific handoff](docs/PROVIDER-HANDOFF.md) is available through `cloud handoff` / MCP `provider_handoff`; it builds exact-plan request drafts for all nine provider modes and reports missing evidence. Native execution remains gated.
