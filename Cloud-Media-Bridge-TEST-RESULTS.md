@@ -4,7 +4,7 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **Offline Rust and Python worker tests passed on Linux, Windows and macOS; real GPU deployment, model inference and cloud operations remain untested**
+**Overall application status:** **38 Rust unit tests + 14 Rust MCP integration tests + Python HTTP worker tests passed in Linux offline CI; Windows/macOS and Docker CI are independently tracked. Real GPU deployment, model inference and cloud operations remain untested**
 
 This file records **actual observations only**. All-media catalog checks demonstrate classification and MCP contract behavior, **not** model inference or true universal runtime compatibility. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, media classification, evidence-based Rust runtime matching, Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
@@ -169,16 +169,18 @@ These tests track the read-only runtime candidate matcher. No OCI/installer is e
 | R07 | Live Hub model metadata and runtime matching | **NOT RUN** | No matching execution evidence recorded |
 | R08 | Real GPU runtime deployment, media result and resource cleanup | **NOT RUN** | No matching execution evidence recorded |
 
+[Offline E2E integration CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45301466162) — 38 Rust unit and 14 Rust MCP process tests, Python HTTP worker tests (13 on Unix, 12 plus one Unix-only skip on Windows), and a non-root CPU-only Docker fixture roundtrip on Linux. Runtime/model/GPU claims are not derived from this evidence.
+
 ## 2d. Offline end-to-end execution test ledger (O01–O14)
 
-**Fixture-only acceptance:** O01–O12 completed as offline tests in the PR branch across Linux, Windows and macOS. These exercises never use paid GPUs or real model weights. O04 verifies **rejection of non-interactive approval**, not a person entering the challenge interactively. O13–O14 are explicitly deferred for model/GPU/provider approval and cannot be marked PASS.
+**Fixture-only acceptance:** O01–O12 completed as offline tests on Linux and tested on other OSes where applicable; the pseudoterminal test is Unix-only. These exercises never use paid GPUs or real model weights. O04 verifies both rejection of redirected/non-interactive approval and a **positive pseudoterminal challenge** exercised on Linux; it does not prevent a privileged same-OS agent from emulating a terminal and is not production-level independent consent. O13–O14 are explicitly deferred for model/GPU/provider approval and cannot be marked PASS.
 
 | Test ID | Scenario | Status | Evidence |
 |---|---|---|---|
 | O01 | OS CSPRNG random deployment nonce and SHA-256 integrity | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `crypto::tests::known_sha256_vectors; crypto::tests::two_random_nonces_are_distinct` |
 | O02 | Nine local media family fixture workflows | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::all_nine_media_paths_have_real_verified_fixture_artifacts_and_auto_stop` |
 | O03 | Reject missing, replayed and tampered approval | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::missing_or_replayed_approval_is_rejected; plan_tampering_and_cross_session_replay_are_denied` |
-| O04 | Human terminal-only approval and fixture-only shortcut | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `piped_cli_cannot_issue_fake_human_approval; offline::tests::missing_or_replayed_approval_is_rejected (positive human TTY input not tested by CI)` |
+| O04 | Human terminal-only approval and fixture-only shortcut | **PASS (offline/mock only)** | [Unix TTY + CLI CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45301466162) — `test_interactive_tty_approval_consumes_a_single_mock_grant`; `piped_cli_cannot_issue_fake_human_approval` |
 | O05 | Worker failure with owned GPU mock resource | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::failure_auto_stops_only_owned_mock_resource` |
 | O06 | Owner-scoped stop with active-job deferral and no termination | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::ownership_is_mandatory_and_stop_never_terminates_resources; crash_window_reconciles_provider_owned_resource_by_idempotency` |
 | O07 | Provider stop failure and safe retry | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::stop_failure_is_visible_and_reconcilable_without_second_stop` |
