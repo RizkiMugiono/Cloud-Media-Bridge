@@ -1,0 +1,185 @@
+{
+  "tested_commit": "2f40c7c08ff59e5d824042b2263cf326ee679522",
+  "tested_on": "2026-11-24",
+  "os": "Windows x86_64",
+  "bridge_version": "0.1.0",
+  "debug_binary_sha256": "585e1d359bcde2f20b92d8a0c65890a64a9af93f62c462a14f93c3fd4312107e",
+  "cli_result_sha256": {
+    "doctor": "057fe46653235d61ab03890ed494a72f1b78295e35d861016285f23ce690a713",
+    "provider_profile_review": "e338bc3583e683ca8a3a3119d8c5f3b0b83010fbd6350442fa4c66bb46100026",
+    "billing_estimate": "69d4c62f929c79d43716765e78acc75b7540586f8f5c080118313f3c732b33c0",
+    "provider_handoff": "47f31f56359514fa36116770e65d071490c60a80043664c6e9e228b7f8b53d76"
+  },
+  "clients": [
+    {
+      "client": "Codex CLI",
+      "version": "0.171.0-alpha.13",
+      "model_route": "existing ChatGPT session",
+      "agent_exit_code": 0,
+      "tools_list_count": 27,
+      "tools_list_equals_cli": true,
+      "calls": [
+        {
+          "tool": "billing_estimate",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_handoff",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "doctor",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_profile_review",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        }
+      ]
+    },
+    {
+      "client": "Claude Code",
+      "version": "2.1.318",
+      "model_route": "openrouter/free",
+      "agent_exit_code": 0,
+      "tools_list_count": 27,
+      "tools_list_equals_cli": true,
+      "calls": [
+        {
+          "tool": "doctor",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_profile_review",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "billing_estimate",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_handoff",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        }
+      ]
+    },
+    {
+      "client": "Hermes Agent",
+      "version": "0.23.1 (3b4215785882)",
+      "model_route": "openrouter/free",
+      "agent_exit_code": 0,
+      "tools_list_count": 27,
+      "tools_list_equals_cli": true,
+      "calls": [
+        {
+          "tool": "doctor",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_profile_review",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "billing_estimate",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_handoff",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        }
+      ]
+    },
+    {
+      "client": "DeepSeek Harness",
+      "version": "0.2.2-rc.3",
+      "model_route": "openrouter/free",
+      "agent_exit_code": 0,
+      "tools_list_count": 27,
+      "tools_list_equals_cli": true,
+      "calls": [
+        {
+          "tool": "doctor",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_profile_review",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "billing_estimate",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_handoff",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        }
+      ]
+    },
+    {
+      "client": "OpenCode",
+      "version": "2.1.4",
+      "model_route": "opencode/deepseek-v4.1-flash-free",
+      "agent_exit_code": 0,
+      "tools_list_count": 27,
+      "tools_list_equals_cli": true,
+      "calls": [
+        {
+          "tool": "doctor",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_profile_review",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "billing_estimate",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        },
+        {
+          "tool": "provider_handoff",
+          "arguments_match_fixture": true,
+          "result_equals_cli": true,
+          "is_error": false
+        }
+      ]
+    }
+  ]
+}
