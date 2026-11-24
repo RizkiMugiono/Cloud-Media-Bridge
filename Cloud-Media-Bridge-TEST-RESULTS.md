@@ -270,3 +270,17 @@ Never commit access tokens, token secrets, private account identifiers, signed U
 - **NOT RUN:** any test that lacks a traceable execution record remains explicitly unverified.
 
 This ledger must be updated **by whichever developer, maintainer or automated test runner actually performs the test**, with reproducible evidence. Do not fabricate PASS results.
+
+## 2026-11-24 advisory-only architecture
+
+Tested implementation commit `ad0c2b9`, local branch `user-authorized-lifecycle`, based on `4fb0a0d`. The original local Modal prototype was preserved in its own checkout.
+
+| Local verification | Result |
+|---|---|
+| Windows Rust workspace, locked offline | PASS, 58 unit and 18 process/MCP tests |
+| Ubuntu WSL Rust workspace, locked offline | PASS, 58 unit and 18 process/MCP tests |
+| Clippy all targets with warnings denied | PASS on Windows and WSL |
+| WSL standalone build and Python worker/PTY suite | PASS, 15 tests with no paid operations |
+| Five non-Docker Linux policy checks extracted from the CI workflow | PASS for provider catalog, approval policy, media schemas, runtime registry and billing |
+
+The tests exercise quoted cost comparison, all five lifecycle triggers, plan-change invalidation, resource ownership, busy/uncertain state and rejection of live CLI commands. Fixture generation is simulation only. Hosted GitHub Actions, macOS, Docker fixture build, live provider pricing, human authentication by an external executor and real GPU behavior were not verified for this commit. No GPU was provisioned.
