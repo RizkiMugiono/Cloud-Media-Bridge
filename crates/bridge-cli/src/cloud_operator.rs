@@ -82,6 +82,9 @@ fn request<'a>(plan:&'a Value,token:&'a str)->Result<Deployment<'a>,String>{
         image:get("image")?,
         gpu:get("gpu")?,
         disk_gb:plan["disk_gb"].as_u64().ok_or("Missing bounded disk_gb")?,
+        region:get("region")?,
+        quantity:plan["quantity"].as_u64().ok_or("Missing GPU count")?,
+        cloud:plan["provider_parameters"]["cloud"].as_str().unwrap_or(""),
         offer_id:plan["offer_id"].as_u64(),
         model_id:get("model_id")?,
         model_sha:get("model_sha")?,
@@ -196,9 +199,7 @@ fn verified_decision_context(plan: &Value) -> Result<(), String> {
         return Err("Resolve missing quote, comparison, lifecycle and budget evidence before deployment".into());
     }
     should_stop_after_job(plan)?;
-    if plan["quantity"] != 1 {
-        return Err("Current provisioning contract supports one GPU only".into());
-    }
+    if plan["provider"]=="runpod-pods" && !matches!(plan["provider_parameters"]["cloud"].as_str(),Some("SECURE"|"COMMUNITY")){return Err("Exact RunPod cloud tier must be approved".into());}
     Ok(())
 }
 
@@ -455,8 +456,8 @@ mod tests {
         let dir=session();
         save(&dir,&state("runpod-pods","p01")).unwrap();
         let mut replay=Replay{replies:vec![
-            json!({"desiredStatus":"RUNNING"}),json!({"success":true}),
-            json!({"status":"EXITED","runtimeStatus":"stopped"})
+            json!({"id":"p01","name":"cmb-req001","status":"RUNNING"}),json!({"success":true}),
+            json!({"id":"p01","name":"cmb-req001","status":"EXITED","runtimeStatus":"stopped"})
         ],requests:vec![]};
         let result=reconcile_with(&dir,&mut replay).unwrap();
         assert_eq!(result["state"],"STOP_CONFIRMED");
@@ -469,8 +470,8 @@ mod tests {
         let dir=session();
         save(&dir,&state("vast-instances","123")).unwrap();
         let mut replay=Replay{replies:vec![
-            json!({"actual_status":"running"}),json!({"success":true}),
-            json!({"actual_status":"running"})
+            json!({"id":123,"label":"cmb-req001","actual_status":"running"}),json!({"success":true}),
+            json!({"id":123,"label":"cmb-req001","actual_status":"running"})
         ],requests:vec![]};
         let result=reconcile_with(&dir,&mut replay).unwrap();
         assert_eq!(result["state"],"STOP_UNCERTAIN");

@@ -73,5 +73,8 @@
       "task": "text-to-image"
     }
   ],
-  "compatibility_reason": "Illustrative GPU and workload only; no runtime or offer has been verified."
+  "compatibility_reason": "Illustrative GPU and workload only; no runtime or offer has been verified.",
+  "provider_parameters": {
+    "cloud": "SECURE"
+  }
 }

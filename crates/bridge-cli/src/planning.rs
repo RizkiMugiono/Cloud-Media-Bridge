@@ -54,6 +54,13 @@ pub(crate) fn review(raw: &Value) -> Result<Value, String> {
         raw["disk_gb"].as_u64().ok_or("Missing disk allocation")?,
         raw["offer_id"].as_u64(),
     )?;
+    if let Some(params)=raw.get("provider_parameters").filter(|v|!v.is_null()) {
+        let object=params.as_object().ok_or("provider_parameters must be an object")?;
+        if raw["provider"]!="runpod-pods" || object.keys().any(|k|k!="cloud") ||
+            !matches!(params["cloud"].as_str(),Some("SECURE"|"COMMUNITY")) {
+            return Err("Unsupported provider parameters; never place credentials in plan".into());
+        }
+    }
     let fields = [
         "schema_version",
         "account",
@@ -77,6 +84,7 @@ pub(crate) fn review(raw: &Value) -> Result<Value, String> {
         "max_total_micro_usd",
         "alternatives_unavailable_reason",
         "compatibility_reason",
+        "provider_parameters",
     ];
     for key in raw.as_object().ok_or("Expected manifest object")?.keys() {
         if key != "request_id" && key != "nonce" && !fields.contains(&key.as_str()) {
