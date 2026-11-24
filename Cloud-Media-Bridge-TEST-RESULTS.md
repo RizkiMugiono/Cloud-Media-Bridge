@@ -4,7 +4,7 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **62 Rust unit tests + 16 Rust MCP integration tests + 14 Python worker tests passed on Linux; earlier Rust suites passed on Windows/macOS and CPU Docker fixture passed on Linux. Real GPU inference, provider stop and actual billing remain untested**
+**Overall application status:** **62 Rust unit tests + 16 Rust MCP integration tests + 14 Python worker tests passed in offline CI on Linux, Windows and macOS; CPU Docker fixture passed on Linux. Real GPU inference, provider stop and actual billing remain untested**
 
 This file records **actual observations only**. All-media catalog checks demonstrate classification and MCP contract behavior, **not** model inference or true universal runtime compatibility. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, media classification, evidence-based Rust runtime matching, Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
@@ -18,8 +18,8 @@ This file records **actual observations only**. All-media catalog checks demonst
 | Markdown code fences in both documents are balanced | PASS | Architecture: 4 fence delimiters; test plan: 6; balanced = true |
 | Test case IDs are unique and complete | PASS | 140 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10, R01–R08, O01–O14, C01–C08, B01–B08 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
-| Application Rust source compilation and static analysis | PASS | [PR CI run 45215723211](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45217160090) passed Rust build/test/Clippy on Linux, Windows and macOS; runtime resolver branch commit `227c415b3ba456d9ddc23d67ded2101a0ec66bf8` |
-| CLI integration tests | PASS | 30 offline tests (21 Rust unit + 9 MCP process integration) passed on Linux, Windows and macOS; runtime matching uses synthetic evidence and does not execute models |
+| Application Rust source compilation and static analysis | PASS | [Latest cloud-control/billing PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306337305) passed cargo build/test/Clippy on Linux, Windows and macOS with no GPU |
+| CLI integration tests | PASS | [Latest offline CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306337305): 62 Rust unit, 16 MCP integration and 14 Python worker/security tests passed on Linux, Windows and macOS. GPU inference remains untested |
 | Modal CLI authentication (current working environment) | NOT VERIFIED | No login check was performed in this GitHub CI run; earlier claims are not fresh evidence |
 | Modal resource provisioning and real GPU inference | NOT RUN | No resources created and no GPU jobs submitted |
 
@@ -28,6 +28,8 @@ This file records **actual observations only**. All-media catalog checks demonst
 [All-media offline CI evidence](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45207348636) — **PASS on Linux and Windows: 12 unit tests, 7 MCP process tests, Rust Clippy, 61 media-task catalog checks and both generic media request/result schema checks.** This evidence does not include live Hub access or GPU inference.
 
 [Runtime resolver CI evidence](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45217160090) — 21 unit and 9 MCP process tests passed on Linux, Windows and macOS, Clippy passed, and 20 non-executable upstream runtime routes passed registry validation. No real model inference, provider deployment or paid GPU was used.
+
+[Latest provider control-plane and billing offline CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306337305) — Linux, Windows and macOS: 62 Rust unit tests, 16 MCP integration tests, 14 Python HTTP worker tests and strict Rust Clippy checks passed. Additional Linux-only validation checked billing quotes, nine GPU provider billing annotations and CPU/Docker fixture. **No cloud keys, paid GPU, real provider invoice, or real GPU stop were used.**
 
 Local application evidence covers only the scenarios below.
 
@@ -213,7 +215,7 @@ The billing estimates use user-provided illustrative prices, not live provider r
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
-| B01 | Per-second billing despite USD/hour display; immediate stop | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — hourly_display_with_per_second_billing_is_prorated_and_stops_immediately |
+| B01 | Per-second billing despite USD/hour display; immediate stop | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306337305) — hourly_display_with_per_second_billing_is_prorated_and_stops_immediately |
 | B02 | Full-hour minimum without waiting for the hour | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — true_hourly_minimum_charges_full_hour_but_does_not_hold_gpu_running |
 | B03 | Minute/day/millisecond/custom increments and minimums | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — minute_day_and_custom_quanta_round_resource_lifetime |
 | B04 | Prepaid, monthly, yearly and reserved compute contracts | **PASS (offline contract only)** | [CI run](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45306189793) — prepaid_monthly_and_yearly_cannot_be_costed_from_five_seconds |
