@@ -30,6 +30,13 @@ jobs:
         run: cargo metadata --locked --format-version 1 --no-deps
       - name: Compile and run local tests (no cloud accounts)
         run: cargo test --locked --workspace --all-targets
+      - name: Build standalone Rust binary for cross-language worker tests
+        run: cargo build --locked --workspace
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python media worker HTTP/security tests (fixture only, no GPU)
+        run: python -m unittest discover -s workers/tests -v
       - name: Rust lint
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Check provider catalog syntax and required entries
