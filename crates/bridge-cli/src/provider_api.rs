@@ -92,6 +92,7 @@ impl Deployment<'_> {
 
 fn env_vars(plan: &Deployment<'_>) -> Value {
     json!({
+        "CMB_DEPLOYMENT_REQUEST_ID": plan.request_id,
         "CMB_MODEL_ID": plan.model_id,
         "CMB_MODEL_SHA": plan.model_sha,
         "CMB_TASK": plan.task,
