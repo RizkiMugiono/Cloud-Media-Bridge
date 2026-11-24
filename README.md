@@ -47,6 +47,23 @@ The project adopts four user-approved requirements. The [versioned policy contra
 
 Serverless providers use provider-supported scale-to-zero after idleness rather than a VM stop call. Preexisting user-managed hardware must never be shut down without an authorized ownership scope. Shutdown must be reconciled after failures/cancellation and survives process crashes once durable lifecycle tracking is implemented.
 
+## GPU billing: five-second jobs, hourly minimums and prepaid rentals
+
+**Default:** stop bridge-owned compute immediately after the last job and verified artifact transfer, whether a provider quotes by millisecond, second, minute, hour, day, month or year. **Do not keep a GPU running until the end of an already-paid hour unless the user explicitly authorizes reuse.**
+
+A displayed `$ / hour` rate is not necessarily a one-hour minimum. Rust now reads provider-specific billing hints and supports a **read-only** billing policy/estimate for actual increments, minimums and usage-based costs. Contracts billed monthly, yearly or prepaid are marked **not estimable from a five-second job**, with separate storage/network/commitment warnings. No provider prices are invented.
+
+```sh
+cargo run --locked -- billing
+cargo run --locked -- billing estimate examples/billing-per-second-5s.example.json
+cargo run --locked -- billing estimate examples/billing-hour-minimum-5s.example.json
+cargo run --locked -- billing estimate examples/billing-prepaid-monthly.example.json
+```
+
+AI agents can call MCP `billing_policy` and `billing_estimate` without GPU credentials or costs. A prepared real deployment stores the supplied quote and budget in the human-reviewable exact plan; unknown pricing, calendar commitments or budget overruns **block automated paid deployment**. Estimates use caller-provided terms and do not guarantee a provider-side hard spending cap or invoice. Stop may still leave storage/contract charges.
+
+See [GPU billing models and resource lifecycle](docs/GPU-BILLING.md) and [machine-readable billing policy](config/billing-policy.json).
+
 ## Real-provider control plane (code available; GPU execution blocked)
 
 The Rust code now contains non-mock **RunPod Pods REST v2** and **Vast.ai Instances REST** request builders, response parsing, authenticated HTTPS transport, and provider-confirmed resource stop reconciliation in `provider_api.rs`, `provider_http.rs` and `cloud_operator.rs`. The operator CLI uses a private resource journal and separate one-shot terminal confirmation; MCP does **not** expose paid resource creation or destruction.
@@ -178,13 +195,14 @@ See [Provider configuration and lifecycle](docs/PROVIDERS.md).
 ## Project documents
 
 - [Implementation specification](Cloud-Media-Bridge.md) — architecture and implementation requirements.
-- [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — initial project gates, 82 original scenarios, 10 deployment-decision tests, 10 all-media tests and 8 runtime resolver tests, and 14 offline end-to-end cases and 8 provider control-plane cases (132 total).
+- [Detailed test plan](Cloud-Media-Bridge-TESTING.md) — initial project gates, 82 original scenarios, 10 deployment-decision tests, 10 all-media tests and 8 runtime resolver tests, and 14 offline end-to-end cases and 8 provider control-plane cases and 8 GPU billing cases (140 total).
 - [Test result ledger](Cloud-Media-Bridge-TEST-RESULTS.md) — evidence and `NOT RUN` status for unexecuted tests.
 - [Media model discovery and taxonomy](docs/MEDIA-MODELS.md).
 - [Runtime selection and verification](docs/RUNTIME-RESOLUTION.md).
 - [Runtime registry](config/runtime-registry.json) and [runtime-family guides](runtimes/README.md).
 - [Offline end-to-end execution and worker interoperability](docs/OFFLINE-E2E.md).
 - [Provider support matrix](docs/PROVIDERS.md).
+- [GPU billing granularity and post-job stop policy](docs/GPU-BILLING.md).
 - [Contributor instructions](AGENTS.md).
 
 **License:** [Apache-2.0](LICENSE).
