@@ -185,7 +185,8 @@ class Worker:
                 raise WorkerError("GPU_REQUIRED", "CUDA device is required", 503)
             if self.pipeline is None:
                 self.pipeline = pipeline(self.task, model=self.model_id,
-                    revision=self.revision, trust_remote_code=False, device=0)
+                    revision=self.revision, trust_remote_code=False, device=0,
+                    model_kwargs={"use_safetensors": True})
             if self.task == "automatic-speech-recognition":
                 item = self._input(inputs, "audio")
                 audio, mime, _ = self.load(str(item.get("asset_ref", "")))
@@ -334,6 +335,8 @@ def main() -> None:
     host = os.getenv("CMB_BIND", "127.0.0.1")
     if fixture and (host not in {"127.0.0.1", "::1"} or os.getenv("CMB_ENABLE_TEST_FIXTURE") != "1"):
         raise SystemExit("Fixture mode is restricted to local loopback tests")
+    if host not in {"127.0.0.1", "::1"} and os.getenv("CMB_PRIVATE_NETWORK_ACK") != "1":
+        raise SystemExit("Non-loopback worker binding requires explicit private-network/TLS ingress acknowledgment")
     token = os.environ["CMB_WORKER_TOKEN"]
     worker = Worker(
         os.environ["CMB_MODEL_ID"], os.environ["CMB_MODEL_SHA"],
