@@ -407,7 +407,7 @@ mod tests {
         save(&dir,&state("runpod-pods","p01")).unwrap();
         let mut replay=Replay{replies:vec![
             json!({"desiredStatus":"RUNNING"}),json!({"success":true}),
-            json!({"desiredStatus":"EXITED"})
+            json!({"status":"EXITED","runtimeStatus":"stopped"})
         ],requests:vec![]};
         let result=reconcile_with(&dir,&mut replay).unwrap();
         assert_eq!(result["state"],"STOP_CONFIRMED");
