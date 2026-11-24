@@ -26,6 +26,7 @@ use std::process::Command;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL: &str = "2025-11-25";
+const MODERN_PROTOCOL: &str = "2026-07-28";
 const MAX_FRAME: u64 = 1024 * 1024;
 const PROVIDER_CATALOG: &str = include_str!("../../../config/providers.json");
 const DEPLOYMENT_POLICY: &str = include_str!("../../../config/deployment-policy.json");
@@ -284,7 +285,7 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "providers_list" => providers_list(),
         "deployment_policy" => deployment_policy(),
         "billing_policy" => billing::policy(),
-        "provider_sources" => market::sources(arguments["provider"].as_str()),
+        "provider_sources" => if arguments["profile"].is_null(){market::sources(arguments["provider"].as_str())}else{provider_profile::sources(get_string(arguments,"provider")?,&arguments["profile"])},
         "market_refresh" => market::refresh(get_string(arguments,"provider")?),
         "market_quote_check" => market::check_profile(&arguments["quote"],&arguments["profile"]),
         "provider_profile_review" => provider_profile::review(&arguments["profile"]),
@@ -342,6 +343,7 @@ enum Phase {
     New,
     Negotiated,
     Ready,
+    Modern,
 }
 
 fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
@@ -370,6 +372,30 @@ fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
     if request.get("params").is_some() && !params.is_object() {
         return Some(error(id, -32602, "Invalid parameters"));
     }
+    let modern_version=&params["_meta"]["io.modelcontextprotocol/protocolVersion"];
+    if *phase==Phase::Modern || (*phase==Phase::New && (method==Some("server/discover") || !modern_version.is_null())) {
+        if modern_version!=MODERN_PROTOCOL {
+            let mut response=error(id,-32022,"UnsupportedProtocolVersion");
+            response["error"]["data"]=json!({"supported":[MODERN_PROTOCOL]});
+            return Some(response);
+        }
+        if !params["_meta"]["io.modelcontextprotocol/clientCapabilities"].is_object(){
+            return Some(error(id,-32602,"Missing modern client capabilities"));
+        }
+        if let Some(info)=params["_meta"].get("io.modelcontextprotocol/clientInfo") {
+            if !info["name"].is_string()||!info["version"].is_string(){return Some(error(id,-32602,"Invalid clientInfo"));}
+        }
+        *phase=Phase::Modern;
+        let mut result=match method?{
+            "server/discover"=>json!({"supportedVersions":[MODERN_PROTOCOL],"capabilities":{"tools":{}}}),
+            "tools/list"=>json!({"tools":tool_definitions()}),
+            "tools/call"=>match call_tool(params){Ok(value)=>value,Err(())=>return Some(error(id,-32602,"Invalid parameters"))},
+            _=>return Some(error(id,-32601,"Method not found")),
+        };
+        result["resultType"]=json!("complete");
+        result["_meta"]=json!({"io.modelcontextprotocol/serverInfo":{"name":"cloud-media-bridge","version":VERSION}});
+        return Some(json!({"jsonrpc":"2.0","id":id,"result":result}));
+    }
     let result = match method? {
         "ping" => json!({}),
         "initialize" if *phase == Phase::New => {
@@ -381,32 +407,37 @@ fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
                 return Some(error(id, -32602, "Invalid parameters"));
             }
             *phase = Phase::Negotiated;
-            json!({"protocolVersion":PROTOCOL, "capabilities":{"tools":{}},
+            let requested=params["protocolVersion"].as_str().unwrap_or(PROTOCOL);
+            let version=match requested{"2024-11-05"|"2025-03-26"|"2025-06-18"|"2025-11-25"=>requested,_=>PROTOCOL};
+            json!({"protocolVersion":version, "capabilities":{"tools":{}},
                    "serverInfo":{"name":"cloud-media-bridge","version":VERSION}})
         }
         "initialize" => return Some(error(id, -32600, "Already initialized")),
         _ if *phase != Phase::Ready => return Some(error(id, -32002, "Session not initialized")),
         "tools/list" => json!({"tools": tool_definitions()}),
-        "tools/call" => {
-            let Some(name) = params["name"].as_str() else {
-                return Some(error(id, -32602, "Invalid parameters"));
-            };
-            let empty = json!({});
-            let arguments = params.get("arguments").unwrap_or(&empty);
-            if !arguments.is_object() || !tool_names().contains(&name) || !valid_tool_args(name, arguments) {
-                return Some(error(id, -32602, "Invalid parameters"));
-            }
-            match execute_tool(name, arguments) {
-                Ok(value) => {
-                    let text = if name == "doctor" { doctor() } else { value.to_string() };
-                    json!({"content":[{"type":"text","text":text}], "structuredContent": value})
-                },
-                Err(message) => json!({"content":[{"type":"text","text":message}],"isError":true}),
-            }
-        }
+        "tools/call" => match call_tool(params){Ok(v)=>v,Err(())=>return Some(error(id,-32602,"Invalid parameters"))},
         _ => return Some(error(id, -32601, "Method not found")),
     };
     Some(json!({"jsonrpc":"2.0", "id":id, "result":result}))
+}
+
+// Identical validation and dispatch for legacy MCP, modern MCP and the CLI.
+fn call_tool(params:&Value)->Result<Value,()>{
+    let name=params["name"].as_str().ok_or(())?;
+    let empty=json!({});
+    let arguments=params.get("arguments").unwrap_or(&empty);
+    if !tool_names().contains(&name)||!valid_tool_args(name,arguments){return Err(());}
+    Ok(match execute_tool(name,arguments){
+        Ok(value)=>{
+            let text=if name=="doctor"{doctor()}else{value.to_string()};
+            json!({"content":[{"type":"text","text":text}],"structuredContent":value})
+        },
+        Err(message)=>json!({"content":[{"type":"text","text":message}],"isError":true}),
+    })
+}
+fn cli_tool(name:&str,arguments:&Value)->Result<Value,String>{
+    if !tool_names().contains(&name)||!valid_tool_args(name,arguments){return Err("Invalid tool name or arguments".into());}
+    execute_tool(name,arguments)
 }
 
 fn valid_tool_args(name: &str, arguments: &Value) -> bool {
@@ -414,7 +445,7 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
         "doctor" | "providers_list" | "deployment_policy" | "billing_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
-        "provider_sources" => has_only(&["provider"]) && arguments.get("provider").is_none_or(Value::is_string),
+        "provider_sources" => has_only(&["provider","profile"]) && arguments.get("provider").is_none_or(Value::is_string) && arguments.get("profile").is_none_or(|p|p.is_object()&&arguments["provider"].is_string()),
         "market_refresh" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "market_quote_check" => has_only(&["quote","profile"]) && arguments["quote"].is_object() && arguments.get("profile").is_none_or(Value::is_object),
         "provider_profile_review" => has_only(&["profile"]) && arguments["profile"].is_object(),
@@ -535,8 +566,8 @@ fn tool_definitions() -> Value {
         {"name":"lifecycle_advice","description":"Evaluate a prepared plan and caller-reported consent and observations. Returns advice only.",
          "inputSchema":{"type":"object","properties":{"plan":{"type":"object"},"receipt":{"type":"object"},"observed":{"type":"object"}},"required":["plan","receipt","observed"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"provider_sources","description":"Get official current pricing, docs and upstream release links. No prices are embedded; agent must consult live sources.",
-         "inputSchema":{"type":"object","properties":{"provider":{"type":"string"}},"additionalProperties":false},
+        {"name":"provider_sources","description":"Get official pricing/docs/release references or user-selected external profile references. Agent must verify live sources.",
+         "inputSchema":{"type":"object","properties":{"provider":{"type":"string"},"profile":{"type":"object"}},"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"market_refresh","description":"Read a provider catalog using a fixed GET endpoint and locally configured credentials when supported. No GPU rental; otherwise return official sources for agent research.",
          "inputSchema":{"type":"object","properties":{"provider":{"type":"string"}},"required":["provider"],"additionalProperties":false},
@@ -661,6 +692,8 @@ fn print_json(value: Result<Value, String>) -> i32 {
 
 fn run_cli(args: &[String]) -> i32 {
     match args {
+        [cmd,action] if cmd=="tools"&&action=="list"=>print_json(Ok(tool_definitions())),
+        [cmd,action,name,file] if cmd=="tools"&&action=="call"=>print_json(planning::load_manifest(file,1024*1024).and_then(|v|cli_tool(name,&v))),
         [cmd] if cmd == "doctor" => {
             println!("{}", doctor());
             0
@@ -783,6 +816,8 @@ fn run_cli(args: &[String]) -> i32 {
             println!("Usage:
   cloud-media-bridge doctor
   cloud-media-bridge mcp
+  cloud-media-bridge tools list
+  cloud-media-bridge tools call <tool-name> <arguments.json>
   cloud-media-bridge providers [provider-id]
   cloud-media-bridge providers profile <profile.json>
   cloud-media-bridge policy

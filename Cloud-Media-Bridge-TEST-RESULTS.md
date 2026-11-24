@@ -298,3 +298,7 @@ Account preflight commit 9cd0fed passed CI 45315074933; CPU-only container packa
 ## Scope simplification
 
 Commit 2c8d642 passed offline CI 45315800849 before scope reduction. Custom OpenSSH approval and supervisor subsystems are retired; their older test results are historical only. Native provider mechanisms, plan validation, worker recovery and runtime tests remain. The simplified revision requires new CI evidence; no paid GPU has been rented.
+
+## Generic provider and agent interoperability
+
+Simplified commit 30ae143 passed CI 45316577015. External profiles and protocol/CLI interoperability changes require fresh CI. No real third-party agent client, paid provider deployment, or GPU inference is claimed verified.

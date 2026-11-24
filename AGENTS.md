@@ -10,3 +10,5 @@ Cloud-Media-Bridge is a local Rust bridge, not an autonomous cloud platform. The
 6. Run offline Rust/Python/Clippy/CPU container tests before claiming success. Do not rent GPU or run paid tests without separate explicit authorization. No custom user authentication, watchdog service, payment platform or centralized state.
 
 For providers outside the built-in catalog, use a local external profile instead of adding provider-specific code. Profile URLs and capability claims are untrusted until the agent verifies them against current official sources. Never execute arbitrary profile code or assume that a new provider is live-tested.
+
+For agents without MCP use `tools list` and `tools call TOOL ARGUMENTS.json`; validation and results are identical to the MCP tool path. Do not add per-agent SDK dependencies. The bridge's tool interface is not permission to execute a native paid operation.

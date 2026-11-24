@@ -70,3 +70,14 @@ Apache-2.0.
 ### Any additional provider, no repository edit
 
 Create a local [external provider profile](examples/external-provider.example.json) with the real provider ID, official pricing/documentation URLs, native interface and supported lifecycle actions. Use `providers profile PROFILE.json` or MCP `provider_profile_review`, then pass that profile as `provider_profile` in the deployment manifest and each external alternative. For runtime matching and quote checking use the optional profile argument. The Rust bridge validates and compares the same plan, produces a provider-native agent handoff, and guides lifecycle reconciliation. It does not fetch arbitrary URLs or execute arbitrary profile commands. The agent verifies sources and constructs the native call using the current official SDK/API/CLI, obtains approval, and dispatches through its own tools. The illustrative profile is not a real provider. See [generic provider workflow](docs/GENERIC-PROVIDERS.md).
+
+### Agent interoperability
+
+The local executable supports MCP stdio for handshake revisions 2024-11-05, 2025-03-26, 2025-06-18 and 2025-11-25, and the basic 2026-07-28 stateless discovery/tools interface. No HTTP server or full optional MCP feature set is required. Any agent with a shell can use the same validated tool interface without MCP:
+
+```sh
+cloud-media-bridge tools list
+cloud-media-bridge tools call provider_profile_review arguments.json
+```
+
+`arguments.json` contains the exact MCP arguments object, for example `{ "profile": { ... } }`. CLI tool results are JSON, not MCP envelopes. Agent host authorization still applies. See [agent integration](docs/AGENT-INTEGRATION.md). Protocol fixtures are not evidence that every third-party client has been tested.

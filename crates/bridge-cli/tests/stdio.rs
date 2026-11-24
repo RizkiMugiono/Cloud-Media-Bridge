@@ -427,3 +427,51 @@ fn external_provider_uses_same_plan_cost_and_handoff_without_registration(){
     assert_eq!(d["approval_granted"],false);
     assert_eq!(d["plan_sha256"],p["plan_sha256"]);
 }
+
+#[test]
+fn legacy_mcp_negotiates_each_supported_handshake_revision(){
+    for version in ["2024-11-05","2025-03-26","2025-06-18","2025-11-25"]{
+        let init=INIT.replace("2025-11-25",version);
+        let replies=exchange(&[&init,READY,LIST]);
+        assert_eq!(replies[0]["result"]["protocolVersion"],version);
+        assert_eq!(replies[1]["result"]["tools"].as_array().unwrap().len(),27);
+    }
+    let unknown=INIT.replace("2025-11-25","unsupported");
+    assert_eq!(exchange(&[&unknown])[0]["result"]["protocolVersion"],"2025-11-25");
+}
+#[test]
+fn modern_stdio_discovery_and_tool_calls_do_not_need_initialize(){
+    let meta=json!({"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}});
+    let discover=json!({"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":meta}});
+    let list=json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":meta}});
+    let call=json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":meta,"name":"doctor","arguments":{}}});
+    let bad=json!({"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}});
+    let replies=exchange(&[&discover.to_string(),&list.to_string(),&call.to_string(),&bad.to_string()]);
+    assert_eq!(replies[0]["result"]["supportedVersions"],json!(["2026-07-28"]));
+    assert_eq!(replies[0]["result"]["resultType"],"complete");
+    assert_eq!(replies[0]["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],"cloud-media-bridge");
+    assert_eq!(replies[1]["result"]["tools"].as_array().unwrap().len(),27);
+    assert!(replies[2]["result"]["structuredContent"]["message"].is_string());
+    assert_eq!(replies[3]["error"]["code"],-32022);
+    let pinned=exchange(&[&call.to_string()]);
+    assert_eq!(pinned[0]["result"]["resultType"],"complete");
+}
+#[test]
+fn cli_tool_dispatch_matches_mcp_and_never_exposes_paid_commands(){
+    let root=std::env::temp_dir().join(format!("cmb-cli-tools-{}",std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let path=root.join("args.json");
+    std::fs::write(&path,"{}").unwrap();
+    let output=Command::new(BINARY).args(["tools","list"]).output().unwrap();
+    assert!(output.status.success());
+    let list:Value=serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(list,exchange(&[INIT,READY,LIST])[1]["result"]["tools"]);
+    let output=Command::new(BINARY).args(["tools","call","providers_list"]).arg(&path).output().unwrap();
+    assert!(output.status.success());
+    let cli:Value=serde_json::from_slice(&output.stdout).unwrap();
+    let rpc=r#"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"providers_list","arguments":{}}}"#;
+    assert_eq!(cli,exchange(&[INIT,READY,rpc])[1]["result"]["structuredContent"]);
+    let bad=Command::new(BINARY).args(["tools","call","cloud_deploy"]).arg(&path).output().unwrap();
+    assert!(!bad.status.success());
+    std::fs::remove_dir_all(root).unwrap();
+}
