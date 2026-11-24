@@ -1,4 +1,6 @@
+mod crypto;
 mod media;
+mod offline;
 mod runtime;
 
 use serde_json::{json, Value};
@@ -256,7 +258,7 @@ fn plan_generation(model: &str, provider: &str) -> Result<Value, String> {
     }))
 }
 
-fn execute_readonly(name: &str, arguments: &Value) -> Result<Value, String> {
+fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
     fn get_string<'a>(arguments: &'a Value, key: &str) -> Result<&'a str, String> {
         arguments[key]
             .as_str()
@@ -268,6 +270,11 @@ fn execute_readonly(name: &str, arguments: &Value) -> Result<Value, String> {
         "deployment_policy" => deployment_policy(),
         "media_tasks_list" => media::catalog(),
         "runtimes_list" => runtime::registry(),
+        "offline_fixture_demo" => offline::demo(
+            get_string(arguments, "directory")?, get_string(arguments, "kind")?
+        ),
+        "offline_fixture_status" => offline::status(get_string(arguments, "directory")?),
+        "offline_fixture_verify" => offline::verify(get_string(arguments, "directory")?),
         "runtime_resolve" => {
             let inspected = inspect_model(get_string(arguments, "model")?)?;
             let provider = provider_info(get_string(arguments, "provider")?)?;
@@ -348,7 +355,7 @@ fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
             if !arguments.is_object() || !tool_names().contains(&name) || !valid_tool_args(name, arguments) {
                 return Some(error(id, -32602, "Invalid parameters"));
             }
-            match execute_readonly(name, arguments) {
+            match execute_tool(name, arguments) {
                 Ok(value) => {
                     let text = if name == "doctor" { doctor() } else { value.to_string() };
                     json!({"content":[{"type":"text","text":text}], "structuredContent": value})
@@ -378,6 +385,16 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
                 })
         }
         "models_inspect" => has_only(&["model"]) && arguments["model"].is_string(),
+        "offline_fixture_demo" => {
+            has_only(&["directory","kind","confirm_fixture_only"])
+                && arguments["confirm_fixture_only"] == true
+                && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len() <= 1024)
+                && arguments["kind"].as_str().is_some_and(|v| offline::supported_kinds().contains(&v))
+        }
+        "offline_fixture_status" | "offline_fixture_verify" => {
+            has_only(&["directory"])
+                && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len() <= 1024)
+        },
         "plan_generation" | "runtime_resolve" => {
             has_only(&["model", "provider"]) && arguments["model"].is_string()
                 && arguments["provider"].is_string()
@@ -395,6 +412,9 @@ fn tool_names() -> &'static [&'static str] {
         "media_tasks_list",
         "runtimes_list",
         "runtime_resolve",
+        "offline_fixture_demo",
+        "offline_fixture_status",
+        "offline_fixture_verify",
         "models_search",
         "models_inspect",
         "plan_generation",
@@ -425,6 +445,19 @@ fn tool_definitions() -> Value {
         {"name":"runtime_resolve","description":"Inspect an exact Hugging Face media model, compare it to trusted upstream runtime candidate metadata and a GPU provider. Read-only; execution unavailable.",
          "inputSchema":{"type":"object","properties":{"model":{"type":"string"},"provider":{"type":"string"}},
                         "required":["model","provider"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"offline_fixture_demo","description":"Create a fully offline simulated deployment and fixture-media artifact in a new user-specified local directory, then verify mock resource auto-stop. NOT real AI, model inference, cloud or GPU.",
+         "inputSchema":{"type":"object","properties":{
+             "directory":{"type":"string","minLength":1,"maxLength":1024},
+             "kind":{"type":"string","enum":["image","video","audio","speech","music","three_d","spatial","document","multimodal"]},
+             "confirm_fixture_only":{"type":"boolean","const":true}
+           },"required":["directory","kind","confirm_fixture_only"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":false}},
+        {"name":"offline_fixture_status","description":"Read an existing offline fixture deployment journal and simulated provider observation; no cloud activity.",
+         "inputSchema":{"type":"object","properties":{"directory":{"type":"string"}},"required":["directory"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"offline_fixture_verify","description":"Verify a local fixture artifact's size and SHA-256; never claim real AI inference.",
+         "inputSchema":{"type":"object","properties":{"directory":{"type":"string"}},"required":["directory"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"models_search","description":"Search all accessible Hugging Face models or filter by any Hub pipeline task; tags are classified without asserting inference compatibility.",
          "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"task":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},
@@ -493,6 +526,19 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd] if cmd == "providers" => print_json(providers_list()),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
         [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
+        [cmd, sub, dir, kind] if cmd == "offline" && sub == "prepare" => {
+            print_json(offline::prepare(dir, kind))
+        }
+        [cmd, sub, dir, kind] if cmd == "offline" && sub == "demo" => {
+            print_json(offline::demo(dir, kind))
+        }
+        [cmd, sub, dir] if cmd == "offline" && sub == "approve" => {
+            print_json(offline::approve_interactively(dir))
+        }
+        [cmd, sub, dir] if cmd == "offline" && sub == "run" => print_json(offline::run(dir)),
+        [cmd, sub, dir] if cmd == "offline" && sub == "reconcile" => print_json(offline::reconcile(dir)),
+        [cmd, sub, dir] if cmd == "offline" && sub == "verify" => print_json(offline::verify(dir)),
+        [cmd, sub, dir] if cmd == "offline" && sub == "status" => print_json(offline::status(dir)),
         [cmd, action, model, provider] if cmd == "runtimes" && action == "resolve" => {
             print_json(inspect_model(model).and_then(|inspected| {
                 provider_info(provider).and_then(|selected| runtime::resolve(&inspected, &selected))
@@ -536,14 +582,22 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge policy
   cloud-media-bridge runtimes
   cloud-media-bridge runtimes resolve <model> <provider-id>
+  cloud-media-bridge offline demo <new-directory> <media-kind>
+  cloud-media-bridge offline prepare <new-directory> <media-kind>
+  cloud-media-bridge offline approve <directory>      (human TTY required)
+  cloud-media-bridge offline run <directory>
+  cloud-media-bridge offline status <directory>
+  cloud-media-bridge offline verify <directory>
+  cloud-media-bridge offline reconcile <directory>
   cloud-media-bridge models tasks
   cloud-media-bridge models search <query> [limit]
   cloud-media-bridge models search-task <pipeline_tag> [limit]
   cloud-media-bridge models inspect <owner/model|https://huggingface.co/owner/model>
   cloud-media-bridge plan <model> <provider-id>
 
-This version performs only read-only model discovery and planning.
-No deployment, inference or billing operation is implemented.");
+This version supports read-only model discovery/planning and an offline
+deployment simulation with synthetic fixture-media artifacts and mock auto-stop.
+No real provider deployment, AI model inference, or GPU billing is implemented.");
             0
         }
         _ => {
@@ -644,6 +698,6 @@ mod tests {
 
     #[test]
     fn unknown_mcp_tool_returns_error() {
-        assert!(execute_readonly("no_such_tool", &json!({})).is_err());
+        assert!(execute_tool("no_such_tool", &json!({})).is_err());
     }
 }
