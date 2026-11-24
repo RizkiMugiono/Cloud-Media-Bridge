@@ -1,6 +1,9 @@
+mod cloud_operator;
 mod crypto;
 mod media;
 mod offline;
+mod provider_api;
+mod provider_http;
 mod provider_ops;
 mod runtime;
 mod worker_client;
@@ -571,6 +574,18 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd] if cmd == "providers" => print_json(providers_list()),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
         [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
+        [cmd, sub, dir, manifest] if cmd == "cloud" && sub == "prepare" => {
+            print_json(cloud_operator::prepare(dir,manifest))
+        }
+        [cmd, sub, dir] if cmd == "cloud" && sub == "status" => {
+            print_json(cloud_operator::status(dir))
+        }
+        [cmd, sub, dir] if cmd == "cloud" && sub == "deploy" => {
+            print_json(cloud_operator::deploy(dir))
+        }
+        [cmd, sub, dir] if cmd == "cloud" && sub == "stop" => {
+            print_json(cloud_operator::stop(dir))
+        }
         [cmd, provider, image, gpu, disk] if cmd == "provider-preview" => {
             print_json(disk.parse::<u64>().map_err(|_|"Invalid disk_gb".to_string())
                 .and_then(|gb| provider_ops::preview(provider,image,gpu,gb,None)))
@@ -641,6 +656,10 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge runtimes
   cloud-media-bridge runtimes resolve <model> <provider-id>
   cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
+  cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>
+  cloud-media-bridge cloud status <directory>
+  cloud-media-bridge cloud deploy <directory>       (verified runtime + real human TTY + CMB_ENABLE_LIVE_GPU required)
+  cloud-media-bridge cloud stop <directory>         (only bridge-created and owned resources)
   cloud-media-bridge offline worker-smoke <output-directory> <loopback-port> <media-kind>
   cloud-media-bridge offline demo <new-directory> <media-kind>
   cloud-media-bridge offline prepare <new-directory> <media-kind>
@@ -657,7 +676,7 @@ fn run_cli(args: &[String]) -> i32 {
 
 This version supports read-only model discovery/planning and an offline
 deployment simulation with synthetic fixture-media artifacts and mock auto-stop.
-No real provider deployment, AI model inference, or GPU billing is implemented.");
+Real provider API adapters for RunPod Pods and Vast.ai Instances now exist behind a human-operated CLI and verified-runtime release gate. No bundled runtime has the necessary verified evidence yet, so live paid deployment remains blocked. Offline fixture generation is not AI inference.");
             0
         }
         _ => {
