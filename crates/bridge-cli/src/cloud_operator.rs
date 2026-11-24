@@ -237,6 +237,7 @@ pub(crate) fn deploy(directory:&str)->Result<Value,String>{
     verify_plan_account(&plan,&mut CurlTransport)?;
     let grant=crate::authorization::consume_for_plan(&plan,"deploy",Value::Null,Value::Null)?;
     state["status"]=json!("CREATE_IN_FLIGHT");
+    state["create_intent_unix_ms"]=json!(crate::watchdog::now_ms()?);
     state["approval"]=json!({"status":"approved","consumed":true,"origin":"independent_signed_grant",
         "bound_plan_sha256":state["plan_sha256"],"grant_id":grant["grant_id"]});
     save(&root,&state)?;
@@ -310,6 +311,7 @@ fn reconcile_with<T:Transport>(root:&Path,api:&mut T)->Result<Value,String>{
     };
     state["status"]=answer["state"].clone();
     state["resource"]["stop_state"]=answer["state"].clone();
+    if answer["state"]=="STOP_CONFIRMED"{state["stop_confirmed_unix_ms"]=json!(crate::watchdog::now_ms()?);}
     save(root,&state)?;
     Ok(answer)
 }
@@ -333,6 +335,27 @@ fn inspect_with<T:Transport>(state:&Value,api:&mut T)->Result<Value,String>{
 }
 fn verify_plan_account<T:Transport>(plan:&Value,api:&mut T)->Result<Value,String>{
     provider_api::verify_account(api,plan["provider"].as_str().ok_or("Missing provider")?,plan["account"].as_str().ok_or("Missing account ID")?)
+}
+// Callable from an independently configured OS scheduler. It never changes
+// the cloud journal or invokes a mutating provider operation.
+pub(crate) fn watch(directory:&str,local_only:bool)->Result<Value,String>{
+    let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
+    let state=read(&root)?;
+    let mut report=crate::watchdog::evaluate(&state,crate::watchdog::now_ms()?);
+    report["local_only"]=json!(local_only);
+    report["journal_modified"]=json!(false);
+    if !local_only&&state["resource"]["id"].is_string(){
+        let observation=verify_plan_account(&state["plan"],&mut CurlTransport)
+            .and_then(|_|inspect_with(&state,&mut CurlTransport));
+        match observation{
+            Ok(v)=>report["provider_observation"]=v,
+            Err(_)=>{
+                report["provider_observation"]=json!({"status":"unavailable_or_identity_unverified"});
+                report["needs_operator_attention"]=json!(true);
+            }
+        }
+    }
+    Ok(report)
 }
 pub(crate) fn account_check(directory:&str)->Result<Value,String>{
     let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;

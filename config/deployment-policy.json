@@ -129,6 +129,13 @@
       "production_enforcement_available": false,
       "unsupported_choice": "reject_no_fallback",
       "termination_requires_separate_destructive_approval": true
+    },
+    "supervision": {
+      "mode": "independent_read_only_supervisor_tick",
+      "native_mutation_enabled": false,
+      "local_time_and_quote_estimate_only": true,
+      "external_scheduler_required": true,
+      "invoice_not_verified": true
     }
   },
   "execution": {

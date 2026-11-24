@@ -434,3 +434,7 @@ Offline replay tests exercise persisted STOP_IN_FLIGHT and STOP_UNCERTAIN, GET-o
 ## Worker job identity and recovery
 
 Mocked smoke inference tests cover same-ID result replay, changed inputs, failed job replay, worker restart and busy pipeline behavior. Rust tests verify redacted job observations bound to original worker and deployment, with no transfer/stop/retry permission. Worker ledger is process-local, not durable; restart recovery remains an explicit reconciliation boundary.
+
+## Independent supervisor tick
+
+Offline tests cover cost/time limits, unknown or future timestamps, crash states, confirmed stop estimate freeze, residual invoice warnings and pending plans with no invented charges. Local-only mode sends no provider requests; credentialed mode remains read-only. No background scheduler is installed by CI.
