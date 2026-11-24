@@ -5,6 +5,14 @@
 **Current status:** Rust MCP/CLI includes a tested **offline fixture deployment pipeline**, resource ownership and stop reconciliation, Python task-scoped HTTP media worker, evidence-based runtime resolution and provider request-shape previews. **No real GPU resource deployment, paid-operation approval enforcement, or actual AI model inference has been tested.**  
 **Related:** [README](README.md) · [Media models](docs/MEDIA-MODELS.md) · [Runtime selection](docs/RUNTIME-RESOLUTION.md) · [GPU providers](docs/PROVIDERS.md) · [Test plan](Cloud-Media-Bridge-TESTING.md) · [Results](Cloud-Media-Bridge-TEST-RESULTS.md)
 
+## GPU billing and five-second jobs
+
+**The default stop trigger is completion of the final job and its artifact transfers, not a pricing-period boundary.** An hourly rate may be merely a display rate with per-second metering, or it may have a true minimum hour. For five seconds of model execution, include provisioning, image/model loading, idle and stop confirmation when estimating chargeable duration.
+
+The billing policy at [`config/billing-policy.json`](config/billing-policy.json), read-only Rust estimator and [`docs/GPU-BILLING.md`](docs/GPU-BILLING.md) distinguish per-millisecond/second/minute/hour/day usage from prepaid monthly/yearly/reserved commitments. An estimate uses **actual quote increments**, minimums and explicit user-provided prices, not invented live provider rates. A paid deployment requires a fresh quoted compute cap and consent. Storage/network/commitment charges may continue after stop; termination is not silently substituted for stopping. If stop is unsupported or state is uncertain, report action required and potential remaining charges.
+
+No automatic GPU billing cap is yet enforced by providers, and real invoices/scale-down are untested. No always-on central server exists, so provider-side TTL/watchdogs or independent recovery are necessary for a strong crash-proof auto-stop guarantee.
+
 ## User-approved deployment requirements (2026-11-23)
 
 The authoritative machine-readable requirements are in [`config/deployment-policy.json`](config/deployment-policy.json). The cloud deployment policy remains **read-only and not enforced for billable GPU operations**. Rust now enforces one-shot approvals and automatic mock-resource stopping for **local fixture simulations only**; these cannot authorize real deployment.
