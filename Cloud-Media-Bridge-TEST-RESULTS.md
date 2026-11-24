@@ -16,7 +16,7 @@ This file records **actual observations only**. All-media catalog checks demonst
 | Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on `main` |
 | Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on `main` |
 | Markdown code fences in both documents are balanced | PASS | Architecture: 4 fence delimiters; test plan: 6; balanced = true |
-| Test case IDs are unique and complete | PASS | 124 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10, R01–R08, O01–O14 |
+| Test case IDs are unique and complete | PASS | 132 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10, R01–R08, O01–O14, C01–C08 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
 | Application Rust source compilation and static analysis | PASS | [PR CI run 45215723211](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45217160090) passed Rust build/test/Clippy on Linux, Windows and macOS; runtime resolver branch commit `227c415b3ba456d9ddc23d67ded2101a0ec66bf8` |
 | CLI integration tests | PASS | 30 offline tests (21 Rust unit + 9 MCP process integration) passed on Linux, Windows and macOS; runtime matching uses synthetic evidence and does not execute models |
@@ -191,6 +191,21 @@ These tests track the read-only runtime candidate matcher. No OCI/installer is e
 | O12 | Cross-language Rust-to-Python media worker transport | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `workers/tests/test_protocol.py::test_rust_mcp_bridge_calls_fixture_worker_over_real_loopback_http` |
 | O13 | Actual Diffusers/Transformers inference from pinned Hugging Face revision on GPU | **NOT RUN (needs real GPU/provider authorization)** | Requires separate authorized paid-cloud/model inference test |
 | O14 | Real cloud provider deployment, one-shot human approval and auto-stop/scale-to-zero | **NOT RUN (needs real GPU/provider authorization)** | Requires separate authorized paid-cloud/model inference test |
+
+## 2e. Real provider and worker control-plane test ledger (C01–C08)
+
+These are offline adapter/worker-contract tests only. Real GPUs and provider credentials have NOT been used.
+
+| Test ID | Scenario | Status | Evidence |
+|---|---|---|---|
+| C01 | RunPod v2 create and response parsing | **NOT RUN** | Pending CI trace |
+| C02 | Vast selected offer and safe stop | **NOT RUN** | Pending CI trace |
+| C03 | Provider HTTPS credential/endpoint validation | **NOT RUN** | Pending CI trace |
+| C04 | Exact plan and one-shot approval journal | **NOT RUN** | Pending CI trace |
+| C05 | Bridge ownership and active job/transfer stop gate | **NOT RUN** | Pending CI trace |
+| C06 | Provider-confirmed stop and uncertain state | **NOT RUN** | Pending CI trace |
+| C07 | Authenticated real worker health and remote artifact integrity | **NOT RUN** | Pending CI trace |
+| C08 | Actual real provider model inference and auto-stop | **NOT RUN** | Requires separately approved provider credentials/GPU credits |
 
 ## 3. Test level status
 
