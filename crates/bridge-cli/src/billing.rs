@@ -152,6 +152,8 @@ mod tests {
         assert_eq!(day["effective_billable_ms"],86_400_000);
         let custom=estimate(&quote("custom_metered",15_000,30_000,5000)).unwrap();
         assert_eq!(custom["effective_billable_ms"],30_000);
+        let millisecond=estimate(&quote("per_millisecond",1,0,5001)).unwrap();
+        assert_eq!(millisecond["effective_billable_ms"],5001);
     }
     #[test]
     fn prepaid_monthly_and_yearly_cannot_be_costed_from_five_seconds() {
