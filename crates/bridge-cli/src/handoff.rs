@@ -48,8 +48,9 @@ pub(crate) fn review(raw:&Value)->Result<Value,String>{
     let mut gaps=Vec::new();
     if !label(&plan["region"])||!num(&plan["quantity"],64){gaps.push("Specify exact region and GPU count".into());}
     if plan["request_id"].is_null(){gaps.push("Prepare unique deployment plan before authorization".into());}
-    let env=json!({"CMB_DEPLOYMENT_REQUEST_ID":plan["request_id"],"CMB_MODEL_ID":plan["model_id"],
+    let mut env=json!({"CMB_DEPLOYMENT_REQUEST_ID":plan["request_id"],"CMB_MODEL_ID":plan["model_id"],
         "CMB_MODEL_SHA":plan["model_sha"],"CMB_TASK":plan["task"],"CMB_RUNTIME_FAMILY":plan["runtime_family"]});
+    if !plan["runtime_release_sha256"].is_null(){env["CMB_RUNTIME_RELEASE_SHA256"]=plan["runtime_release_sha256"].clone();}
     let draft=match id{
         "runpod-pods"=>{
             require(p,&["cloud"],&mut gaps);

@@ -224,3 +224,5 @@ See [independent signed authorization](docs/SIGNED-AUTHORIZATION.md) for the CLI
 [Provider-specific handoff](docs/PROVIDER-HANDOFF.md) is available through `cloud handoff` / MCP `provider_handoff`; it builds exact-plan request drafts for all nine provider modes and reports missing evidence. Native execution remains gated.
 
 `lifecycle_action` returns provider-native action drafts when the selected lifecycle trigger is due; it never dispatches or supplies approval.
+
+[GPU smoke build bundle](docs/GPU-SMOKE-BUNDLE.md) adds local integrity validation and a digest-pinned candidate image path; no GPU rental or production enablement is performed.

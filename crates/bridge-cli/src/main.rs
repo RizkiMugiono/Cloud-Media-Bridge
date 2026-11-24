@@ -15,6 +15,7 @@ mod provider_http;
 mod remote_worker;
 mod provider_ops;
 mod runtime;
+mod runtime_bundle;
 mod worker_client;
 
 use serde_json::{json, Value};
@@ -678,6 +679,7 @@ fn run_cli(args: &[String]) -> i32 {
                 .and_then(|quote|billing::estimate(&quote)))
         },
         [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
+        [cmd, sub, dir] if cmd == "runtimes" && sub == "bundle-verify" => print_json(runtime_bundle::verify(dir)),
         [cmd, sub, file] if cmd == "cloud" && sub == "handoff" => print_json(planning::load_manifest(file,16384).and_then(|v|handoff::review(&v))),
         [cmd, sub, file] if cmd == "cloud" && sub == "review" => {
             print_json(planning::load_manifest(file, 16384).and_then(|v| planning::review(&v)))
@@ -772,6 +774,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge policy
   cloud-media-bridge runtimes
   cloud-media-bridge runtimes resolve <model> <provider-id>
+  cloud-media-bridge runtimes bundle-verify <local-build-context>
   cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
   cloud-media-bridge billing
   cloud-media-bridge billing estimate <quote.json>

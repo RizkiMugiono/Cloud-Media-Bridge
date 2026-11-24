@@ -55,6 +55,9 @@ pub(crate) fn review(raw: &Value) -> Result<Value, String> {
         raw["offer_id"].as_u64(),
     )?;
     crate::handoff::validate_parameters(raw["provider"].as_str().ok_or("Missing provider")?, &raw["provider_parameters"])?;
+    if let Some(v)=raw.get("runtime_release_sha256").filter(|v|!v.is_null()) {
+        if !v.as_str().is_some_and(|s|s.len()==64&&s.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b))){return Err("Invalid runtime release SHA-256".into());}
+    }
     let fields = [
         "schema_version",
         "account",
@@ -79,6 +82,7 @@ pub(crate) fn review(raw: &Value) -> Result<Value, String> {
         "alternatives_unavailable_reason",
         "compatibility_reason",
         "provider_parameters",
+        "runtime_release_sha256",
     ];
     for key in raw.as_object().ok_or("Expected manifest object")?.keys() {
         if key != "request_id" && key != "nonce" && !fields.contains(&key.as_str()) {

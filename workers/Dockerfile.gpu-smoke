@@ -1,0 +1,14 @@
+# Build candidate only; no model download, GPU use, or production claim.
+# Use a reviewed digest-pinned base and an offline, hash-pinned wheelhouse.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER root
+WORKDIR /app
+COPY requirements.lock /app/requirements.lock
+COPY wheelhouse/ /app/wheelhouse/
+RUN python -m pip install --no-index --find-links=/app/wheelhouse --require-hashes -r /app/requirements.lock && rm -rf /app/wheelhouse
+COPY media_worker.py /app/media_worker.py
+COPY runtime-release.json /app/runtime-release.json
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 CMB_BIND=127.0.0.1 CMB_PORT=8000
+USER 10001:10001
+CMD ["python","-I","/app/media_worker.py"]

@@ -14,6 +14,7 @@ import hmac
 import io
 import json
 import os
+from pathlib import Path
 import re
 import threading
 import uuid
@@ -82,10 +83,38 @@ def _as_wav(audio: Any, sample_rate: int) -> bytes:
     return out.getvalue()
 
 
+def validate_smoke_release(release_path: Path, expected_sha: str, worker_path: Path,
+                           lock_path: Path, model_id: str, revision: str, task: str,
+                           family: str) -> dict[str, Any]:
+    """Validate a pinned build bundle; never treat it as verified GPU evidence."""
+    if not re.fullmatch(r"[a-f0-9]{64}", expected_sha):
+        raise ValueError("Exact runtime release SHA-256 required")
+    if any(p.is_symlink() or not p.is_file() for p in (release_path, worker_path, lock_path)):
+        raise ValueError("Runtime bundle must contain regular non-linked files")
+    if release_path.stat().st_size > 16384 or lock_path.stat().st_size > 4 * 1024 * 1024 or worker_path.stat().st_size > 1024 * 1024:
+        raise ValueError("Runtime bundle exceeds size limit")
+    data = release_path.read_bytes()
+    if not hmac.compare_digest(hashlib.sha256(data).hexdigest(), expected_sha):
+        raise ValueError("Runtime release digest mismatch")
+    value = json.loads(data)
+    if not isinstance(value, dict) or value.get("schema_version") != 1 or value.get("purpose") != "gpu_smoke":
+        raise ValueError("Invalid runtime smoke release")
+    for key, expected in {"model_id": model_id, "model_sha": revision, "task": task,
+                          "runtime_family": family,
+                          "worker_sha256": hashlib.sha256(worker_path.read_bytes()).hexdigest(),
+                          "dependency_lock_sha256": hashlib.sha256(lock_path.read_bytes()).hexdigest()}.items():
+        if value.get(key) != expected:
+            raise ValueError("Runtime release identity or file digest mismatch")
+    if not re.fullmatch(r"[A-Za-z0-9._/:-]+@sha256:[a-f0-9]{64}", value.get("base_image", "")):
+        raise ValueError("Runtime base image must be pinned by digest")
+    return value
+
+
 class Worker:
     def __init__(self, model_id: str, revision: str, task: str, family: str,
                  token: str, fixture: bool = False,
-                 deployment_request_id: str | None = None):
+                 deployment_request_id: str | None = None,
+                 smoke_release: dict[str, Any] | None = None):
         if not ID_RE.fullmatch(model_id) or not SHA_RE.fullmatch(revision):
             raise ValueError("Model identifier and immutable SHA must be valid")
         if not token or len(token) < 16:
@@ -98,6 +127,9 @@ class Worker:
         self.family = family
         self.token = token
         self.fixture = fixture
+        self.smoke_release = smoke_release
+        if smoke_release is not None and (fixture or not deployment_request_id or any(smoke_release.get(k) != v for k, v in {"model_id": model_id, "model_sha": revision, "task": task, "runtime_family": family}.items())):
+            raise ValueError("Smoke release must bind the non-fixture worker and deployment")
         if deployment_request_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", deployment_request_id):
             raise ValueError("Invalid deployment request ID")
         self.deployment_request_id = deployment_request_id
@@ -238,6 +270,8 @@ class Worker:
             if kind not in {"image", "video", "audio", "speech", "music", "three_d", "spatial", "document", "multimodal"}:
                 raise WorkerError("INVALID_FIXTURE", "Unknown fixture kind")
             kind, mime, data = _fixture(kind)
+        elif self.smoke_release is not None:
+            kind, mime, data = self._real_generate(items, params)
         else:
             raise WorkerError("PRODUCTION_DISABLED", "Production runtime and authorization are not release-verified", 403)
         artifact = self.store(kind, mime, data)
@@ -347,13 +381,22 @@ def main() -> None:
         raise SystemExit("Fixture mode is restricted to local loopback tests")
     if host not in {"127.0.0.1", "::1"} and os.getenv("CMB_PRIVATE_NETWORK_ACK") != "1":
         raise SystemExit("Non-loopback worker binding requires explicit private-network/TLS ingress acknowledgment")
+    release = None
     if not fixture:
-        raise SystemExit("Production runtime and authorization are not release-verified")
+        if os.getenv("CMB_WORKER_MODE") != "gpu_smoke" or os.getenv("CMB_ENABLE_GPU_SMOKE") != "I_ACCEPT_GPU_CHARGES":
+            raise SystemExit("Production disabled; only independently approved, pinned GPU smoke worker mode is supported")
+        if not os.getenv("CMB_DEPLOYMENT_REQUEST_ID"):
+            raise SystemExit("GPU smoke requires exact deployment request ID")
+        release = validate_smoke_release(
+            Path("/app/runtime-release.json"), os.environ["CMB_RUNTIME_RELEASE_SHA256"],
+            Path(__file__), Path("/app/requirements.lock"), os.environ["CMB_MODEL_ID"],
+            os.environ["CMB_MODEL_SHA"], os.environ["CMB_TASK"], os.environ["CMB_RUNTIME_FAMILY"]
+        )
     token = os.environ["CMB_WORKER_TOKEN"]
     worker = Worker(
         os.environ["CMB_MODEL_ID"], os.environ["CMB_MODEL_SHA"],
         os.environ["CMB_TASK"], os.environ["CMB_RUNTIME_FAMILY"], token, fixture,
-        os.getenv("CMB_DEPLOYMENT_REQUEST_ID")
+        os.getenv("CMB_DEPLOYMENT_REQUEST_ID"), release
     )
     server = ThreadingHTTPServer((host, int(os.getenv("CMB_PORT", "8000"))), handler_for(worker))
     server.serve_forever()
