@@ -3,6 +3,7 @@ mod media;
 mod offline;
 mod provider_ops;
 mod runtime;
+mod worker_client;
 
 use serde_json::{json, Value};
 use std::env;
@@ -276,6 +277,11 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         ),
         "offline_fixture_status" => offline::status(get_string(arguments, "directory")?),
         "offline_fixture_verify" => offline::verify(get_string(arguments, "directory")?),
+        "offline_worker_smoke" => worker_client::smoke(
+            get_string(arguments,"directory")?,
+            arguments["port"].as_u64().ok_or("Port must be an integer")? as u16,
+            get_string(arguments,"kind")?
+        ),
         "provider_operation_preview" => provider_ops::preview(
             get_string(arguments,"provider")?,
             get_string(arguments,"image")?,
@@ -399,6 +405,13 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
                 && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len() <= 1024)
                 && arguments["kind"].as_str().is_some_and(|v| offline::supported_kinds().contains(&v))
         }
+        "offline_worker_smoke" => {
+            has_only(&["directory","port","kind","confirm_fixture_only"])
+                && arguments["confirm_fixture_only"] == true
+                && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len()<=1024)
+                && arguments["port"].as_u64().is_some_and(|v| (1..=65535).contains(&v))
+                && arguments["kind"].as_str().is_some_and(|v| offline::supported_kinds().contains(&v))
+        }
         "provider_operation_preview" => {
             has_only(&["provider","image","gpu","disk_gb","offer_id"])
                 && arguments["provider"].is_string()
@@ -432,6 +445,7 @@ fn tool_names() -> &'static [&'static str] {
         "offline_fixture_status",
         "offline_fixture_verify",
         "provider_operation_preview",
+        "offline_worker_smoke",
         "models_search",
         "models_inspect",
         "plan_generation",
@@ -483,6 +497,13 @@ fn tool_definitions() -> Value {
             "offer_id":{"type":"integer","minimum":1}
            },"required":["provider","image","gpu","disk_gb"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true,"openWorldHint":false}},
+        {"name":"offline_worker_smoke","description":"Interoperate with a local loopback-only fixture HTTP worker and retrieve/verify mock media bytes. Requires CMB_WORKER_TOKEN in environment; cannot connect to external hosts or run real AI.",
+         "inputSchema":{"type":"object","properties":{
+            "directory":{"type":"string"},"port":{"type":"integer","minimum":1,"maximum":65535},
+            "kind":{"type":"string","enum":["image","video","audio","speech","music","three_d","spatial","document","multimodal"]},
+            "confirm_fixture_only":{"type":"boolean","const":true}},
+            "required":["directory","port","kind","confirm_fixture_only"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":false,"destructiveHint":false,"openWorldHint":false}},
         {"name":"models_search","description":"Search all accessible Hugging Face models or filter by any Hub pipeline task; tags are classified without asserting inference compatibility.",
          "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"task":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":50}},
                         "additionalProperties":false},
@@ -559,6 +580,10 @@ fn run_cli(args: &[String]) -> i32 {
                 .and_then(|gb| offer.parse::<u64>().map_err(|_|"Invalid offer_id".to_string())
                     .and_then(|id|provider_ops::preview(provider,image,gpu,gb,Some(id)))))
         },
+        [cmd, sub, dir, port, kind] if cmd == "offline" && sub == "worker-smoke" => {
+            print_json(port.parse::<u16>().map_err(|_|"Invalid fixture worker port".to_string())
+                .and_then(|p| worker_client::smoke(dir,p,kind)))
+        }
         [cmd, sub, dir, kind] if cmd == "offline" && sub == "prepare" => {
             print_json(offline::prepare(dir, kind))
         }
@@ -616,6 +641,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge runtimes
   cloud-media-bridge runtimes resolve <model> <provider-id>
   cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
+  cloud-media-bridge offline worker-smoke <output-directory> <loopback-port> <media-kind>
   cloud-media-bridge offline demo <new-directory> <media-kind>
   cloud-media-bridge offline prepare <new-directory> <media-kind>
   cloud-media-bridge offline approve <directory>      (human TTY required)
