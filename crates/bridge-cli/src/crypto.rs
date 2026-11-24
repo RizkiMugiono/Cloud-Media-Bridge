@@ -1,5 +1,6 @@
 //! Small self-contained SHA-256 and OS cryptographic nonce utilities.
 //! Avoids shelling out to platform-specific hash commands or weak timestamp nonces.
+#[cfg(unix)]
 use std::io::Read;
 
 pub(crate) fn sha256(data: &[u8]) -> String {
