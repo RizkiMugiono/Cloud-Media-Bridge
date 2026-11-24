@@ -98,7 +98,7 @@ class WorkerHTTPTests(unittest.TestCase):
         self.assertIn(error.exception.code, (400, 404))
 
     def test_mismatched_revision_and_task_rejected(self):
-        payload = {"request_id": "sample", "model": {"id": MODEL, "revision_sha": "f" * 40},
+        payload = {"schema_version": 1, "request_id": "sample", "model": {"id": MODEL, "revision_sha": "f" * 40},
                    "task": "text-to-image", "inputs": [], "fixture_kind": "image"}
         with self.assertRaises(urllib.error.HTTPError) as e:
             self.request("/v1/media/generate", json.dumps(payload).encode())
@@ -131,6 +131,23 @@ class WorkerHTTPTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(data).hexdigest(), receipt["sha256"])
             self.assertTrue(data.startswith(b"RIFF"))
 
+    def test_missing_or_incorrect_protocol_version_is_rejected(self):
+        payload = {
+            "request_id": "wrong-version",
+            "task": "text-to-image",
+            "model": {"id": MODEL, "revision_sha": SHA},
+            "inputs": [],
+            "fixture_kind": "image",
+        }
+        for value in (None, 2, True):
+            with self.subTest(value=value):
+                request = dict(payload)
+                if value is not None:
+                    request["schema_version"] = value
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    self.request("/v1/media/generate", json.dumps(request).encode())
+                self.assertEqual(error.exception.code, 400)
+
     def test_invalid_json_and_media_type_rejected(self):
         with self.assertRaises(urllib.error.HTTPError) as e:
             self.request("/v1/media/generate", b"not json")
@@ -157,9 +174,18 @@ class WorkerSecurityTests(unittest.TestCase):
         worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN, fixture=False)
         self.assertFalse(worker.fixture)
         with self.assertRaises(WorkerError) as error:
-            worker.generate({"request_id": "x", "task": "text-to-video",
+            worker.generate({"schema_version": 1, "request_id": "x", "task": "text-to-video",
                              "model": {"id": MODEL, "revision_sha": SHA}, "inputs": []})
         self.assertEqual(error.exception.code, "TASK_MISMATCH")
+
+    def test_fixture_flag_cannot_trigger_real_inference_worker(self):
+        worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN, fixture=False)
+        with self.assertRaises(WorkerError) as error:
+            worker.generate({"schema_version": 1, "request_id": "test-only",
+                             "task": "text-to-image",
+                             "model": {"id": MODEL, "revision_sha": SHA},
+                             "inputs": [], "fixture_kind": "image"})
+        self.assertEqual(error.exception.code, "FIXTURE_DISABLED")
 
     def test_asset_handles_cannot_read_filesystem(self):
         worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN, fixture=True)
