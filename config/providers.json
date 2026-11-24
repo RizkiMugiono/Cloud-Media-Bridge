@@ -24,7 +24,18 @@
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
       "post_job_lifecycle_target": "serverless_scale_to_zero",
-      "lifecycle_implementation": "not_implemented"
+      "lifecycle_implementation": "not_implemented",
+      "billing": {
+        "metering_hint": "per_second",
+        "reference_url": "https://modal.com/pricing",
+        "reference_checked_on": "2026-11-24",
+        "live_quote_required_before_deployment": true,
+        "advertised_hourly_price_does_not_imply_hourly_minimum": true,
+        "actual_minimum_and_increment_must_be_confirmed": true,
+        "compute_stop_semantics": "serverless_scale_to_zero",
+        "storage_network_commitment_fees_may_remain": true,
+        "quote_is_not_invoice": true
+      }
     },
     {
       "id": "runpod-serverless",
@@ -48,7 +59,18 @@
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
       "post_job_lifecycle_target": "serverless_scale_to_zero",
-      "lifecycle_implementation": "not_implemented"
+      "lifecycle_implementation": "not_implemented",
+      "billing": {
+        "metering_hint": "per_second",
+        "reference_url": "https://github.com/runpod/docs/blob/main/accounts-billing/billing.mdx",
+        "reference_checked_on": "2026-11-24",
+        "live_quote_required_before_deployment": true,
+        "advertised_hourly_price_does_not_imply_hourly_minimum": true,
+        "actual_minimum_and_increment_must_be_confirmed": true,
+        "compute_stop_semantics": "serverless_scale_to_zero",
+        "storage_network_commitment_fees_may_remain": true,
+        "quote_is_not_invoice": true
+      }
     },
     {
       "id": "runpod-pods",
@@ -71,7 +93,18 @@
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
       "post_job_lifecycle_target": "auto_stop_owned_resource_when_supported",
-      "lifecycle_implementation": "not_implemented"
+      "lifecycle_implementation": "not_implemented",
+      "billing": {
+        "metering_hint": "per_second",
+        "reference_url": "https://github.com/runpod/docs/blob/main/accounts-billing/billing.mdx",
+        "reference_checked_on": "2026-11-24",
+        "live_quote_required_before_deployment": true,
+        "advertised_hourly_price_does_not_imply_hourly_minimum": true,
+        "actual_minimum_and_increment_must_be_confirmed": true,
+        "compute_stop_semantics": "stop_compute_storage_continues",
+        "storage_network_commitment_fees_may_remain": true,
+        "quote_is_not_invoice": true
+      }
     },
     {
       "id": "vast-serverless",
@@ -94,7 +127,18 @@
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
       "post_job_lifecycle_target": "serverless_scale_to_zero",
-      "lifecycle_implementation": "not_implemented"
+      "lifecycle_implementation": "not_implemented",
+      "billing": {
+        "metering_hint": "provider_dependent",
+        "reference_url": "https://github.com/vast-ai/docs/blob/main/guides/instances/pricing.mdx",
+        "reference_checked_on": "2026-11-24",
+        "live_quote_required_before_deployment": true,
+        "advertised_hourly_price_does_not_imply_hourly_minimum": true,
+        "actual_minimum_and_increment_must_be_confirmed": true,
+        "compute_stop_semantics": "endpoint_scale_to_zero_when_available",
+        "storage_network_commitment_fees_may_remain": true,
+        "quote_is_not_invoice": true
+      }
     },
     {
       "id": "vast-instances",
@@ -118,7 +162,18 @@
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
       "post_job_lifecycle_target": "auto_stop_owned_resource_when_supported",
-      "lifecycle_implementation": "not_implemented"
+      "lifecycle_implementation": "not_implemented",
+      "billing": {
+        "metering_hint": "per_second",
+        "reference_url": "https://github.com/vast-ai/docs/blob/main/guides/instances/pricing.mdx",
+        "reference_checked_on": "2026-11-24",
+        "live_quote_required_before_deployment": true,
+        "advertised_hourly_price_does_not_imply_hourly_minimum": true,
+        "actual_minimum_and_increment_must_be_confirmed": true,
+        "compute_stop_semantics": "stop_compute_storage_continues",
+        "storage_network_commitment_fees_may_remain": true,
+        "quote_is_not_invoice": true
+      }
     },
     {
       "id": "lambda-cloud",
@@ -142,7 +197,18 @@
       "deployment_approval": "fresh_human_consent_for_every_deployment",
       "post_job_lifecycle_target": "auto_stop_if_stop_supported_else_manual_action",
       "lifecycle_implementation": "not_implemented",
-      "stop_api_status": "unverified_terminate_may_be_only_supported_action"
+      "stop_api_status": "unverified_terminate_may_be_only_supported_action",
+      "billing": {
+        "metering_hint": "per_minute",
+        "reference_url": "https://docs.lambda.com/public-cloud/billing/",
+        "reference_checked_on": "2026-11-24",
+        "live_quote_required_before_deployment": true,
+        "advertised_hourly_price_does_not_imply_hourly_minimum": true,
+        "actual_minimum_and_increment_must_be_confirmed": true,
+        "compute_stop_semantics": "termination_only_billing_may_continue_until_terminated",
+        "storage_network_commitment_fees_may_remain": true,
+        "quote_is_not_invoice": true
+      }
     },
     {
       "id": "generic-https",
@@ -166,7 +232,18 @@
       "deployment_approval": "fresh_human_consent_for_every_deployment",
       "post_job_lifecycle_target": "externally_managed",
       "lifecycle_implementation": "not_implemented",
-      "note": "Do not stop preexisting or externally managed hardware without verified bridge ownership and explicit scope"
+      "note": "Do not stop preexisting or externally managed hardware without verified bridge ownership and explicit scope",
+      "billing": {
+        "metering_hint": "unknown",
+        "reference_url": null,
+        "reference_checked_on": "2026-11-24",
+        "live_quote_required_before_deployment": true,
+        "advertised_hourly_price_does_not_imply_hourly_minimum": true,
+        "actual_minimum_and_increment_must_be_confirmed": true,
+        "compute_stop_semantics": "externally_managed",
+        "storage_network_commitment_fees_may_remain": true,
+        "quote_is_not_invoice": true
+      }
     },
     {
       "id": "generic-ssh",
@@ -188,7 +265,18 @@
       "deployment_approval": "fresh_human_consent_for_every_deployment",
       "post_job_lifecycle_target": "externally_managed_unless_owned_and_stop_capable",
       "lifecycle_implementation": "not_implemented",
-      "note": "Do not stop preexisting or externally managed hardware without verified bridge ownership and explicit scope"
+      "note": "Do not stop preexisting or externally managed hardware without verified bridge ownership and explicit scope",
+      "billing": {
+        "metering_hint": "unknown",
+        "reference_url": null,
+        "reference_checked_on": "2026-11-24",
+        "live_quote_required_before_deployment": true,
+        "advertised_hourly_price_does_not_imply_hourly_minimum": true,
+        "actual_minimum_and_increment_must_be_confirmed": true,
+        "compute_stop_semantics": "externally_managed",
+        "storage_network_commitment_fees_may_remain": true,
+        "quote_is_not_invoice": true
+      }
     },
     {
       "id": "kubernetes-gpu",
@@ -209,7 +297,18 @@
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
       "post_job_lifecycle_target": "terminate_owned_workload_and_reconcile_node_lifecycle_if_supported",
-      "lifecycle_implementation": "not_implemented"
+      "lifecycle_implementation": "not_implemented",
+      "billing": {
+        "metering_hint": "unknown",
+        "reference_url": null,
+        "reference_checked_on": "2026-11-24",
+        "live_quote_required_before_deployment": true,
+        "advertised_hourly_price_does_not_imply_hourly_minimum": true,
+        "actual_minimum_and_increment_must_be_confirmed": true,
+        "compute_stop_semantics": "node_autoscaling_and_contract_dependent",
+        "storage_network_commitment_fees_may_remain": true,
+        "quote_is_not_invoice": true
+      }
     }
   ]
 }
