@@ -56,7 +56,23 @@
     ],
     "agent_or_mcp_may_self_approve": false,
     "non_deployment_generation": "governed_by_separate_model_and_worker_policy",
-    "user_must_review": "resource_cost_exposure_and_lifecycle_before_deployment"
+    "user_must_review": "resource_cost_exposure_and_lifecycle_before_deployment",
+    "signed_grant": {
+      "implementation": "detached_openssh_signature_and_one_shot_replay_marker",
+      "namespace": "cloud-media-bridge-v1",
+      "max_age_ms": 300000,
+      "signing_key_in_bridge": false,
+      "trust_boundary": "independent_operator_identity_or_host",
+      "operations": [
+        "deploy",
+        "generate",
+        "stop",
+        "terminate",
+        "suspend",
+        "scale_to_zero"
+      ],
+      "production_trust_deployment_verified": false
+    }
   },
   "resource_lifecycle": {
     "serverless": {

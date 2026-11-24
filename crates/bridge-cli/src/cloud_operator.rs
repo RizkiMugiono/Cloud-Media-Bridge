@@ -9,7 +9,7 @@ use crate::runtime;
 use serde_json::{json, Value};
 use std::env;
 use std::fs::{self, OpenOptions};
-use std::io::{self, IsTerminal, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 const JOURNAL: &str = "cloud-resource.json";
@@ -212,38 +212,6 @@ fn production_boundary() -> Result<(), String> {
     Ok(())
 }
 
-fn approved_with_tty(plan:&Value)->Result<(),String>{
-    if !io::stdin().is_terminal() || !io::stderr().is_terminal() {
-        return Err("Each paid deployment requires a local human terminal. MCP/redirected input cannot approve".into());
-    }
-    if env::var("CMB_ENABLE_LIVE_GPU").as_deref()!=Ok("I_ACCEPT_GPU_CHARGES"){
-        return Err("CMB_ENABLE_LIVE_GPU must be explicitly set to I_ACCEPT_GPU_CHARGES".into());
-    }
-    eprintln!("REAL GPU DEPLOYMENT. This operation can create billable resources.");
-    eprintln!("Provider: {} | Account: {} | Workspace: {}",plan["provider"],plan["account"],plan["workspace"]);
-    eprintln!("Model: {} at {}",plan["model_id"],plan["model_sha"]);
-    eprintln!("Image: {} | GPU: {} | Disk GB: {}",plan["image"],plan["gpu"],plan["disk_gb"]);
-    eprintln!("Plan SHA256: {}",sha256(plan.to_string().as_bytes()));
-    eprintln!("Billing model: {} | estimate (micro-USD, compute only): {} | max approved compute (micro-USD): {}",
-        plan["billing_quote"]["billing_model"],
-        crate::billing::estimate(&plan["billing_quote"])?["estimated_incremental_compute_micro_usd"],
-        plan["billing_quote"]["max_approved_compute_micro_usd"]);
-    eprintln!("Source: {}. Stopping compute does not cancel prepaid commitments, storage, network or taxes.",
-        plan["billing_quote"]["pricing_source"]);
-    eprintln!("Exact plan (including lifecycle choice, allocation scope and cost disclosures): {}", plan);
-    eprintln!("Only an explicitly selected lifecycle policy can trigger a stop; manual retention may incur continuing, uncapped charges.");
-    eprintln!("Stopping compute does not imply deletion, termination or cancellation of commitments.");
-    let nonce=plan["nonce"].as_str().ok_or("Missing nonce")?;
-    eprint!("Type DEPLOY {nonce} exactly: ");
-    io::stderr().flush().map_err(|_|"Cannot flush terminal".to_string())?;
-    let mut answer=String::new();
-    io::stdin().read_line(&mut answer).map_err(|_|"Cannot read terminal approval".to_string())?;
-    if answer.trim_end_matches(['\r','\n'])!=format!("DEPLOY {nonce}"){
-        return Err("Deployment approval challenge did not match".into());
-    }
-    Ok(())
-}
-
 /// No MCP caller can reach this entrypoint; users explicitly invoke a CLI in
 /// their own terminal. Bundled registry has zero enabled workers today.
 pub(crate) fn deploy(directory:&str)->Result<Value,String>{
@@ -257,13 +225,14 @@ pub(crate) fn deploy(directory:&str)->Result<Value,String>{
     verified_runtime(&state["plan"])?;
     verified_billing_terms(&state["plan"])?;
     verified_decision_context(&state["plan"])?;
-    approved_with_tty(&state["plan"])?;
+    if env::var("CMB_ENABLE_LIVE_GPU").as_deref()!=Ok("I_ACCEPT_GPU_CHARGES"){return Err("Explicit live opt-in required in addition to signed consent".into());}
     let token=env::var("CMB_WORKER_TOKEN").map_err(|_|"CMB_WORKER_TOKEN must be supplied securely in environment".to_string())?;
     let plan=state["plan"].clone();
     let deployment=request(&plan,&token)?;
+    let grant=crate::authorization::consume_for_plan(&plan,"deploy",Value::Null,Value::Null)?;
     state["status"]=json!("CREATE_IN_FLIGHT");
-    state["approval"]=json!({"status":"approved","consumed":true,"origin":"human_terminal",
-        "bound_plan_sha256":state["plan_sha256"]});
+    state["approval"]=json!({"status":"approved","consumed":true,"origin":"independent_signed_grant",
+        "bound_plan_sha256":state["plan_sha256"],"grant_id":grant["grant_id"]});
     save(&root,&state)?;
     let mut api=CurlTransport;
     match provider_api::create(&mut api,&deployment) {
@@ -334,7 +303,7 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     let _lock=Lock::acquire(&root)?;
     let mut state=read(&root)?;
     if state["status"]!="CREATED"
-        || state["approval"]["origin"]!="human_terminal"
+        || state["approval"]["origin"]!="independent_signed_grant"
         || state["approval"]["status"]!="approved"
         || state["approval"]["consumed"]!=true
         || state["approval"]["bound_plan_sha256"]!=state["plan_sha256"]
@@ -357,6 +326,8 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
         return Err("Input JSON needs an inputs array".into());
     }
 
+    let grant=crate::authorization::consume_for_plan(&state["plan"],"generate",state["resource"]["id"].clone(),json!(sha256(&bytes)))?;
+    state["job"]["operation_grant_id"]=grant["grant_id"].clone();
     // Save the active job state before any remote media request. If the agent
     // crashes, the operator must inspect/reconcile rather than guessing idle.
     state["status"]=json!("RUNNING");
@@ -375,6 +346,15 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
         &input);
 
     let mut state=read(&root)?;
+    if result.is_err(){
+        state["status"]=json!("JOB_UNCERTAIN");
+        state["job"]["state"]=json!("failed_or_uncertain");
+        state["last_error"]=json!("Reconcile active work and transfers before retry or stop.");
+        save(&root,&state)?;
+        return Ok(json!({"generation":{"status":"FAILED_OR_UNCERTAIN","artifact_verified":false},
+            "cleanup":{"state":"RECONCILIATION_REQUIRED","possible_continuing_gpu_charges":true},
+            "message":"No automatic stop or repeat while job state is uncertain."}));
+    }
     state["job"]["active_jobs"]=json!(0);
     state["resource"]["active_jobs"]=json!(0);
     state["job"]["state"]=json!(if result.is_ok(){"completed"}else{"failed_or_uncertain"});
@@ -422,20 +402,8 @@ pub(crate) fn stop(directory:&str)->Result<Value,String>{
     let root=root_dir(directory)?;
     let _lock=Lock::acquire(&root)?;
     let state = read(&root)?;
-    // Explicit manual CLI stop is a separate user-authorized operation.
-    if !io::stdin().is_terminal() || !io::stderr().is_terminal() {
-        return Err("Manual cloud stop requires a human terminal".into());
-    }
-    let id = state["resource"]["id"].as_str().ok_or("Missing resource id")?;
-    let challenge = format!("STOP {id}");
-    eprintln!("Non-destructive stop of recorded resource {} on {}. Storage charges may continue.", state["resource"]["id"], state["plan"]["provider"]);
-    eprint!("Type {challenge} exactly: ");
-    io::stderr().flush().map_err(|_| "Cannot flush terminal".to_string())?;
-    let mut answer = String::new();
-    io::stdin().read_line(&mut answer).map_err(|_| "Cannot read terminal approval".to_string())?;
-    if answer.trim_end_matches(['\r','\n']) != challenge {
-        return Err("Stop approval challenge did not match".into());
-    }
+    if !matches!(state["status"].as_str(),Some("CREATED"|"STOP_UNCERTAIN")){return Err("Reconcile resource before stop".into());}
+    crate::authorization::consume_for_plan(&state["plan"],"stop",state["resource"]["id"].clone(),Value::Null)?;
     let mut api=CurlTransport;
     reconcile_with(&root,&mut api)
 }

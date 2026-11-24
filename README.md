@@ -218,3 +218,5 @@ See [Provider configuration and lifecycle](docs/PROVIDERS.md).
 - [Contributor instructions](AGENTS.md).
 
 **License:** [Apache-2.0](LICENSE).
+
+See [independent signed authorization](docs/SIGNED-AUTHORIZATION.md) for the CLI-only grant mechanism. Production remains gated; the signer and credentials must be outside the agent's control.

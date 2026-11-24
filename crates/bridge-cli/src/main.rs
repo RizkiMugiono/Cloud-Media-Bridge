@@ -1,4 +1,5 @@
 mod advice;
+mod authorization;
 mod market;
 mod billing;
 mod lifecycle;
@@ -652,6 +653,8 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, sub, provider] if cmd == "market" && sub == "refresh" => print_json(market::refresh(provider)),
         [cmd, sub, file] if cmd == "market" && sub == "check" => print_json(planning::load_manifest(file, 16384).and_then(|v| market::check(&v))),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
+        [cmd, sub, dir, req] if cmd == "authorization" && sub == "challenge" => print_json(authorization::challenge(dir,req)),
+        [cmd, sub, dir, grant, sig, req] if cmd == "authorization" && matches!(sub.as_str(),"verify"|"consume") => print_json(authorization::verify_cli(dir,grant,sig,req,sub=="consume")),
         [cmd] if cmd == "billing" => print_json(billing::policy()),
         [cmd, sub, file] if cmd == "billing" && sub == "estimate" => {
             print_json(fs::read(file).map_err(|_|"Cannot read local billing quote".to_string())
@@ -760,6 +763,9 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge market sources [provider]
   cloud-media-bridge market refresh <provider>
   cloud-media-bridge market check <quote.json>
+  cloud-media-bridge authorization challenge <session> <operation.json>
+  cloud-media-bridge authorization verify <session> <grant.json> <signature> <operation.json>
+  cloud-media-bridge authorization consume <session> <grant.json> <signature> <operation.json>
   cloud-media-bridge cloud review <deployment-manifest.json> (read-only comparison)
   cloud-media-bridge cloud advice <plan-receipt-observation.json> (read-only)
   cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>
