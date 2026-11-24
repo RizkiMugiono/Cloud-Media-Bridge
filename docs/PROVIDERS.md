@@ -180,6 +180,8 @@ The same model selection and runtime matching logic is shared. The adapter for e
 
 Unsupported or untrusted recipes must return an explicit error **before any resource is allocated**. Cancellation and resource termination require truthful confirmation rather than assuming success.
 
+For **metering increments, hourly display versus actual minimum billing, monthly/yearly reserved contracts, compute budget previews and storage fees**, see [GPU billing rules](GPU-BILLING.md). The local MCP exposes a read-only `billing_policy` and `billing_estimate` tool. The user-selected provider's actual billing contract is authoritative.
+
 ## Compute lifecycle and billing behavior
 
 | Resource class | Idle expectation |
