@@ -5,11 +5,11 @@
 **Actual results:** [Cloud-Media-Bridge-TEST-RESULTS.md](Cloud-Media-Bridge-TEST-RESULTS.md)  
 **Purpose:** Versioned test cases, reproducible procedures, evidence requirements and honest release gates. **This is a plan, not an assertion that any application tests have passed.**
 
-> **Authorization and safety rule for every development agent and contributor:** Do not create Modal Apps, Servers, Functions or Volumes; allocate GPU/CPU cloud instances; modify harness settings; stop/delete resources; access private workspaces; or publish GitHub changes without the applicable explicit user authorization. Normal lint and unit tests must be fully offline or mocked. Non-Modal live compute-provider tests are out of scope for the initial release.
+> **Authorization and safety rule for every development agent and contributor:** Do not create Modal Apps, Servers, Functions or Volumes; allocate GPU/CPU cloud instances; modify harness settings; stop/delete resources; access private workspaces; or publish GitHub changes without the applicable explicit user authorization. Normal lint and unit tests must be fully offline or mocked. Any live provider test requires separate user authorization for that exact provider/resource; all provider adapters may be developed and contract-tested concurrently without paid GPU access.
 
 ## Prioritized v1 verification
 
-The project deliberately keeps one small local Rust MCP/CLI process and **reuses existing inference runtimes**. The first milestone does not require two newly built inference engines, every GPU vendor to be live-tested, a custom cluster scheduler, or durable video job recovery.
+The project deliberately keeps one small local Rust MCP/CLI process and **reuses existing inference runtimes**. The offline milestone must prove complete simulated deployment, approval controls, authenticated worker HTTP, artifact integrity, provider request contracts and owned-resource lifecycle without paid GPUs; actual provider inference is a separately authorized stage.
 
 | Gate | Expected evidence | GPU needed? |
 |---|---|---|
@@ -344,3 +344,26 @@ These tests cover **runtime compatibility candidates**, not AI inference or a wo
 | R08 | Deploy a verified runtime to each claimed provider and model family using both approved delivery routes where available | Real output artifacts and checksum, model/worker/image evidence, separate deployment approval, owned resource stop/scale-to-zero and cleanup proof |
 
 A `verified` status from a test fixture is **not** production evidence. Provider adapters and human approval are still unimplemented; R08 stays NOT RUN until separately authorized end-to-end inference and resource lifecycle checks exist.
+
+## 17. Offline deployment, real HTTP worker protocol and provider contracts (O01–O14)
+
+These checks implement the user's requirement to finish **every test that does not require GPU credits**. All use local synthetic fixtures, mock provider resources or read-only vendor request previews. Fixture media is never represented as real generated AI output. **O13 and O14 require real GPU/provider authorization and must not be marked PASS by offline CI.**
+
+| ID | Scenario | Required evidence | Requires GPU credit |
+|---|---|---|---|
+| O01 | OS CSPRNG random deployment nonce and SHA-256 integrity | SHA-256 known vectors, distinct cryptographic nonces on Linux, Windows, macOS | No |
+| O02 | Nine local media family fixture workflows | Mock resource created, deterministic non-AI fixture artifact, SHA-256 verification and auto-stop observed for all nine families | No |
+| O03 | Reject missing, replayed and tampered approval | Rust one-shot approval tests plus missing/malformed MCP args; no resource provisioned when invalid | No |
+| O04 | Human terminal-only approval and fixture-only shortcut | CLI input redirected from noninteractive agent is refused; fake MCP approval impossible; test grant explicitly labeled | No |
+| O05 | Worker failure with owned GPU mock resource | Job marks failure, mock stop occurs and state reflects provider observation | No |
+| O06 | Owner-scoped stop with active-job deferral and no termination | Wrong resource owner refused; stop waits until job count zero; mock provider emits non-destructive stop | No |
+| O07 | Provider stop failure and safe retry | STOP_FAILED surfaced, reconcile retries and confirms stop, idempotent repeated stop | No |
+| O08 | Crash-window journal recovery | Lost local resource ID recovered from mock provider by request ID and owned resource reconciled | No |
+| O09 | Tampered artifact detection and safe paths | SHA-256/size mismatch, missing/unsafe asset identifier, mutation rejected | No |
+| O10 | Provider API request/stop previews across all nine providers | OCI digest and GPU input validation, no network/credentials, stop versus termination semantics, Lambda blocked where stop unsupported | No |
+| O11 | Authenticated Python worker HTTP across nine fixture kinds | Loopback HTTP health/auth, upload, generate, download, SHA-256 and correct media/JSON fixture labeling | No |
+| O12 | Cross-language Rust-to-Python media worker transport | Rust CLI uses authenticated loopback HTTP to retrieve WAV fixture and independently SHA-256 verifies bytes | No |
+| O13 | Actual Diffusers/Transformers inference from pinned Hugging Face revision on GPU | Real model loaded, model license/VRAM validated, actual output file/hash, worker image digest and permission | **Yes — deferred** |
+| O14 | Real cloud provider deployment, one-shot human approval and auto-stop/scale-to-zero | Provider-confirmed provision/job/output/stop, account ownership, failure recovery and billing exposure for **each** claimed provider | **Yes — deferred** |
+
+Release claim boundary: **O01–O12 PASS is an offline end-to-end mock + worker protocol milestone, not proof of O13–O14.** The bridge does not become production-ready from fixture tests alone.
