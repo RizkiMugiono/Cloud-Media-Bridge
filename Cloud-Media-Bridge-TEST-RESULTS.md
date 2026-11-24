@@ -33,7 +33,7 @@ Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-Eighteen mapped cases have offline evidence: H01, H02, U01–U03, A01–A07 and R01–R06. Additional unit/integration tests do not automatically establish success for unrelated scenario IDs. **30 mapped scenarios have offline evidence** (H01–H02, U01–U03, A01–A07, R01–R06, O01–O12), while **94 remain NOT RUN**, including live Hugging Face authentication, real AI inference and GPU billing/cleanup tests. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+**30 mapped scenarios have offline test evidence** (H01–H02, U01–U03, A01–A07, R01–R06, O01–O12). **94 scenarios remain NOT RUN**, including live Hugging Face access, real AI inference, provider provisioning and actual GPU stopping. A local mock success is not evidence of real provider compatibility. See the scenario rows and linked CI evidence below.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
