@@ -73,6 +73,8 @@ Create a local [external provider profile](examples/external-provider.example.js
 
 ### Agent interoperability
 
+Five Windows agent clients completed MCP discovery and four CLI-verified tool calls on the [tested revision](docs/AGENT-COMPATIBILITY.md).
+
 The local executable supports MCP stdio for handshake revisions 2024-11-05, 2025-03-26, 2025-06-18 and 2025-11-25, and the basic 2026-07-28 stateless discovery/tools interface. No HTTP server or full optional MCP feature set is required. Any agent with a shell can use the same validated tool interface without MCP:
 
 ```sh
