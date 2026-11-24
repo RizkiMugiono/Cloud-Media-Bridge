@@ -1,4 +1,5 @@
 mod advice;
+mod market;
 mod billing;
 mod lifecycle;
 mod planning;
@@ -279,6 +280,9 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "providers_list" => providers_list(),
         "deployment_policy" => deployment_policy(),
         "billing_policy" => billing::policy(),
+        "provider_sources" => market::sources(arguments["provider"].as_str()),
+        "market_refresh" => market::refresh(get_string(arguments,"provider")?),
+        "market_quote_check" => market::check(&arguments["quote"]),
         "cloud_review" => planning::review(&arguments["manifest"]),
         "lifecycle_advice" => lifecycle::advise(&arguments["plan"], &arguments["receipt"], &arguments["observed"]),
         "billing_estimate" => billing::estimate(&arguments["quote"]),
@@ -403,6 +407,9 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
         "doctor" | "providers_list" | "deployment_policy" | "billing_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
+        "provider_sources" => has_only(&["provider"]) && arguments.get("provider").is_none_or(Value::is_string),
+        "market_refresh" => has_only(&["provider"]) && arguments["provider"].is_string(),
+        "market_quote_check" => has_only(&["quote"]) && arguments["quote"].is_object(),
         "cloud_review" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
         "lifecycle_advice" => has_only(&["plan","receipt","observed"]) && ["plan","receipt","observed"].iter().all(|k| arguments[k].is_object()),
         "billing_estimate" => has_only(&["quote"]) && arguments["quote"].is_object(),
@@ -469,6 +476,9 @@ fn tool_names() -> &'static [&'static str] {
         "deployment_policy",
         "billing_policy",
         "billing_estimate",
+        "provider_sources",
+        "market_refresh",
+        "market_quote_check",
         "cloud_review",
         "lifecycle_advice",
         "media_tasks_list",
@@ -507,6 +517,15 @@ fn tool_definitions() -> Value {
          "annotations":{"readOnlyHint":true}},
         {"name":"lifecycle_advice","description":"Evaluate a prepared plan and caller-reported consent and observations. Returns advice only.",
          "inputSchema":{"type":"object","properties":{"plan":{"type":"object"},"receipt":{"type":"object"},"observed":{"type":"object"}},"required":["plan","receipt","observed"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"provider_sources","description":"Get official current pricing, docs and upstream release links. No prices are embedded; agent must consult live sources.",
+         "inputSchema":{"type":"object","properties":{"provider":{"type":"string"}},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"market_refresh","description":"Read a provider catalog using a fixed GET endpoint and locally configured credentials when supported. No GPU rental; otherwise return official sources for agent research.",
+         "inputSchema":{"type":"object","properties":{"provider":{"type":"string"}},"required":["provider"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true,"openWorldHint":true}},
+        {"name":"market_quote_check","description":"Check caller quote source and timestamp freshness. Never authenticates a quote or approves spending.",
+         "inputSchema":{"type":"object","properties":{"quote":{"type":"object"}},"required":["quote"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"cloud_review","description":"Review a proposed GPU plan, compare quoted costs and explain stop choices. No approval, filesystem writes or cloud operations.",
          "inputSchema":{"type":"object","properties":{"manifest":{"type":"object"}},"required":["manifest"],"additionalProperties":false},
@@ -628,6 +647,10 @@ fn run_cli(args: &[String]) -> i32 {
             0
         }
         [cmd] if cmd == "providers" => print_json(providers_list()),
+        [cmd, sub] if cmd == "market" && sub == "sources" => print_json(market::sources(None)),
+        [cmd, sub, provider] if cmd == "market" && sub == "sources" => print_json(market::sources(Some(provider))),
+        [cmd, sub, provider] if cmd == "market" && sub == "refresh" => print_json(market::refresh(provider)),
+        [cmd, sub, file] if cmd == "market" && sub == "check" => print_json(planning::load_manifest(file, 16384).and_then(|v| market::check(&v))),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
         [cmd] if cmd == "billing" => print_json(billing::policy()),
         [cmd, sub, file] if cmd == "billing" && sub == "estimate" => {
@@ -734,6 +757,9 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
   cloud-media-bridge billing
   cloud-media-bridge billing estimate <quote.json>
+  cloud-media-bridge market sources [provider]
+  cloud-media-bridge market refresh <provider>
+  cloud-media-bridge market check <quote.json>
   cloud-media-bridge cloud review <deployment-manifest.json> (read-only comparison)
   cloud-media-bridge cloud advice <plan-receipt-observation.json> (read-only)
   cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>

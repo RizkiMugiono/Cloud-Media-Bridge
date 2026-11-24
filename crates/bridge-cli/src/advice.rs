@@ -74,7 +74,8 @@ fn offer(v: &Value, gaps: &mut Vec<String>) -> Result<Value, String> {
         (Some(a), Some(b)) => Some(a.checked_add(b).ok_or("Total cost overflow")?),
         _ => None,
     };
-    Ok(json!({"compute":forecast,"estimated_total_micro_usd":total}))
+    Ok(json!({"compute":forecast,"estimated_total_micro_usd":total,
+        "quote_freshness":crate::market::check(q).unwrap_or_else(|_|json!({"status":"source_or_timestamp_requires_review"}))}))
 }
 
 pub(crate) fn evaluate(plan: &Value) -> Result<Value, String> {

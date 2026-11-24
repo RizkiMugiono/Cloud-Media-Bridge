@@ -418,3 +418,7 @@ Live runtime, provider ownership, actual charges and reliable expiry remain sepa
 ## Consolidated planning follow-up
 
 Test caller-quoted whole-allocation comparisons, alternative model SHA mismatches, fixed commitments, all lifecycle trigger evidence, untrusted receipts, explicit provider action, plan digest and no live operation with legacy GPU opt-in. Provider and worker execution implementations remain retained behind a closed production release gate. Live costs, authorization and watchdog remain unverified.
+
+## Live-source discovery tests
+
+Offline tests cover official-source catalog coverage, fixed GET adapter parsing, quote timestamps, expired/unknown sources, invalid provider identifiers and MCP non-authorization. Real provider catalog credentials and current offer schemas require independent live read-only checks; no GPU allocation in CI.

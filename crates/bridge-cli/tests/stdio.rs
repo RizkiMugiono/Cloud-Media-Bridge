@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 21);
+    assert_eq!(tools.len(), 24);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -377,4 +377,18 @@ fn live_commands_remain_blocked_even_with_legacy_opt_in() {
         assert!(!output.status.success());
         assert!(String::from_utf8_lossy(&output.stderr).contains("Live GPU execution disabled"));
     }
+}
+
+#[test]
+fn market_tools_expose_sources_and_never_authorize_gpu() {
+    let sources=json!({"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"provider_sources","arguments":{}}});
+    let refresh=json!({"jsonrpc":"2.0","id":101,"method":"tools/call","params":{"name":"market_refresh","arguments":{"provider":"modal"}}});
+    let check=json!({"jsonrpc":"2.0","id":102,"method":"tools/call","params":{"name":"market_quote_check","arguments":{"quote":{"provider":"modal","pricing_source":"https://modal.com/pricing","retrieved_at_unix_ms":1}}}});
+    let bad=json!({"jsonrpc":"2.0","id":103,"method":"tools/call","params":{"name":"market_refresh","arguments":{"provider":"modal","url":"https://evil.invalid"}}});
+    let replies=exchange(&[INIT,READY,&sources.to_string(),&refresh.to_string(),&check.to_string(),&bad.to_string()]);
+    assert_eq!(replies[1]["result"]["structuredContent"]["providers"].as_object().unwrap().len(),9);
+    assert_eq!(replies[2]["result"]["structuredContent"]["gpu_rented"],false);
+    assert_eq!(replies[2]["result"]["structuredContent"]["approval_granted"],false);
+    assert_eq!(replies[3]["result"]["structuredContent"]["status"],"refresh_required");
+    assert_eq!(replies[4]["error"]["code"],-32602);
 }

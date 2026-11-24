@@ -43,9 +43,21 @@ The project adopts four user-approved requirements. The [versioned policy contra
 | Runtime installation | Select **either** a verified prebuilt OCI serving image **or** a vetted installer/runtime recipe on a compatible base image, according to actual model compatibility. Never execute unknown model-repository scripts automatically. |
 | GPU providers | Develop Modal, RunPod (Serverless + Pods), Vast.ai (Serverless + Instances), Lambda GPU Cloud, authenticated HTTPS GPU workers, SSH hosts, and Kubernetes in **parallel adapter workstreams**. Each must have its own independent compatibility and live-test status. |
 | User consent | Require **fresh, human-interactive approval for every deployment request**, bound to the specific model SHA, provider, GPU resources, runtime recipe, workspace, and operation. Never reuse approval for another deployment. |
-| Post-job resource lifecycle | **Automatically stop bridge-owned GPU pods/VMs when their last job finishes**, provided stopping is supported and no other jobs depend on the resource. Verify provider confirmation. Never automatically destroy or terminate persistent resources. If stop is unsupported or fails, surface an explicit action-required status and possible remaining charges. |
+| Post-job resource lifecycle | **Use the user-selected lifecycle**, including immediate stop only when selected, supported and no other jobs depend on the resource. Verify provider confirmation. Never automatically destroy or terminate persistent resources. If stop is unsupported or fails, surface an explicit action-required status and possible remaining charges. |
 
 Serverless providers use provider-supported scale-to-zero after idleness rather than a VM stop call. Preexisting user-managed hardware must never be shut down without an authorized ownership scope. Shutdown must be reconciled after failures/cancellation and survives process crashes once durable lifecycle tracking is implemented.
+
+## Dynamic GPU market and upstream sources
+
+No current GPU price is stored as a universal number. Call `provider_sources` to discover official pricing, API documentation and upstream release links; use `market_refresh` for current provider catalog observations or the returned official page fallback. RunPod Pods/Serverless, Vast Instances and Lambda have read-only GET adapters using user-local keys; Modal and Vast Serverless use the agent's official-source research, and generic/Kubernetes hosts require their actual contract. Results are observations, not guaranteed availability or full quotes. See [dynamic provider discovery](docs/LIVE-SOURCES.md).
+
+```sh
+cargo run --locked -- market sources
+cargo run --locked -- market refresh runpod-pods
+cargo run --locked -- market check ./quote.json
+```
+
+Refresh price, billing terms, GPU availability and upstream model/runtime information during every planning session, and again before any user-authorized deployment. Do not silently change approved models or runtimes. Security fixes and breaking provider API/schema changes still require reviewed implementation updates.
 
 ## GPU billing: five-second jobs, hourly minimums and prepaid rentals
 

@@ -278,3 +278,7 @@ Historical PASS entries above refer to their linked commits and the old immediat
 ## Consolidated planning follow-up
 
 The advisory source branch reports 76 Rust tests and 15 Python tests across its local environments; those results do not apply to this consolidated commit. New CI evidence is required; no new tests are claimed as PASS at authoring time.
+
+## Dynamic market follow-up
+
+The consolidated preceding commit passed offline CI (run 45309916340). Dynamic market changes require their own CI result. Live credentialed catalog calls, actual quote accuracy, production authorization, inference and GPU lifecycle are NOT RUN at authoring time.

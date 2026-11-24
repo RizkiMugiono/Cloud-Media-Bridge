@@ -189,6 +189,9 @@ fn verified_billing_terms(plan:&Value)->Result<(),String>{
 
 fn verified_decision_context(plan: &Value) -> Result<(), String> {
     let review = crate::planning::review(plan)?;
+    if crate::market::check(&plan["billing_quote"])?["status"] != "freshness_window_met_caller_assertion_only" {
+        return Err("Refresh the exact provider quote before deployment".into());
+    }
     if !review["advice"]["review_items"].as_array().is_some_and(Vec::is_empty) {
         return Err("Resolve missing quote, comparison, lifecycle and budget evidence before deployment".into());
     }
