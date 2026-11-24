@@ -122,6 +122,11 @@ pub(crate) fn refresh(id: &str) -> Result<Value, String> {
         "can_deploy":false,"gpu_rented":false,"quote_ready":false,
         "note":"Catalog data is not an executable quote. Verify billing terms, exact allocation, availability, units, account-specific pricing and all ancillary charges."});
     let Some((url, env_name)) = endpoint(id) else {
+        if id == "modal" {
+            out["status"] = json!("agent_run_read_only_modal_billing_cli_or_read_official_sources");
+            out["agent_read_only_command"] = out["sources"]["read_only_cli"].clone();
+            return Ok(out);
+        }
         out["status"] = json!("read_official_sources_with_agent_or_user");
         return Ok(out);
     };

@@ -49,7 +49,7 @@ Serverless providers use provider-supported scale-to-zero after idleness rather 
 
 ## Dynamic GPU market and upstream sources
 
-No current GPU price is stored as a universal number. Call `provider_sources` to discover official pricing, API documentation and upstream release links; use `market_refresh` for current provider catalog observations or the returned official page fallback. RunPod Pods/Serverless, Vast Instances and Lambda have read-only GET adapters using user-local keys; Modal and Vast Serverless use the agent's official-source research, and generic/Kubernetes hosts require their actual contract. Results are observations, not guaranteed availability or full quotes. See [dynamic provider discovery](docs/LIVE-SOURCES.md).
+No current GPU price is stored as a universal number. Call `provider_sources` to discover official pricing, API documentation and upstream release links; use `market_refresh` for current provider catalog observations or the returned official page fallback. RunPod Pods/Serverless, Vast Instances and Lambda have read-only GET adapters using user-local keys; Modal supplies an official read-only CLI handoff (`modal billing rates --json`) or pricing-page fallback, and Vast Serverless uses the agent's official-source research, and generic/Kubernetes hosts require their actual contract. Results are observations, not guaranteed availability or full quotes. See [dynamic provider discovery](docs/LIVE-SOURCES.md).
 
 ```sh
 cargo run --locked -- market sources

@@ -14,7 +14,8 @@
   "providers": {
     "modal": {
       "pricing": [
-        "https://modal.com/pricing"
+        "https://modal.com/pricing",
+        "https://modal.com/docs/cli/latest/billing"
       ],
       "documentation": [
         "https://modal.com/docs/guide/gpu",
@@ -23,8 +24,18 @@
       "updates": [
         "https://modal.com/docs/reference/changelog"
       ],
-      "method": "agent_read_official_page",
-      "account_scope": "workspace rates and plan must be confirmed"
+      "method": "agent_run_official_read_only_cli_or_read_official_page",
+      "account_scope": "workspace rates and plan must be confirmed",
+      "read_only_cli": {
+        "executable": "modal",
+        "arguments": [
+          "billing",
+          "rates",
+          "--json"
+        ],
+        "requires": "trusted locally installed current Modal CLI and user-selected workspace authentication",
+        "reference_url": "https://modal.com/docs/cli/latest/billing"
+      }
     },
     "runpod-pods": {
       "pricing": [
@@ -68,20 +79,26 @@
       "updates": [
         "https://docs.vast.ai/"
       ],
-      "method": "structured_catalog_get_or_agent_read"
+      "method": "structured_catalog_get_or_agent_read",
+      "terms": "https://vast.ai/terms",
+      "data_scope": "Individual user's own authorized purchase evaluation; no scraping, publication, shared market index, or data product; current terms and API permissions govern."
     },
     "vast-serverless": {
       "pricing": [
-        "https://vast.ai/pricing"
+        "https://vast.ai/pricing",
+        "https://github.com/vast-ai/docs/blob/main/guides/pricing.mdx"
       ],
       "documentation": [
         "https://vast.ai/developers/api",
-        "https://docs.vast.ai/"
+        "https://docs.vast.ai/",
+        "https://vast.ai/products/serverless"
       ],
       "updates": [
         "https://docs.vast.ai/"
       ],
-      "method": "agent_read_official_page_and_account_quote"
+      "method": "agent_read_official_page_and_account_quote",
+      "terms": "https://vast.ai/terms",
+      "data_scope": "Individual user's own authorized purchase evaluation; no scraping, publication, shared market index, or data product; current terms and API permissions govern."
     },
     "lambda-cloud": {
       "pricing": [

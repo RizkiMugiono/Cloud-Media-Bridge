@@ -388,6 +388,7 @@ fn market_tools_expose_sources_and_never_authorize_gpu() {
     let replies=exchange(&[INIT,READY,&sources.to_string(),&refresh.to_string(),&check.to_string(),&bad.to_string()]);
     assert_eq!(replies[1]["result"]["structuredContent"]["providers"].as_object().unwrap().len(),9);
     assert_eq!(replies[2]["result"]["structuredContent"]["gpu_rented"],false);
+    assert_eq!(replies[2]["result"]["structuredContent"]["agent_read_only_command"]["arguments"],json!(["billing","rates","--json"]));
     assert_eq!(replies[2]["result"]["structuredContent"]["approval_granted"],false);
     assert_eq!(replies[3]["result"]["structuredContent"]["status"],"refresh_required");
     assert_eq!(replies[4]["error"]["code"],-32602);

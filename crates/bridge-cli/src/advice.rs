@@ -162,6 +162,13 @@ pub(crate) fn evaluate(plan: &Value) -> Result<Value, String> {
             "Compare a compatible alternative or document its unavailability with the user".into(),
         );
     }
+    // Illustrative comparisons remain available for offline planning; do not
+    // present stale caller quotes as current market recommendations.
+    let is_fresh = |estimate: &Value| estimate["quote_freshness"]["status"] == "freshness_window_met_caller_assertion_only";
+    let fresh_cheaper = alternatives.iter().filter(|alt| selected_cost_valid && is_fresh(&selected) && is_fresh(&alt["estimate"])
+        && alt["missing_evidence"].as_array().is_some_and(Vec::is_empty)
+        && alt["potential_saving_micro_usd"].as_u64().is_some_and(|n| n > 0))
+        .max_by_key(|alt| alt["potential_saving_micro_usd"].as_u64());
     let cheaper = alternatives
         .iter()
         .filter(|a| {
@@ -172,6 +179,9 @@ pub(crate) fn evaluate(plan: &Value) -> Result<Value, String> {
         })
         .max_by_key(|a| a["potential_saving_micro_usd"].as_u64());
     Ok(json!({"lower_cost_alternative_to_discuss":cheaper,
+        "fresh_lower_cost_alternative_to_discuss":fresh_cheaper,
+        "comparison_is_current_verified_market_price":false,
+        "comparison_warning":"The illustrative alternative is not a current-price recommendation. Use the freshness-filtered alternative and verify all provider terms.",
         "comparison_basis":"Whole-allocation duration rounded to provider increments plus ancillary estimate, using caller-supplied compatibility evidence.",
         "selected_estimate":selected,"alternatives":alternatives,"review_items":gaps,
         "user_selects_offer_and_policy":true,"executor_requires_fresh_single_use_consent":true,
