@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "provider": "runpod-pods",
+  "model_id": "example/replace-with-real-model",
+  "model_sha": "0000000000000000000000000000000000000000",
+  "task": "text-to-image",
+  "runtime_family": "diffusers",
+  "runtime_entry_id": "hf-diffusers-image-oci",
+  "image": "ghcr.io/example/NOT-VERIFIED-worker@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "gpu": "H100",
+  "disk_gb": 50,
+  "offer_id": null,
+  "account": "user-owned-runpod-account",
+  "workspace": "user-owned-workspace"
+}
