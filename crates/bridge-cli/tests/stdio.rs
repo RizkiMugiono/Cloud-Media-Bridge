@@ -435,6 +435,8 @@ fn legacy_mcp_negotiates_each_supported_handshake_revision(){
         let replies=exchange(&[&init,READY,LIST]);
         assert_eq!(replies[0]["result"]["protocolVersion"],version);
         assert_eq!(replies[1]["result"]["tools"].as_array().unwrap().len(),27);
+        assert!(replies[1]["result"].get("ttlMs").is_none());
+        assert!(replies[1]["result"].get("cacheScope").is_none());
     }
     let unknown=INIT.replace("2025-11-25","unsupported");
     assert_eq!(exchange(&[&unknown])[0]["result"]["protocolVersion"],"2025-11-25");
@@ -449,12 +451,23 @@ fn modern_stdio_discovery_and_tool_calls_do_not_need_initialize(){
     let replies=exchange(&[&discover.to_string(),&list.to_string(),&call.to_string(),&bad.to_string()]);
     assert_eq!(replies[0]["result"]["supportedVersions"],json!(["2026-07-28"]));
     assert_eq!(replies[0]["result"]["resultType"],"complete");
+    assert_eq!(replies[0]["result"]["ttlMs"],0);
+    assert_eq!(replies[0]["result"]["cacheScope"],"private");
     assert_eq!(replies[0]["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],"cloud-media-bridge");
     assert_eq!(replies[1]["result"]["tools"].as_array().unwrap().len(),27);
+    assert_eq!(replies[1]["result"]["ttlMs"],0);
+    assert_eq!(replies[1]["result"]["cacheScope"],"private");
     assert!(replies[2]["result"]["structuredContent"]["message"].is_string());
+    assert!(replies[2]["result"].get("ttlMs").is_none());
+    assert!(replies[2]["result"].get("cacheScope").is_none());
     assert_eq!(replies[3]["error"]["code"],-32022);
     let pinned=exchange(&[&call.to_string()]);
     assert_eq!(pinned[0]["result"]["resultType"],"complete");
+    let direct=exchange(&[&list.to_string()]);
+    assert_eq!(direct[0]["result"]["resultType"],"complete");
+    assert_eq!(direct[0]["result"]["ttlMs"],0);
+    assert_eq!(direct[0]["result"]["cacheScope"],"private");
+    assert_eq!(direct[0]["result"]["tools"].as_array().unwrap().len(),27);
 }
 #[test]
 fn cli_tool_dispatch_matches_mcp_and_never_exposes_paid_commands(){

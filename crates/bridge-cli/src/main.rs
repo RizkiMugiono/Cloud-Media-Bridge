@@ -393,6 +393,13 @@ fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
             _=>return Some(error(id,-32601,"Method not found")),
         };
         result["resultType"]=json!("complete");
+        // MCP 2026-07-28 requires cache hints for these two cacheable results.
+        // The catalog is small; use conservative no-reuse freshness and
+        // authorization-context scope, so an updated local binary is re-read.
+        if matches!(method,Some("server/discover"|"tools/list")){
+            result["ttlMs"]=json!(0);
+            result["cacheScope"]=json!("private");
+        }
         result["_meta"]=json!({"io.modelcontextprotocol/serverInfo":{"name":"cloud-media-bridge","version":VERSION}});
         return Some(json!({"jsonrpc":"2.0","id":id,"result":result}));
     }

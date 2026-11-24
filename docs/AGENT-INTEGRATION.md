@@ -9,3 +9,5 @@ The common host interfaces are:
 - The agent must be able to reach official provider documentation, a trusted local provider CLI or API, and a user approval interface. A chat-only or MCP-only agent without native action access cannot provision a provider merely by reading a draft.
 
 Use doctor and tools list as a local smoke test. Actual third-party agent compatibility must be tested separately. See MCP upstream documentation: https://modelcontextprotocol.io/ and https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/discover.mdx .
+
+For MCP 2026-07-28, `server/discover` and `tools/list` include the required cache metadata (`ttlMs: 0`, `cacheScope: private`) to prevent stale list reuse. Legacy protocol responses and ordinary tool calls are unchanged. See https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching and https://modelcontextprotocol.io/specification/2026-07-28/server/discover .

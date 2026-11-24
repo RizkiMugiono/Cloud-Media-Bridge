@@ -302,3 +302,15 @@ Commit 2c8d642 passed offline CI 45315800849 before scope reduction. Custom Open
 ## Generic provider and agent interoperability
 
 Simplified commit 30ae143 passed CI 45316577015. External profiles and protocol/CLI interoperability changes require fresh CI. No real third-party agent client, paid provider deployment, or GPU inference is claimed verified.
+
+## Actual Windows client interoperability (reported local test, commit 0393fb5)
+
+| Client | Version | Native MCP calls | CLI fallback |
+|---|---|---|---|
+| Codex CLI | 0.171.0-alpha.13 | 4/4 PASS | Reference comparison |
+| Claude Code | 2.1.318 | 4/4 PASS | Reference comparison |
+| Hermes Agent | 0.23.1 | 4/4 PASS | Reference comparison |
+| OpenCode | 2.1.4 | 4/4 PASS | Reference comparison |
+| DeepSeek Harness | 0.2.2-rc.3 | FAIL at tools/list | 4/4 PASS |
+
+User-provided local test report: doctor, provider profile review, billing estimate, and illustrative provider handoff matched CLI outputs; separate direct MCP protocol checks found 27 tools. Offline Rust build, 109 Rust tests and Clippy passed. GitHub CI 45317825701 passed on Windows/Linux/macOS. No GPU rented. The DeepSeek SDK rejected missing required MCP 2026-07-28 tools/list cache metadata. This patch adds the two required fields to both tools/list and server/discover for modern MCP only, with a regression test; actual client retest at the new commit is NOT RUN. No private local paths or raw session evidence are committed.
