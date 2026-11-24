@@ -9,7 +9,7 @@ fn id(s:&str)->bool{
 fn label(v:&Value)->bool{
     v.as_str().is_some_and(|s|!s.trim().is_empty()&&s.len()<=128&&!s.chars().any(char::is_control))
 }
-fn https(s:&str)->bool{
+pub(crate) fn https(s:&str)->bool{
     if s.len()>512||s.bytes().any(|b|!b.is_ascii_graphic()||b==b'\\')||s.contains(['@','?','#']){return false;}
     let Some(rest)=s.strip_prefix("https://")else{return false;};
     let host=rest.split('/').next().unwrap_or("");
@@ -33,7 +33,7 @@ pub(crate) fn validate(profile:&Value)->Result<Value,String>{
         let urls=profile[k].as_array().filter(|v|!v.is_empty()&&v.len()<=8).ok_or("Provide one to eight official URLs per source group")?;
         if !urls.iter().all(|u|u.as_str().is_some_and(https)){return Err("Only plain public HTTPS source URLs without credentials, query or fragment are accepted".into());}
     }
-    if !matches!(profile["transport"].as_str(),Some("api"|"cli"|"ssh"|"kubernetes"|"https"|"sdk")){
+    if !matches!(profile["transport"].as_str(),Some("api"|"cli"|"ssh"|"kubernetes"|"https"|"sdk"|"web_ui")){
         return Err("Specify the native provider interface".into());
     }
     let actions=profile["lifecycle_actions"].as_array().filter(|v|!v.is_empty()&&v.len()<=4).ok_or("Declare provider lifecycle capabilities")?;

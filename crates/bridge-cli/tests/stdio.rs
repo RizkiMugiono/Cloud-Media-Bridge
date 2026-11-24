@@ -475,3 +475,36 @@ fn cli_tool_dispatch_matches_mcp_and_never_exposes_paid_commands(){
     assert!(!bad.status.success());
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn external_recipe_plan_prepare_and_lifecycle_stay_bound_to_same_digest(){
+    let mut plan:Value=serde_json::from_str(include_str!("../../../examples/external-deployment-manifest.NOT-EXECUTABLE.json")).unwrap();
+    let root=std::env::temp_dir().join(format!("cmb-external-plan-{}",std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let manifest=root.join("manifest.json");
+    std::fs::write(&manifest,plan.to_string()).unwrap();
+    let session=root.join("session");
+    let output=Command::new(BINARY).args(["cloud","prepare"]).arg(&session).arg(&manifest).output().unwrap();
+    assert!(output.status.success(),"{}",String::from_utf8_lossy(&output.stderr));
+    let prepared:Value=serde_json::from_slice(&output.stdout).unwrap();
+    plan=prepared["plan"].clone();
+    let receipt=json!({"request_id":plan["request_id"],"plan_sha256":prepared["plan_sha256"],"end_user_approved":true,"resource_id":"r1"});
+    let obs=json!({"provider":plan["provider"],"account":plan["account"],"workspace":plan["workspace"],"owner_request_id":plan["request_id"],"resource_id":"r1",
+        "verified_owned":true,"shared":false,"provider_state":"running","active_jobs":0,"active_transfers":0,"elapsed_ms":100,"exposure_micro_usd":20,"supported_action":"stop","final_job_terminal":true});
+    let draft=json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"provider_handoff","arguments":{"manifest":plan}}});
+    let lifecycle=json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"lifecycle_action","arguments":{"plan":plan,"receipt":receipt,"observed":obs}}});
+    let replies=exchange(&[INIT,READY,&draft.to_string(),&lifecycle.to_string()]);
+    let d=&replies[1]["result"]["structuredContent"];
+    assert_eq!(d["plan_sha256"],prepared["plan_sha256"]);
+    assert_eq!(d["create_draft"]["runtime_recipe"],plan["runtime_recipe"]);
+    assert_eq!(d["provider_operation_sent"],false);
+    let l=&replies[2]["result"]["structuredContent"];
+    assert_eq!(l["action_draft"]["transport"],"official_agent_handoff");
+    assert_eq!(l["approval_granted"],false);
+    let mut changed=plan.clone();changed["provider_profile"]["name"]=json!("changed profile");
+    let altered=json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"lifecycle_action","arguments":{"plan":changed,"receipt":receipt,"observed":obs}}});
+    let reply=exchange(&[INIT,READY,&altered.to_string()]);
+    assert_eq!(reply[1]["result"]["structuredContent"]["advice"]["recommendation"],"ask_user_for_fresh_plan_bound_consent");
+    assert!(reply[1]["result"]["structuredContent"]["action_draft"].is_null());
+    std::fs::remove_dir_all(root).unwrap();
+}

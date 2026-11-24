@@ -360,6 +360,16 @@ mod tests {
     }
 
     #[test]
+    fn runtime_candidates_are_not_limited_to_registered_provider_ids(){
+        let p:Value=serde_json::from_str(include_str!("../../../examples/external-provider.example.json")).unwrap();
+        let provider=crate::provider_profile::resolve("new-gpu-cloud",&p).unwrap();
+        let v=resolve(&model("text-to-image","diffusers",&["model_index.json"]),&provider).unwrap();
+        assert_eq!(v["provider_id"],"new-gpu-cloud");
+        assert_eq!(v["candidate_count"],2);
+        assert_eq!(v["safe_to_deploy"],false);
+    }
+
+    #[test]
     fn diffusers_uses_checkpoint_and_library_evidence_not_task_alone() {
         let detected = resolve(&model("text-to-image","diffusers",&["model_index.json"]), &provider()).unwrap();
         assert_eq!(detected["status"], "unverified_runtime_candidates_found");

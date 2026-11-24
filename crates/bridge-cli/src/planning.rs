@@ -24,6 +24,19 @@ pub(crate) fn load_manifest(path: &str, limit: usize) -> Result<Value, String> {
     serde_json::from_slice(&bytes).map_err(|_| "Invalid manifest JSON".into())
 }
 
+fn valid_digest(value:&Value,allowed:&[usize])->bool{
+    value.as_str().is_some_and(|s|allowed.contains(&s.len())&&s.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)))
+}
+fn validate_recipe(recipe:&Value)->Result<(),String>{
+    let object=recipe.as_object().ok_or("Runtime recipe must be an object")?;
+    if object.len()!=4||object.keys().any(|k|!["upstream_url","revision_sha","recipe_sha256","base_image"].contains(&k.as_str()))
+        ||!recipe["upstream_url"].as_str().is_some_and(crate::provider_profile::https)
+        ||!valid_digest(&recipe["revision_sha"],&[40,64])||!valid_digest(&recipe["recipe_sha256"],&[64])
+        ||!recipe["base_image"].as_str().is_some_and(crate::provider_ops::pinned_image){
+        return Err("Recipe requires official HTTPS reference, immutable revision, full recipe SHA-256 and pinned base image; no inline executable code".into());
+    }
+    Ok(())
+}
 pub(crate) fn review(raw: &Value) -> Result<Value, String> {
     if raw["schema_version"] != 1 || raw.to_string().len() > 16384 {
         return Err("Expected a version 1 manifest under 16 KiB".into());
@@ -50,16 +63,24 @@ pub(crate) fn review(raw: &Value) -> Result<Value, String> {
     let provider=raw["provider"].as_str().ok_or("Missing provider")?;
     let profile=&raw["provider_profile"];
     crate::provider_profile::resolve(provider,profile)?;
-    let image=raw["image"].as_str().ok_or("Missing pinned image")?;
+    let image=raw["image"].as_str();
+    let recipe=&raw["runtime_recipe"];
+    if !recipe.is_null(){validate_recipe(recipe)?;}
+    if raw["image"].is_null()&&recipe.is_null(){return Err("Provide a pinned runtime image or reviewed upstream recipe".into());}
+    if !raw["image"].is_null()&&!image.is_some_and(crate::provider_ops::pinned_image){return Err("Invalid pinned image".into());}
     let gpu=raw["gpu"].as_str().ok_or("Missing GPU")?;
     let disk=raw["disk_gb"].as_u64().ok_or("Missing disk allocation")?;
+    if !crate::provider_ops::gpu_identity(gpu)||!(10..=2000).contains(&disk){
+        return Err("Exact GPU and bounded disk allocation required".into());
+    }
     if profile.is_null(){
-        crate::provider_ops::preview(provider,image,gpu,disk,raw["offer_id"].as_u64())?;
+        if let Some(image)=image{
+            crate::provider_ops::preview(provider,image,gpu,disk,raw["offer_id"].as_u64())?;
+        }else if provider=="vast-instances"&&!raw["offer_id"].as_u64().is_some_and(|n|n>0){
+            return Err("Vast requires exact offer ID".into());
+        }
         crate::handoff::validate_parameters(provider,&raw["provider_parameters"])?;
     }else{
-        if !crate::provider_ops::pinned_image(image)||!crate::provider_ops::gpu_identity(gpu)||!(10..=2000).contains(&disk){
-            return Err("External provider requires pinned image, exact GPU and bounded disk".into());
-        }
         if !raw["provider_parameters"].is_null(){
             return Err("External provider parameters are constructed by the agent from official documentation, not embedded executable instructions".into());
         }
@@ -96,6 +117,7 @@ pub(crate) fn review(raw: &Value) -> Result<Value, String> {
         "provider_parameters",
         "provider_profile",
         "runtime_release_sha256",
+        "runtime_recipe",
     ];
     for key in raw.as_object().ok_or("Expected manifest object")?.keys() {
         if key != "request_id" && key != "nonce" && !fields.contains(&key.as_str()) {

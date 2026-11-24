@@ -52,7 +52,17 @@ pub(crate) fn review(raw:&Value)->Result<Value,String>{
         "CMB_MODEL_SHA":plan["model_sha"],"CMB_TASK":plan["task"],"CMB_RUNTIME_FAMILY":plan["runtime_family"]});
     if !plan["runtime_release_sha256"].is_null(){env["CMB_RUNTIME_RELEASE_SHA256"]=plan["runtime_release_sha256"].clone();}
     let profile=&plan["provider_profile"];
-    let draft=match id{
+    // Recipe-only proposals let the agent use current upstream runtimes on
+    // VM/SSH/SDK providers or build a pinned image before an OCI deployment.
+    // Do not emit an executable native request with a missing image.
+    let draft=if plan["image"].is_null(){
+        gaps.push("Review the exact upstream recipe, base image and dependencies; if this provider requires OCI, build and pin the resulting image then prepare a fresh plan".into());
+        json!({"transport":"official_agent_handoff","native_interface":profile["transport"],
+            "runtime_recipe":plan["runtime_recipe"],"model":{"id":plan["model_id"],"revision_sha":plan["model_sha"],"task":plan["task"],"family":plan["runtime_family"]},
+            "allocation":{"gpu":gpu,"quantity":qty,"region":region,"disk_gb":plan["disk_gb"],"offer_id":plan["offer_id"],"account":plan["account"],"workspace":plan["workspace"]},
+            "provider_parameters":p,"resource_name":name,"selected_lifecycle":plan["stop_policy"],
+            "steps":["Inspect the pinned upstream recipe and dependencies without running untrusted model code","Use provider-compatible native runtime; pin any generated image and renew approval when plan changes","Verify exact provider operation and obtain explicit approval before paid dispatch"]})
+    }else{match id{
         "runpod-pods"=>{
             require(p,&["cloud"],&mut gaps);
             if !matches!(action,"stop"|"terminate"){gaps.push("Pod does not imply suspend or scale-to-zero".into());}
@@ -142,12 +152,12 @@ pub(crate) fn review(raw:&Value)->Result<Value,String>{
             gaps.push("Agent must verify the user-selected provider and official native request schema, exact offer, runtime and actual lifecycle capability".into());
             json!({"transport":"official_agent_handoff","native_interface":profile["transport"],
                 "allocation":{"gpu":gpu,"quantity":qty,"region":region,"disk_gb":plan["disk_gb"],"offer_id":plan["offer_id"],"account":plan["account"],"workspace":plan["workspace"]},
-                "runtime":{"image":plan["image"],"model_id":plan["model_id"],"model_sha":plan["model_sha"],"task":plan["task"],"family":plan["runtime_family"]},
+                "runtime":{"image":plan["image"],"recipe":plan["runtime_recipe"],"model_id":plan["model_id"],"model_sha":plan["model_sha"],"task":plan["task"],"family":plan["runtime_family"]},
                 "environment":env,"resource_name":name,"selected_lifecycle":plan["stop_policy"],
                 "steps":["Read current official API or CLI contract","Construct exact provider-native operation and show it to user","After host approval dispatch with user-owned credentials","Record exact resource and verify allocation, identity, inference and cleanup"]})
         },
         _=>return Err("Unknown provider".into()),
-    };
+    }};
     if p["min_workers"].as_u64().zip(p["max_workers"].as_u64()).is_some_and(|(a,b)|a>b){gaps.push("Minimum workers exceeds maximum".into());}
     Ok(json!({"plan_sha256":reviewed["plan_sha256"],"provider":id,"selected_gpu":gpu,"region":region,"quantity":qty,
         "create_draft":draft,"selected_lifecycle":{"mode":mode,"action":action},"provider_review_items":gaps,

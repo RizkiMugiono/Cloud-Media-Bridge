@@ -81,3 +81,5 @@ cloud-media-bridge tools call provider_profile_review arguments.json
 ```
 
 `arguments.json` contains the exact MCP arguments object, for example `{ "profile": { ... } }`. CLI tool results are JSON, not MCP envelopes. Agent host authorization still applies. See [agent integration](docs/AGENT-INTEGRATION.md). Protocol fixtures are not evidence that every third-party client has been tested.
+
+An agent may supply a pinned upstream runtime recipe instead of a finished OCI image, including for a newly discovered runtime architecture. See the [recipe-only external manifest](examples/external-deployment-manifest.NOT-EXECUTABLE.json). Recipe references are validated structurally, not downloaded or executed; review their actual contents, dependencies and compatibility. If the selected provider needs an OCI image, build and pin it before the final native request and refresh user approval when the plan changes.

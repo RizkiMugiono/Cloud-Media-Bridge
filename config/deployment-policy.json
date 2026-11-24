@@ -55,7 +55,8 @@
       "max_total_micro_usd",
       "stop_policy",
       "provider_parameters",
-      "provider_profile"
+      "provider_profile",
+      "runtime_recipe"
     ],
     "agent_or_mcp_may_self_approve": false,
     "non_deployment_generation": "governed_by_separate_model_and_worker_policy",

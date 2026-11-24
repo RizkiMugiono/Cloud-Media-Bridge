@@ -244,8 +244,8 @@ fn provider_info(id: &str) -> Result<Value, String> {
         .ok_or_else(|| format!("Unknown provider: {id}"))
 }
 
-fn plan_generation(model: &str, provider: &str) -> Result<Value, String> {
-    let selected = provider_info(provider)?;
+fn plan_generation(model: &str, provider: &str, profile:&Value) -> Result<Value, String> {
+    let selected = provider_profile::resolve(provider,profile)?;
     let inspected = inspect_model(model)?;
     let classification = inspected["media"]["classification_status"].as_str().unwrap_or("unclassified_requires_review");
     let resolved = runtime::resolve(&inspected, &selected)?;
@@ -286,7 +286,7 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "deployment_policy" => deployment_policy(),
         "billing_policy" => billing::policy(),
         "provider_sources" => if arguments["profile"].is_null(){market::sources(arguments["provider"].as_str())}else{provider_profile::sources(get_string(arguments,"provider")?,&arguments["profile"])},
-        "market_refresh" => market::refresh(get_string(arguments,"provider")?),
+        "market_refresh" => if arguments["profile"].is_null(){market::refresh(get_string(arguments,"provider")?)}else{Ok(json!({"provider":arguments["provider"],"sources":provider_profile::sources(get_string(arguments,"provider")?,&arguments["profile"])?, "status":"agent_read_official_sources", "quote_ready":false,"gpu_rented":false,"approval_granted":false}))},
         "market_quote_check" => market::check_profile(&arguments["quote"],&arguments["profile"]),
         "provider_profile_review" => provider_profile::review(&arguments["profile"]),
         "provider_handoff" => handoff::review(&arguments["manifest"]),
@@ -329,7 +329,7 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
             arguments["limit"].as_u64().unwrap_or(10) as usize,
         ),
         "models_inspect" => inspect_model(get_string(arguments, "model")?),
-        "plan_generation" => plan_generation(get_string(arguments, "model")?, get_string(arguments, "provider")?),
+        "plan_generation" => plan_generation(get_string(arguments, "model")?, get_string(arguments, "provider")?,&arguments["profile"]),
         _ => Err("Unknown MCP tool".into()),
     }
 }
@@ -446,7 +446,7 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     match name {
         "doctor" | "providers_list" | "deployment_policy" | "billing_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
         "provider_sources" => has_only(&["provider","profile"]) && arguments.get("provider").is_none_or(Value::is_string) && arguments.get("profile").is_none_or(|p|p.is_object()&&arguments["provider"].is_string()),
-        "market_refresh" => has_only(&["provider"]) && arguments["provider"].is_string(),
+        "market_refresh" => has_only(&["provider","profile"]) && arguments["provider"].is_string() && arguments.get("profile").is_none_or(Value::is_object),
         "market_quote_check" => has_only(&["quote","profile"]) && arguments["quote"].is_object() && arguments.get("profile").is_none_or(Value::is_object),
         "provider_profile_review" => has_only(&["profile"]) && arguments["profile"].is_object(),
         "provider_handoff" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
@@ -502,10 +502,7 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
                 && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len() <= 1024)
         },
         "runtime_resolve" => has_only(&["model","provider","profile"]) && arguments["model"].is_string() && arguments["provider"].is_string() && arguments.get("profile").is_none_or(Value::is_object),
-        "plan_generation" => {
-            has_only(&["model", "provider"]) && arguments["model"].is_string()
-                && arguments["provider"].is_string()
-        }
+        "plan_generation" => has_only(&["model","provider","profile"]) && arguments["model"].is_string() && arguments["provider"].is_string() && arguments.get("profile").is_none_or(Value::is_object),
         _ => false,
     }
 }
@@ -570,7 +567,7 @@ fn tool_definitions() -> Value {
          "inputSchema":{"type":"object","properties":{"provider":{"type":"string"},"profile":{"type":"object"}},"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"market_refresh","description":"Read a provider catalog using a fixed GET endpoint and locally configured credentials when supported. No GPU rental; otherwise return official sources for agent research.",
-         "inputSchema":{"type":"object","properties":{"provider":{"type":"string"}},"required":["provider"],"additionalProperties":false},
+         "inputSchema":{"type":"object","properties":{"provider":{"type":"string"},"profile":{"type":"object"}},"required":["provider"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true,"openWorldHint":true}},
         {"name":"market_quote_check","description":"Check caller quote source and timestamp freshness. Never authenticates a quote or approves spending.",
          "inputSchema":{"type":"object","properties":{"quote":{"type":"object"},"profile":{"type":"object"}},"required":["quote"],"additionalProperties":false},
@@ -644,8 +641,8 @@ fn tool_definitions() -> Value {
          "inputSchema":{"type":"object","properties":{"model":{"type":"string"}},
                         "required":["model"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"plan_generation","description":"Make a read-only plan for a model and a user-selected GPU provider; never deploy.",
-         "inputSchema":{"type":"object","properties":{"model":{"type":"string"},"provider":{"type":"string"}},
+        {"name":"plan_generation","description":"Make a read-only plan for a model and user-selected GPU provider; optional external provider profile. Never deploy.",
+         "inputSchema":{"type":"object","properties":{"model":{"type":"string"},"provider":{"type":"string"},"profile":{"type":"object"}},
                         "required":["model","provider"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}}
     ])
@@ -809,8 +806,9 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, action, model] if cmd == "models" && action == "inspect" => {
             print_json(inspect_model(model))
         }
+        [cmd, model, provider, profile] if cmd=="plan"=>print_json(planning::load_manifest(profile,8192).and_then(|p|plan_generation(model,provider,&p))),
         [cmd, model, provider] if cmd == "plan" => {
-            print_json(plan_generation(model, provider))
+            print_json(plan_generation(model, provider,&Value::Null))
         }
         [cmd] if cmd == "--help" => {
             println!("Usage:
@@ -853,7 +851,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge models search <query> [limit]
   cloud-media-bridge models search-task <pipeline_tag> [limit]
   cloud-media-bridge models inspect <owner/model|https://huggingface.co/owner/model>
-  cloud-media-bridge plan <model> <provider-id>
+  cloud-media-bridge plan <model> <provider-id> [profile.json]
 
 This version supports read-only model discovery/planning and an offline
 deployment simulation with synthetic fixture-media artifacts and mock auto-stop.
