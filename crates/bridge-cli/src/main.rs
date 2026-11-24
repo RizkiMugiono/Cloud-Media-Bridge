@@ -690,6 +690,7 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, sub, dir, manifest] if cmd == "cloud" && sub == "prepare" => {
             print_json(cloud_operator::prepare(dir,manifest))
         }
+        [cmd, sub, dir] if cmd == "cloud" && sub == "inspect" => print_json(cloud_operator::inspect(dir)),
         [cmd, sub, dir] if cmd == "cloud" && sub == "status" => {
             print_json(cloud_operator::status(dir))
         }
@@ -789,6 +790,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge cloud advice <plan-receipt-observation.json> (read-only)
   cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>
   cloud-media-bridge cloud status <directory>
+  cloud-media-bridge cloud inspect <directory> (credentialed GET only; existing resource)
   cloud-media-bridge cloud deploy <directory>       (production release gate disabled)
   cloud-media-bridge cloud stop <directory>         (production release gate disabled; owned resources only)
   cloud-media-bridge cloud generate <directory> <inputs.json> (production release gate disabled; approved lifecycle only)

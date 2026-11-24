@@ -68,7 +68,10 @@ fn mark(root:&Path,g:&Value)->Result<(),String>{
     #[cfg(unix)]{use std::os::unix::fs::OpenOptionsExt;opts.mode(0o600);}
     let mut f=opts.open(root.join(format!("{prefix}-{}",key.as_str().ok_or("Missing ID")?))).map_err(|_|"Grant replay or ledger unavailable; reconcile before retry")?;
     f.write_all(sha256(g.to_string().as_bytes()).as_bytes()).map_err(|_|"Cannot persist marker")?;
-    f.sync_all().map_err(|_|"Cannot sync marker")?;Ok(())
+    f.sync_all().map_err(|_|"Cannot sync marker")?;
+    #[cfg(unix)]
+    fs::File::open(root).and_then(|dir|dir.sync_all()).map_err(|_|"Cannot sync replay ledger directory; do not retry")?;
+    Ok(())
 }
 fn verify(plan:&Value,g:&Value,sig:&Path,req:&Value,consume:bool)->Result<Value,String>{
     let p=principal()?;validate(plan,g,req,&p,now()?)?;verify_sig(g,sig,&p)?;validate(plan,g,req,&p,now()?)?;

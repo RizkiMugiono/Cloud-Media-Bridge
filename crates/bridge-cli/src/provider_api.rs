@@ -239,6 +239,28 @@ pub(crate) fn stopped(provider: &str, response: &Value) -> bool {
     }
 }
 
+/// Provider-observed state only; a successful HTTP status or desired state
+/// never proves actual GPU release. Do not expose the raw provider response.
+pub(crate) fn observe_owned<T: Transport>(
+    backend:&mut T, provider:&str, id:&str, owner:&str, record:&Value
+)->Result<Value,String>{
+    if !identifier(owner)||record["owner_request_id"]!=owner||record["id"]!=id
+        ||record["provider"]!=provider||record["created_by_bridge"]!=true {
+        return Err("Missing exact local resource ownership record".into());
+    }
+    let response=backend.send(&inspect_operation(provider,id)?)?;
+    if response.get("error").is_some()||response["success"]==false||!provider_owned(provider,&response,id,owner){
+        return Err("Provider-observed ownership is not established".into());
+    }
+    let state=match (running(provider,&response),stopped(provider,&response)){
+        (true,false)=>"running",(false,true)=>"stopped",_=>"unknown",
+    };
+    Ok(json!({"resource_id":id,"provider":provider,"owner_request_id":owner,
+        "provider_state":state,"provider_identity_matched":true,
+        "billing_stopped_confirmed":false,"active_jobs_verified":false,
+        "active_transfers_verified":false,"provider_mutation_sent":false}))
+}
+
 /// Reconcile only the resource recorded as created by this deployment. If
 /// anything is uncertain, do not destroy it and do not report success.
 pub(crate) fn stop_owned<T: Transport>(
@@ -259,7 +281,8 @@ pub(crate) fn stop_owned<T: Transport>(
         return Err("Resource ownership or active-job/artifact state is not confirmed; stop forbidden".into());
     }
     let before = backend.send(&inspect_operation(provider, resource_id)?)?;
-    if !provider_owned(provider,&before,resource_id,owner_request_id){return Err("Provider ownership marker or resource identity missing/mismatched; stop forbidden".into());}
+    if before.get("error").is_some()||before["success"]==false||!provider_owned(provider,&before,resource_id,owner_request_id){return Err("Provider ownership marker or resource identity missing/mismatched; stop forbidden".into());}
+    if stopped(provider, &before) && running(provider,&before){return Err("Conflicting actual provider state; reconcile before stop".into());}
     if stopped(provider, &before) {
         return Ok(json!({"resource_id":resource_id,"state":"STOP_CONFIRMED","already_stopped":true,
             "storage_or_network_charges_may_remain":true}));
@@ -272,7 +295,7 @@ pub(crate) fn stop_owned<T: Transport>(
     }
     // A successful stop HTTP response is not itself stopped-state evidence.
     let after = backend.send(&inspect_operation(provider, resource_id)?)?;
-    if !provider_owned(provider,&after,resource_id,owner_request_id) || !stopped(provider, &after) {
+    if after.get("error").is_some()||after["success"]==false||!provider_owned(provider,&after,resource_id,owner_request_id) || !stopped(provider, &after) || running(provider,&after) {
         return Ok(json!({"resource_id":resource_id,"state":"STOP_UNCERTAIN",
             "manual_reconciliation_required":true,"storage_or_network_charges_may_remain":true}));
     }
@@ -327,6 +350,20 @@ mod tests {
         }
     }
 
+    #[test]
+    fn observation_is_get_only_redacted_and_never_proves_billing_or_job_state(){
+        let record=json!({"owner_request_id":"req","id":"p01","provider":"runpod-pods","created_by_bridge":true});
+        let mut fake=Replay{replies:vec![json!({"id":"p01","name":"cmb-req","status":"EXITED","env":{"SECRET":"private"}})],sent:vec![]};
+        let observed=observe_owned(&mut fake,"runpod-pods","p01","req",&record).unwrap();
+        assert_eq!(observed["provider_state"],"stopped");
+        assert_eq!(observed["billing_stopped_confirmed"],false);
+        assert_eq!(observed["active_jobs_verified"],false);
+        assert!(!observed.to_string().contains("private"));
+        assert_eq!(fake.sent.len(),1);
+        assert_eq!(fake.sent[0].method,"GET");
+        let mut conflict=Replay{replies:vec![json!({"id":"p01","name":"cmb-req","status":"EXITED","runtimeStatus":"running"})],sent:vec![]};
+        assert_eq!(observe_owned(&mut conflict,"runpod-pods","p01","req",&record).unwrap()["provider_state"],"unknown");
+    }
     #[test]
     fn new_resource_id_is_parsed_from_actual_provider_response_shape() {
         let mut pod=Replay{replies:vec![json!({"id":"pod123"})],sent:vec![]};

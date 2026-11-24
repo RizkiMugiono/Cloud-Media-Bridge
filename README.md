@@ -226,3 +226,7 @@ See [independent signed authorization](docs/SIGNED-AUTHORIZATION.md) for the CLI
 `lifecycle_action` returns provider-native action drafts when the selected lifecycle trigger is due; it never dispatches or supplies approval.
 
 [GPU smoke build bundle](docs/GPU-SMOKE-BUNDLE.md) adds local integrity validation and a digest-pinned candidate image path; no GPU rental or production enablement is performed.
+
+### Read-only recovery
+
+`cloud inspect SESSION` performs a provider GET for the recorded RunPod/Vast resource, checks its exact identity, and returns redacted actual-state evidence. Stop intent is persisted before dispatch; uncertain stops cannot be blindly replayed. This does not certify billing cessation, idle workers, or independent watchdog enforcement. Production mutation remains disabled.

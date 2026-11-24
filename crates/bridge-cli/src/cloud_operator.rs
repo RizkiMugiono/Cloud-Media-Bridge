@@ -54,7 +54,10 @@ fn save(root:&Path,value:&Value)->Result<(),String>{
     file.write_all(&bytes).map_err(|_|"Cannot save cloud journal".to_string())?;
     file.sync_all().map_err(|_|"Cannot sync cloud journal".to_string())?;
     drop(file);
-    fs::rename(&tmp,root.join(JOURNAL)).map_err(|_|"Cannot commit cloud journal".to_string())
+    fs::rename(&tmp,root.join(JOURNAL)).map_err(|_|"Cannot commit cloud journal".to_string())?;
+    #[cfg(unix)]
+    fs::File::open(root).and_then(|dir|dir.sync_all()).map_err(|_|"Cannot sync cloud journal directory; reconcile before retry".to_string())?;
+    Ok(())
 }
 
 fn read(root:&Path)->Result<Value,String>{
@@ -282,18 +285,55 @@ pub(crate) fn status(directory:&str)->Result<Value,String>{
 
 fn reconcile_with<T:Transport>(root:&Path,api:&mut T)->Result<Value,String>{
     let mut state=read(root)?;
-    if state["status"]!="CREATED" && state["status"]!="STOP_UNCERTAIN" {
+    if state["status"]!="CREATED" {
         return Err("Only recorded, owned resources are eligible for stop reconciliation".into());
     }
     let resource=state["resource"].clone();
     let provider=state["plan"]["provider"].as_str().ok_or("Unknown provider")?;
     let id=resource["id"].as_str().ok_or("Missing resource id")?;
     let owner=state["plan"]["request_id"].as_str().ok_or("Missing request id")?;
-    let answer=provider_api::stop_owned(api,provider,id,owner,&resource)?;
+    // Persist an uncertain mutation boundary BEFORE sending any stop request.
+    // After a crash, recovery is GET-only and never blindly resends stop.
+    let (provider,id,owner)=(provider.to_string(),id.to_string(),owner.to_string());
+    state["status"]=json!("STOP_IN_FLIGHT");
+    save(root,&state)?;
+    let answer=match provider_api::stop_owned(api,&provider,&id,&owner,&resource){
+        Ok(answer)=>answer,
+        Err(e)=>{
+            state["status"]=json!("STOP_UNCERTAIN");
+            state["resource"]["stop_state"]=json!("STOP_UNCERTAIN");
+            state["last_error"]=json!("Stop may not have completed; read-only provider reconciliation required");
+            save(root,&state)?;
+            return Err(e);
+        }
+    };
     state["status"]=answer["state"].clone();
     state["resource"]["stop_state"]=answer["state"].clone();
     save(root,&state)?;
     Ok(answer)
+}
+
+// No mutation or provider billing event is inferred from a GET result.
+fn inspect_with<T:Transport>(state:&Value,api:&mut T)->Result<Value,String>{
+    let resource=&state["resource"];
+    let plan=&state["plan"];
+    let provider=plan["provider"].as_str().ok_or("Missing provider")?;
+    let id=resource["id"].as_str().ok_or("No recorded resource ID; use provider inventory to reconcile uncertain creation")?;
+    let owner=plan["request_id"].as_str().ok_or("Missing request ID")?;
+    let observed=provider_api::observe_owned(api,provider,id,owner,resource)?;
+    Ok(json!({"journal_status":state["status"],"observation":observed,
+        "next_step":match (state["status"].as_str(),observed["provider_state"].as_str()){
+            (Some("STOP_IN_FLIGHT"|"STOP_UNCERTAIN"),Some("stopped"))=>"verify_remaining_charges_and_record_operator_reconciliation",
+            (Some("RUNNING"|"JOB_UNCERTAIN"),_)=>"reconcile_worker_jobs_and_transfers_before_any_mutation",
+            (Some("STOP_IN_FLIGHT"|"STOP_UNCERTAIN"),_)=>"reconcile_previous_stop_without_replay",
+            (_,Some("unknown"))=>"reconcile_provider_state_without_mutation",
+            _=>"monitor_and_apply_only_user_approved_policy",
+        },"journal_modified":false,"provider_mutation_sent":false,"approval_granted":false}))
+}
+pub(crate) fn inspect(directory:&str)->Result<Value,String>{
+    let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
+    let state=read(&root)?;
+    inspect_with(&state,&mut CurlTransport)
 }
 
 /// Operator-only real worker execution. The credentialed provider lifecycle
@@ -404,7 +444,7 @@ pub(crate) fn stop(directory:&str)->Result<Value,String>{
     let root=root_dir(directory)?;
     let _lock=Lock::acquire(&root)?;
     let state = read(&root)?;
-    if !matches!(state["status"].as_str(),Some("CREATED"|"STOP_UNCERTAIN")){return Err("Reconcile resource before stop".into());}
+    if state["status"]!="CREATED"{return Err("Reconcile uncertain resource before stop; never blindly replay".into());}
     crate::authorization::consume_for_plan(&state["plan"],"stop",state["resource"]["id"].clone(),Value::Null)?;
     let mut api=CurlTransport;
     reconcile_with(&root,&mut api)
@@ -476,6 +516,25 @@ mod tests {
         ],requests:vec![]};
         let result=reconcile_with(&dir,&mut replay).unwrap();
         assert_eq!(result["state"],"STOP_UNCERTAIN");
+        assert_eq!(read(&dir).unwrap()["status"],"STOP_UNCERTAIN");
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn stop_transport_error_is_persisted_and_recovery_never_replays(){
+        let dir=session();
+        save(&dir,&state("runpod-pods","p01")).unwrap();
+        let mut fake=Replay{replies:vec![json!({"id":"p01","name":"cmb-req001","status":"RUNNING"})],requests:vec![]};
+        assert!(reconcile_with(&dir,&mut fake).is_err());
+        assert_eq!(read(&dir).unwrap()["status"],"STOP_UNCERTAIN");
+        assert_eq!(fake.requests.len(),2);
+        let mut recovery=Replay{replies:vec![json!({"id":"p01","name":"cmb-req001","status":"EXITED"})],requests:vec![]};
+        assert!(reconcile_with(&dir,&mut recovery).is_err());
+        assert!(recovery.requests.is_empty());
+        let obs=inspect_with(&read(&dir).unwrap(),&mut recovery).unwrap();
+        assert_eq!(obs["observation"]["provider_state"],"stopped");
+        assert_eq!(obs["journal_modified"],false);
+        assert_eq!(recovery.requests.len(),1);
+        assert_eq!(recovery.requests[0].method,"GET");
         assert_eq!(read(&dir).unwrap()["status"],"STOP_UNCERTAIN");
         fs::remove_dir_all(dir).unwrap();
     }
