@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 17);
+    assert_eq!(tools.len(), 19);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -323,4 +323,28 @@ fn agent_can_prepare_and_inspect_cloud_plan_but_cannot_approve_or_deploy_via_mcp
     assert_eq!(replies[3]["error"]["code"],-32602);
     assert_eq!(replies[4]["error"]["code"],-32602);
     let _=std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn billing_quote_mcp_estimates_five_seconds_without_provisioning_gpu() {
+    let quote=json!({"schema_version":1,"billing_model":"per_hour",
+        "billing_increment_ms":3_600_000,
+        "minimum_billable_ms":3_600_000,
+        "billable_elapsed_ms":5_000,
+        "quoted_micro_usd_per_hour":1_000_000
+    });
+    let policy=json!({"jsonrpc":"2.0","id":80,"method":"tools/call",
+        "params":{"name":"billing_policy","arguments":{}}});
+    let request=json!({"jsonrpc":"2.0","id":81,"method":"tools/call",
+        "params":{"name":"billing_estimate","arguments":{"quote":quote}}});
+    let invalid=json!({"jsonrpc":"2.0","id":82,"method":"tools/call",
+        "params":{"name":"billing_estimate","arguments":{"quote":quote,"approved":true}}});
+    let replies=exchange(&[INIT,READY,&policy.to_string(),&request.to_string(),&invalid.to_string()]);
+    let policy=&replies[1]["result"]["structuredContent"];
+    assert_eq!(policy["default_lifecycle"]["wait_until_end_of_paid_period"],false);
+    let estimate=&replies[2]["result"]["structuredContent"];
+    assert_eq!(estimate["effective_billable_ms"],3_600_000);
+    assert_eq!(estimate["estimated_incremental_compute_micro_usd"],1_000_000);
+    assert_eq!(estimate["auto_stop_after_last_job"],true);
+    assert_eq!(replies[3]["error"]["code"],-32602);
 }
