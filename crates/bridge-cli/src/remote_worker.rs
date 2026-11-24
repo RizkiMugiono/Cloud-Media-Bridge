@@ -100,7 +100,8 @@ pub(crate) fn validate_worker_result(body:&Value,request:&Value)->Result<Vec<Val
 /// This function is only called by a local, separately-approved operator
 /// deployment session. It never accepts a model or host supplied by an MCP
 /// tool call, and downloaded bytes are independently SHA-256 verified.
-pub(crate) fn generate(outdir:&Path,model_id:&str,revision:&str,task:&str,inputs:&Value)
+pub(crate) fn generate(outdir:&Path,model_id:&str,revision:&str,task:&str,
+    family:&str,deployment_request_id:&str,inputs:&Value)
     ->Result<Value,String>
 {
     let origin=env::var("CMB_WORKER_HTTPS_ORIGIN")
@@ -111,7 +112,9 @@ pub(crate) fn generate(outdir:&Path,model_id:&str,revision:&str,task:&str,inputs
     if !valid_token(&token){return Err("Invalid worker token".into());}
     let health:Value=serde_json::from_slice(&request(&origin,&token,"GET","/health",None)?)
         .map_err(|_|"Invalid worker health JSON".to_string())?;
-    if health["status"]!="ok"||health["simulation_only"]!=false||health["task"]!=task{
+    if health["status"]!="ok"||health["simulation_only"]!=false||health["task"]!=task
+        ||health["model_id"]!=model_id ||health["revision_sha"]!=revision
+        ||health["family"]!=family ||health["deployment_request_id"]!=deployment_request_id {
         return Err("Worker is not a real, task-compatible healthy service".into());
     }
     let input_items=inputs["inputs"].as_array().ok_or("inputs must be an array")?;
