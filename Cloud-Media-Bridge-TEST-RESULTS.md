@@ -16,7 +16,7 @@ This file records **actual observations only**. All-media catalog checks demonst
 | Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on `main` |
 | Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on `main` |
 | Markdown code fences in both documents are balanced | PASS | Architecture: 4 fence delimiters; test plan: 6; balanced = true |
-| Test case IDs are unique and complete | PASS | 132 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10, R01–R08, O01–O14, C01–C08 |
+| Test case IDs are unique and complete | PASS | 140 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10, R01–R08, O01–O14, C01–C08, B01–B08 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
 | Application Rust source compilation and static analysis | PASS | [PR CI run 45215723211](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45217160090) passed Rust build/test/Clippy on Linux, Windows and macOS; runtime resolver branch commit `227c415b3ba456d9ddc23d67ded2101a0ec66bf8` |
 | CLI integration tests | PASS | 30 offline tests (21 Rust unit + 9 MCP process integration) passed on Linux, Windows and macOS; runtime matching uses synthetic evidence and does not execute models |
@@ -206,6 +206,21 @@ These are offline adapter/worker-contract tests only. Real GPUs and provider cre
 | C06 | Provider-confirmed stop and uncertain state | **PASS (offline contract only)** | [Cross-platform CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45304466027): successful_stop_must_be_confirmed_by_provider_observation; an_accepted_stop_is_not_falsely_reported_as_confirmed |
 | C07 | Authenticated real worker health and remote artifact integrity | **PASS (offline contract only)** | [Cross-platform CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45304466027): test_real_worker_health_requires_auth_and_identifies_exact_deployment; refuse_simulated_results_and_mismatched_or_unsafe_artifacts |
 | C08 | Actual real provider model inference and auto-stop | **NOT RUN** | Requires separately approved provider credentials/GPU credits |
+
+## 2f. GPU rental billing and lifecycle test ledger (B01–B08)
+
+The billing estimates use user-provided illustrative prices, not live provider rates or paid cloud invoices. B08 must remain NOT RUN until separately authorized real cloud usage and billing reconciliation.
+
+| Test ID | Scenario requiring verification | Status | Evidence |
+|---|---|---|---|
+| B01 | Per-second billing despite USD/hour display; immediate stop | **NOT RUN** | Awaiting offline CI evidence |
+| B02 | Full-hour minimum without waiting for the hour | **NOT RUN** | Awaiting offline CI evidence |
+| B03 | Minute/day/millisecond/custom increments and minimums | **NOT RUN** | Awaiting offline CI evidence |
+| B04 | Prepaid, monthly, yearly and reserved compute contracts | **NOT RUN** | Awaiting offline CI evidence |
+| B05 | Budget estimate overrun blocks operator paid deployment | **NOT RUN** | Awaiting offline CI evidence |
+| B06 | Missing/inconsistent/unverified billing terms are refused | **NOT RUN** | Awaiting offline CI evidence |
+| B07 | Agent MCP/CLI billing policy and estimate remain read-only | **NOT RUN** | Awaiting offline CI evidence |
+| B08 | Real GPU invoice and provider-confirmed billing stop | **NOT RUN** | Requires separately authorized GPU/provider test |
 
 ## 3. Test level status
 
