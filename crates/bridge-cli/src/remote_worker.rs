@@ -67,9 +67,8 @@ fn artifact_ext(kind:&str,mime:&str)->Option<&'static str>{
         ("video","video/mp4")=>Some("mp4"),
         ("audio"|"music"|"speech","audio/wav")=>Some("wav"),
         ("audio"|"music"|"speech","audio/mpeg")=>Some("mp3"),
-        ("text"|"document"|"multimodal","application/json")=>Some("json"),
+        ("text"|"document"|"multimodal"|"spatial","application/json")=>Some("json"),
         ("three_d","model/obj")=>Some("obj"),
-        ("spatial"|"multimodal"|"document","application/json")=>Some("json"),
         _=>None
     }
 }
