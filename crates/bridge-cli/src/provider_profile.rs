@@ -74,3 +74,17 @@ mod tests{
         p["pricing"]=json!(["https://example.com/pricing"]);p["command"]=json!("anything");assert!(validate(&p).is_err());
     }
 }
+
+#[cfg(test)]
+mod real_external_profile_tests {
+    #[test]
+    fn documented_digitalocean_profile_uses_generic_provider_path() {
+        let p:serde_json::Value=serde_json::from_str(include_str!("../../../examples/digitalocean-external-profile.json")).unwrap();
+        let r=super::resolve("digitalocean-gpu",&p).unwrap();
+        assert_eq!(r["capabilities"]["execute"],false);
+        assert_eq!(r["native_execution"],"agent_host");
+        let s=super::sources("digitalocean-gpu",&p).unwrap();
+        assert_eq!(s["pricing"],p["pricing"]);
+        assert_eq!(s["network_request_sent"],false);
+    }
+}

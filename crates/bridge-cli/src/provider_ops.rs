@@ -42,7 +42,7 @@ pub(crate) fn preview(provider:&str,image:&str,gpu:&str,disk:u64,offer_id:Option
                 "body":{"name":name,"templateId":null,"gpu":{"pools":[gpu],"count":1},
                     "workers":{"min":0,"max":1,"idleTimeout":5},
                     "scaling":{"type":"QUEUE_DELAY","queueDelay":4},
-                    "type":"QUEUE","flashboot":"OFF",
+                    "type":"QUEUE","flashboot":"OFF"},
                 "credential_env":"RUNPOD_API_KEY"}),
             json!({"lifecycle":"provider_worker_scale_to_zero","workers_min":0,
                 "verification_required":true,"not_a_pod_stop":true}),
@@ -157,6 +157,13 @@ mod tests {
     fn serverless_defaults_to_zero_workers_and_lambda_refuses_implicit_termination() {
         let s=preview("runpod-serverless",&image(),"ADA_24",50,None).unwrap();
         assert_eq!(s["proposed_create_operation"]["body"]["workers"]["min"],0);
+        let body=&s["proposed_create_operation"]["body"];
+        assert_eq!(body["workers"]["idleTimeout"],5);
+        assert_eq!(body["scaling"]["queueDelay"],4);
+        assert_eq!(body["type"],"QUEUE");
+        assert_eq!(body["flashboot"],"OFF");
+        assert!(body.get("templateId").is_some_and(Value::is_null));
+        assert!(body.get("image").is_none());
         let l=preview("lambda-cloud",&image(),"gpu_1x_h100",50,None).unwrap();
         assert_eq!(l["proposed_stop_or_idle_policy"]["auto_terminate"],false);
         assert_eq!(l["proposed_stop_or_idle_policy"]["lifecycle"],"STOP_UNSUPPORTED_ACTION_REQUIRED");

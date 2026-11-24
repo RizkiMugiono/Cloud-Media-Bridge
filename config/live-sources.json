@@ -78,7 +78,8 @@
       "documentation": [
         "https://vast.ai/developers/api",
         "https://github.com/vast-ai/docs/blob/main/api-reference/openapi/yaml/search_offers.yaml",
-        "https://github.com/vast-ai/docs/blob/main/guides/reference/billing.mdx"
+        "https://github.com/vast-ai/docs/blob/main/guides/reference/billing.mdx",
+        "https://github.com/vast-ai/docs/blob/main/api-reference/openapi.yaml"
       ],
       "updates": [
         "https://docs.vast.ai/"
@@ -95,7 +96,9 @@
       "documentation": [
         "https://vast.ai/developers/api",
         "https://docs.vast.ai/",
-        "https://vast.ai/products/serverless"
+        "https://vast.ai/products/serverless",
+        "https://github.com/vast-ai/vast-codex-plugin/blob/main/skills/vastai/SKILL.md",
+        "https://github.com/vast-ai/docs/blob/main/api-reference/openapi.yaml"
       ],
       "updates": [
         "https://docs.vast.ai/"
