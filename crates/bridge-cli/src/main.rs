@@ -4,6 +4,7 @@ mod media;
 mod offline;
 mod provider_api;
 mod provider_http;
+mod remote_worker;
 mod provider_ops;
 mod runtime;
 mod worker_client;
@@ -586,6 +587,9 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, sub, dir] if cmd == "cloud" && sub == "stop" => {
             print_json(cloud_operator::stop(dir))
         }
+        [cmd, sub, dir, inputs] if cmd == "cloud" && sub == "generate" => {
+            print_json(cloud_operator::generate(dir,inputs))
+        }
         [cmd, provider, image, gpu, disk] if cmd == "provider-preview" => {
             print_json(disk.parse::<u64>().map_err(|_|"Invalid disk_gb".to_string())
                 .and_then(|gb| provider_ops::preview(provider,image,gpu,gb,None)))
@@ -660,6 +664,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge cloud status <directory>
   cloud-media-bridge cloud deploy <directory>       (verified runtime + real human TTY + CMB_ENABLE_LIVE_GPU required)
   cloud-media-bridge cloud stop <directory>         (only bridge-created and owned resources)
+  cloud-media-bridge cloud generate <directory> <inputs.json> (operator-only; verified worker + auto-stop)
   cloud-media-bridge offline worker-smoke <output-directory> <loopback-port> <media-kind>
   cloud-media-bridge offline demo <new-directory> <media-kind>
   cloud-media-bridge offline prepare <new-directory> <media-kind>
