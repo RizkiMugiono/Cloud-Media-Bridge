@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 13);
+    assert_eq!(tools.len(), 14);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -262,4 +262,20 @@ fn piped_cli_cannot_issue_fake_human_approval() {
     assert!(!run.status.success());
     assert!(String::from_utf8(run.stderr).unwrap().contains("approval"));
     let _=std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn provider_operation_previews_cover_safe_stop_without_network_side_effects() {
+    let image=format!("ghcr.io/example/fixture@sha256:{}", "a".repeat(64));
+    let request=json!({"jsonrpc":"2.0","id":90,"method":"tools/call",
+        "params":{"name":"provider_operation_preview","arguments":{
+            "provider":"runpod-pods","image":image,"gpu":"NVIDIA RTX 4090","disk_gb":50
+        }}});
+    let line=request.to_string();
+    let replies=exchange(&[INIT,READY,&line]);
+    let p=&replies[1]["result"]["structuredContent"];
+    assert_eq!(p["status"],"request_contract_preview_only");
+    assert_eq!(p["proposed_stop_or_idle_policy"]["body"]["action"],"stop");
+    assert_eq!(p["network_request_sent"],false);
+    assert_eq!(p["execution_enabled"],false);
 }
