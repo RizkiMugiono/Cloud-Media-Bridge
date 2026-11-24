@@ -384,3 +384,20 @@ These cases assess Rust provider request construction, journal and approval chec
 | C08 | End-to-end real provider and model inference | Actual output/receipt, verified runtime image, user approval, provider-confirmed stop, GPU billing | Yes — deferred |
 
 Existing nine-provider previews are not operational integrations. Even if C01–C07 pass, real GPU inference and automatic stopping remain unverified until C08.
+
+## 19. GPU billing increments and commitment safety (B01–B08)
+
+These tests distinguish **displayed hourly prices** from the provider's **actual billed increment and minimum**. B01–B07 are offline; B08 needs separately authorized real account billing records and GPU resource usage.
+
+| ID | Scenario | Expected evidence | GPU credits? |
+|---|---|---|---|
+| B01 | USD/hour display but actual per-second billing; resource exists for five seconds | Estimate five rounded seconds, not an entire hour; default immediate stop | No |
+| B02 | Actual one-hour minimum on a five-second job | Estimate at least a full hour but **do not wait for the hour to expire** before stop | No |
+| B03 | Per-minute, per-day, per-millisecond and custom increments/minimums | Correct provider-specific rounding of provisioning-to-stop elapsed time, not just inference duration | No |
+| B04 | Per-month, yearly, prepaid or reserved GPU agreements | Do not fabricate per-job cost or refunds; stop compute where supported, disclose continuing commitment | No |
+| B05 | Estimated compute cost exceeds approved budget | Reject paid deployment path; quote cannot be presented as a hard provider-side spending cap | No |
+| B06 | Missing quote, mismatched provider, inconsistent increments or unreviewed contract | Fail closed before resource creation; keep explicit source and user approval requirements | No |
+| B07 | MCP and CLI billing policy/estimate | Read-only tools return actual increment behavior; cannot use injected approval or secretly provision GPU | No |
+| B08 | Real provider charges, stoppage and storage/contract reconciliation | Verify actual invoice against measured resource lifetime and stopped-state API; log continuing fees honestly | **Yes — deferred** |
+
+Prepaid terms and terminated-only VM providers require an independently authorized contract/destruction decision. Neither offline estimates nor an API stop acknowledgment establish that billing ceased.
