@@ -16,7 +16,6 @@ import io
 import json
 import os
 import re
-import struct
 import threading
 import uuid
 import wave
@@ -27,6 +26,7 @@ MAX_JSON = 1024 * 1024
 MAX_INPUT = 32 * 1024 * 1024
 MAX_OUTPUT = 32 * 1024 * 1024
 MAX_ARTIFACTS = 32
+MAX_TOTAL_ASSET_BYTES = 64 * 1024 * 1024
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}/[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SHA_RE = re.compile(r"^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$")
 # Tasks outside this set require an independently reviewed runtime-family adapter.
@@ -99,6 +99,7 @@ class Worker:
         self.token = token
         self.fixture = fixture
         self.assets: dict[str, tuple[bytes, str, str]] = {}
+        self.asset_bytes = 0
         self.lock = threading.RLock()
         self.pipeline: Any = None
 
@@ -111,9 +112,10 @@ class Worker:
         name = uuid.uuid4().hex
         digest = hashlib.sha256(data).hexdigest()
         with self.lock:
-            if len(self.assets) >= MAX_ARTIFACTS:
+            if len(self.assets) >= MAX_ARTIFACTS or self.asset_bytes + len(data) > MAX_TOTAL_ASSET_BYTES:
                 raise WorkerError("ASSET_LIMIT", "Worker asset capacity exceeded", 503)
             self.assets[name] = (data, mime, digest)
+            self.asset_bytes += len(data)
         return {"kind": kind, "media_type": mime, "size_bytes": len(data),
                 "sha256": digest, "asset_ref": name,
                 "metadata": {"simulation_only": self.fixture}}
@@ -223,6 +225,8 @@ class Worker:
         params = request.get("parameters", {})
         if not isinstance(items, list) or len(items) > 16 or not isinstance(params, dict):
             raise WorkerError("INVALID_INPUT", "Invalid media inputs or parameters")
+        if not self.fixture and "fixture_kind" in request:
+            raise WorkerError("FIXTURE_DISABLED", "Fixture requests are not permitted in real inference mode")
         if self.fixture:
             kind = request.get("fixture_kind")
             if kind not in {"image", "video", "audio", "speech", "music", "three_d", "spatial", "document", "multimodal"}:
