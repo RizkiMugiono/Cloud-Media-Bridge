@@ -1,10 +1,10 @@
 # Cloud-Media-Bridge — Test Results and Verification Ledger
 
-**Date:** 2026-11-23  
+**Date:** 2026-11-24  
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **30 offline Rust tests passed on Linux, Windows and macOS (21 unit + 9 MCP integration); provider deployment, actual model inference and cloud resource operations remain untested**
+**Overall application status:** **Offline Rust and Python worker tests passed on Linux, Windows and macOS; real GPU deployment, model inference and cloud operations remain untested**
 
 This file records **actual observations only**. All-media catalog checks demonstrate classification and MCP contract behavior, **not** model inference or true universal runtime compatibility. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, media classification, evidence-based Rust runtime matching, Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
@@ -16,7 +16,7 @@ This file records **actual observations only**. All-media catalog checks demonst
 | Architecture document is present and readable | PASS | `Cloud-Media-Bridge.md` present on `main` |
 | Test plan is present and readable | PASS | `Cloud-Media-Bridge-TESTING.md` present on `main` |
 | Markdown code fences in both documents are balanced | PASS | Architecture: 4 fence delimiters; test plan: 6; balanced = true |
-| Test case IDs are unique and complete | PASS | 110 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10, R01–R08 |
+| Test case IDs are unique and complete | PASS | 124 unique IDs: H01–H18, P01–P18, M01–M16, D01–D15, J01–J15, U01–U10, A01–A10, R01–R08, O01–O14 |
 | Architecture and test plan reference each other | PASS | Cross-references verified in both source documents |
 | Application Rust source compilation and static analysis | PASS | [PR CI run 45215723211](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45217160090) passed Rust build/test/Clippy on Linux, Windows and macOS; runtime resolver branch commit `227c415b3ba456d9ddc23d67ded2101a0ec66bf8` |
 | CLI integration tests | PASS | 30 offline tests (21 Rust unit + 9 MCP process integration) passed on Linux, Windows and macOS; runtime matching uses synthetic evidence and does not execute models |
@@ -33,7 +33,7 @@ Local application evidence covers only the scenarios below.
 
 ## 2. Application test-case status ledger
 
-Eighteen mapped cases have offline evidence: H01, H02, U01–U03, A01–A07 and R01–R06. Additional unit/integration tests do not automatically establish success for unrelated scenario IDs. The remaining **92 scenarios are NOT RUN**, including live Hub/AI inference, provider deployment and resource cleanup tests. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
+Eighteen mapped cases have offline evidence: H01, H02, U01–U03, A01–A07 and R01–R06. Additional unit/integration tests do not automatically establish success for unrelated scenario IDs. **30 mapped scenarios have offline evidence** (H01–H02, U01–U03, A01–A07, R01–R06, O01–O12), while **94 remain NOT RUN**, including live Hugging Face authentication, real AI inference and GPU billing/cleanup tests. Policy validation is not evidence that deployment approval or GPU stopping works. A new result must cite exact reproducible evidence, not source-code presence, assumptions or a mock's claimed equivalence to real inference.
 
 | Test ID | Scenario requiring verification | Status | Evidence |
 |---|---|---|---|
@@ -169,6 +169,27 @@ These tests track the read-only runtime candidate matcher. No OCI/installer is e
 | R07 | Live Hub model metadata and runtime matching | **NOT RUN** | No matching execution evidence recorded |
 | R08 | Real GPU runtime deployment, media result and resource cleanup | **NOT RUN** | No matching execution evidence recorded |
 
+## 2d. Offline end-to-end execution test ledger (O01–O14)
+
+**Fixture-only acceptance:** O01–O12 completed as offline tests in the PR branch across Linux, Windows and macOS. These exercises never use paid GPUs or real model weights. O04 verifies **rejection of non-interactive approval**, not a person entering the challenge interactively. O13–O14 are explicitly deferred for model/GPU/provider approval and cannot be marked PASS.
+
+| Test ID | Scenario | Status | Evidence |
+|---|---|---|---|
+| O01 | OS CSPRNG random deployment nonce and SHA-256 integrity | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `crypto::tests::known_sha256_vectors; crypto::tests::two_random_nonces_are_distinct` |
+| O02 | Nine local media family fixture workflows | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::all_nine_media_paths_have_real_verified_fixture_artifacts_and_auto_stop` |
+| O03 | Reject missing, replayed and tampered approval | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::missing_or_replayed_approval_is_rejected; plan_tampering_and_cross_session_replay_are_denied` |
+| O04 | Human terminal-only approval and fixture-only shortcut | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `piped_cli_cannot_issue_fake_human_approval; offline::tests::missing_or_replayed_approval_is_rejected (positive human TTY input not tested by CI)` |
+| O05 | Worker failure with owned GPU mock resource | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::failure_auto_stops_only_owned_mock_resource` |
+| O06 | Owner-scoped stop with active-job deferral and no termination | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::ownership_is_mandatory_and_stop_never_terminates_resources; crash_window_reconciles_provider_owned_resource_by_idempotency` |
+| O07 | Provider stop failure and safe retry | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::stop_failure_is_visible_and_reconcilable_without_second_stop` |
+| O08 | Crash-window journal recovery | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::crash_window_reconciles_provider_owned_resource_by_idempotency` |
+| O09 | Tampered artifact detection and safe paths | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `offline::tests::artifact_mutation_and_symlinks_fail_integrity_checks; worker HTTP artifact tests` |
+| O10 | Provider API request/stop previews across all nine providers | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `provider_ops::tests::all_nine_providers_have_safe_offline_contracts; runpod_and_vast_use_official_stop_not_termination; reject_unknown_image_digest_shell_injection_and_invalid_disk` |
+| O11 | Authenticated Python worker HTTP across nine fixture kinds | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `workers/tests/test_protocol.py: authenticated HTTP, all 9 fixtures, worker protocol checks` |
+| O12 | Cross-language Rust-to-Python media worker transport | **PASS (offline/mock only)** | [PR CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45300810727) — `workers/tests/test_protocol.py::test_rust_mcp_bridge_calls_fixture_worker_over_real_loopback_http` |
+| O13 | Actual Diffusers/Transformers inference from pinned Hugging Face revision on GPU | **NOT RUN (needs real GPU/provider authorization)** | Requires separate authorized paid-cloud/model inference test |
+| O14 | Real cloud provider deployment, one-shot human approval and auto-stop/scale-to-zero | **NOT RUN (needs real GPU/provider authorization)** | Requires separate authorized paid-cloud/model inference test |
+
 ## 3. Test level status
 
 | Tier | Status | Reason |
@@ -179,7 +200,7 @@ These tests track the read-only runtime candidate matcher. No OCI/installer is e
 | T3 — Modal non-GPU live smoke | NOT RUN | Requires separate user authorization and accessible Modal workspace |
 | T4 — Modal GPU inference through an approved deployment route | NOT RUN | No GPU resources used |
 | T5 — Modal parallel, asynchronous, recovery, scale-to-zero | NOT RUN | No live executions |
-| T6 — Other-provider API contract mocks | NOT RUN | No tests executed |
+| T6 — Other-provider API contract mocks | PASS (request-shape previews only) | Rust `provider_ops` offline tests cover all nine provider classes; these are NOT live API adapters |
 | T7 — Other-provider real-cloud tests | NOT RUN | Every provider requires its own adapter, consent and real-cloud test evidence; development is parallel |
 
 ### Local execution on 2026-11-23
