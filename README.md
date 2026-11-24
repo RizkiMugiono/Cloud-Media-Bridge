@@ -59,7 +59,7 @@ cargo run --locked -- offline status ./test-session-image
 
 This tests exact plan binding, a **test-only** one-shot approval, mock resource provisioning, media fixture output and SHA-256 verification, provider-confirmed mock auto-stop, and durable journal reconciliation. `offline approve` also implements an interactive human terminal challenge for mock workloads; it is **not a production approval boundary** against an AI agent with local PTY/shell privileges.
 
-The Python HTTP worker in `workers/media_worker.py` can serve **fixture mode on loopback only**, with an authenticated artifact API and Rust-to-Python interoperability tests. It also contains task-specific real Hugging Face loader paths for compatible image and selected speech/audio models, **not yet verified against an actual GPU or model revision**. Video, music-specialized, 3D and other models require additional verified runtime handlers.
+The Python HTTP worker in `workers/media_worker.py` can serve **fixture mode on loopback only**; a nonprivileged, CPU-only development image in [`workers/Dockerfile.fixture`](workers/Dockerfile.fixture) is built and exercised in Ubuntu CI. This development image is **not a pinned, audited GPU production image**. The HTTP worker with an authenticated artifact API and Rust-to-Python interoperability tests. It also contains task-specific real Hugging Face loader paths for compatible image and selected speech/audio models, **not yet verified against an actual GPU or model revision**. Video, music-specialized, 3D and other models require additional verified runtime handlers.
 
 The command `provider-preview` and MCP `provider_operation_preview` build credential-free request/stop sketches for all nine providers without creating resources. See [Offline E2E guide](docs/OFFLINE-E2E.md).
 
@@ -103,6 +103,8 @@ cargo run --locked -- plan "stabilityai/stable-diffusion-xl-base-1.0" modal
 ```
 
 The Hugging Face model search, task-filtered search, runtime resolution and plans contact the Hub over HTTPS. `offline` simulation commands use local disk and optionally local loopback HTTP only, requiring no cloud credentials or GPU credits. Provider previews are read-only. **None of these commands provisions paid GPU resources.**
+
+For an AI harness with an MCP stdio configuration option, [this configuration example](examples/mcp-stdio-client.json) shows how to launch the locally installed binary without hosting a server. The exact configuration shape varies by harness.
 
 For any local MCP-compatible AI harness, launch the `cloud-media-bridge` binary with the argument `mcp`. The server exposes read-only Hub/provider/runtime tools, `provider_operation_preview`, and the opt-in `offline_fixture_demo`, `offline_fixture_status`, `offline_fixture_verify` and `offline_worker_smoke` integration tools. Stdout is reserved for MCP JSON-RPC messages. The standalone CLI works without a specific AI-agent brand.
 
