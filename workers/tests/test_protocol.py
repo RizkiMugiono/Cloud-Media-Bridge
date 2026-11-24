@@ -10,9 +10,10 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from media_worker import Worker, WorkerError, handler_for, ThreadingHTTPServer, SHA_RE
+from media_worker import Worker, WorkerError, handler_for, ThreadingHTTPServer, SHA_RE, main
 
 TOKEN = "offline-test-secret-not-for-production"
 SHA = "0" * 40
@@ -186,6 +187,16 @@ class WorkerSecurityTests(unittest.TestCase):
                              "model": {"id": MODEL, "revision_sha": SHA},
                              "inputs": [], "fixture_kind": "image"})
         self.assertEqual(error.exception.code, "FIXTURE_DISABLED")
+
+    def test_public_worker_bind_requires_explicit_private_network_ack(self):
+        with patch.dict(os.environ, {
+            "CMB_BIND": "0.0.0.0",
+            "CMB_WORKER_MODE": "real",
+            "CMB_PRIVATE_NETWORK_ACK": "0"
+        }, clear=False):
+            with self.assertRaises(SystemExit) as error:
+                main()
+        self.assertIn("private-network/TLS", str(error.exception))
 
     def test_asset_handles_cannot_read_filesystem(self):
         worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN, fixture=True)
