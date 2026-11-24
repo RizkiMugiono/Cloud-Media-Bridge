@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 24);
+    assert_eq!(tools.len(), 25);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);

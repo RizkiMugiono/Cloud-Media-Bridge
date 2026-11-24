@@ -199,7 +199,8 @@ fn verified_decision_context(plan: &Value) -> Result<(), String> {
         return Err("Resolve missing quote, comparison, lifecycle and budget evidence before deployment".into());
     }
     should_stop_after_job(plan)?;
-    if plan["provider"]=="runpod-pods" && !matches!(plan["provider_parameters"]["cloud"].as_str(),Some("SECURE"|"COMMUNITY")){return Err("Exact RunPod cloud tier must be approved".into());}
+    let handoff=crate::handoff::review(plan)?;
+    if !handoff["provider_review_items"].as_array().is_some_and(Vec::is_empty){return Err("Resolve exact provider allocation and native request requirements".into());}
     Ok(())
 }
 

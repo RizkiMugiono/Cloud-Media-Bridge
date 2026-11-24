@@ -1,5 +1,6 @@
 mod advice;
 mod authorization;
+mod handoff;
 mod market;
 mod billing;
 mod lifecycle;
@@ -284,6 +285,7 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "provider_sources" => market::sources(arguments["provider"].as_str()),
         "market_refresh" => market::refresh(get_string(arguments,"provider")?),
         "market_quote_check" => market::check(&arguments["quote"]),
+        "provider_handoff" => handoff::review(&arguments["manifest"]),
         "cloud_review" => planning::review(&arguments["manifest"]),
         "lifecycle_advice" => lifecycle::advise(&arguments["plan"], &arguments["receipt"], &arguments["observed"]),
         "billing_estimate" => billing::estimate(&arguments["quote"]),
@@ -411,6 +413,7 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
         "provider_sources" => has_only(&["provider"]) && arguments.get("provider").is_none_or(Value::is_string),
         "market_refresh" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "market_quote_check" => has_only(&["quote"]) && arguments["quote"].is_object(),
+        "provider_handoff" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
         "cloud_review" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
         "lifecycle_advice" => has_only(&["plan","receipt","observed"]) && ["plan","receipt","observed"].iter().all(|k| arguments[k].is_object()),
         "billing_estimate" => has_only(&["quote"]) && arguments["quote"].is_object(),
@@ -480,6 +483,7 @@ fn tool_names() -> &'static [&'static str] {
         "provider_sources",
         "market_refresh",
         "market_quote_check",
+        "provider_handoff",
         "cloud_review",
         "lifecycle_advice",
         "media_tasks_list",
@@ -527,6 +531,9 @@ fn tool_definitions() -> Value {
          "annotations":{"readOnlyHint":true,"openWorldHint":true}},
         {"name":"market_quote_check","description":"Check caller quote source and timestamp freshness. Never authenticates a quote or approves spending.",
          "inputSchema":{"type":"object","properties":{"quote":{"type":"object"}},"required":["quote"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"provider_handoff","description":"Build a plan-bound provider request draft and disclose missing capabilities. No mutation, approval or credential access.",
+         "inputSchema":{"type":"object","properties":{"manifest":{"type":"object"}},"required":["manifest"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"cloud_review","description":"Review a proposed GPU plan, compare quoted costs and explain stop choices. No approval, filesystem writes or cloud operations.",
          "inputSchema":{"type":"object","properties":{"manifest":{"type":"object"}},"required":["manifest"],"additionalProperties":false},
@@ -664,6 +671,7 @@ fn run_cli(args: &[String]) -> i32 {
                 .and_then(|quote|billing::estimate(&quote)))
         },
         [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
+        [cmd, sub, file] if cmd == "cloud" && sub == "handoff" => print_json(planning::load_manifest(file,16384).and_then(|v|handoff::review(&v))),
         [cmd, sub, file] if cmd == "cloud" && sub == "review" => {
             print_json(planning::load_manifest(file, 16384).and_then(|v| planning::review(&v)))
         }
@@ -766,6 +774,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge authorization challenge <session> <operation.json>
   cloud-media-bridge authorization verify <session> <grant.json> <signature> <operation.json>
   cloud-media-bridge authorization consume <session> <grant.json> <signature> <operation.json>
+  cloud-media-bridge cloud handoff <deployment-manifest.json>
   cloud-media-bridge cloud review <deployment-manifest.json> (read-only comparison)
   cloud-media-bridge cloud advice <plan-receipt-observation.json> (read-only)
   cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>
