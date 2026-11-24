@@ -39,14 +39,14 @@ pub(crate) fn preview(provider:&str,image:&str,gpu:&str,disk:u64,offer_id:Option
         ),
         "runpod-serverless" => (
             json!({"method":"POST","url":"https://api.runpod.io/v2/serverless",
-                "body":{"name":name,"image":image,"gpu":{"pools":[gpu],"count":1},
-                    "workers":{"min":0,"max":1},
-                    "scaling":{"type":"QUEUE_DELAY","value":4,"idleTimeout":5},
-                    "timeout":300000},
+                "body":{"name":name,"templateId":null,"gpu":{"pools":[gpu],"count":1},
+                    "workers":{"min":0,"max":1,"idleTimeout":5},
+                    "scaling":{"type":"QUEUE_DELAY","queueDelay":4},
+                    "type":"QUEUE","flashboot":"OFF",
                 "credential_env":"RUNPOD_API_KEY"}),
             json!({"lifecycle":"provider_worker_scale_to_zero","workers_min":0,
                 "verification_required":true,"not_a_pod_stop":true}),
-            "serverless","Serverless endpoint control plane may remain; autoscaling worker idle must be verified"
+            "serverless","Serverless requires a verified queue template ID; the image belongs to the template, not endpoint create. Verify actual idle worker count"
         ),
         "vast-instances" => {
             let offer=offer_id.filter(|n|*n>0).ok_or("Vast.ai instance creation requires a specific real offer ID")?;

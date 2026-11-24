@@ -45,7 +45,9 @@
       "documentation": [
         "https://docs.runpod.io/pods/overview",
         "https://github.com/runpod/runpod-plugins-official/blob/main/plugins/runpod/skills/runpod-migrate/reference/graphql-to-v2.md",
-        "https://github.com/runpod/docs/blob/main/accounts-billing/billing.mdx"
+        "https://github.com/runpod/docs/blob/main/accounts-billing/billing.mdx",
+        "https://github.com/runpod/runpod-python/blob/main/runpod/api/ctl_commands.py",
+        "https://www.runpod.io/blog/runpods-rest-api-v2-is-here-one-api-for-your-entire-gpu-stack"
       ],
       "updates": [
         "https://docs.runpod.io/"
@@ -59,7 +61,9 @@
       ],
       "documentation": [
         "https://docs.runpod.io/serverless/endpoints/overview",
-        "https://github.com/runpod/runpod-plugins-official/blob/main/plugins/runpod/skills/runpod-migrate/reference/graphql-to-v2.md"
+        "https://github.com/runpod/runpod-plugins-official/blob/main/plugins/runpod/skills/runpod-migrate/reference/graphql-to-v2.md",
+        "https://github.com/runpod/runpod-python/blob/main/runpod/api/ctl_commands.py",
+        "https://www.runpod.io/blog/runpods-rest-api-v2-is-here-one-api-for-your-entire-gpu-stack"
       ],
       "updates": [
         "https://docs.runpod.io/"

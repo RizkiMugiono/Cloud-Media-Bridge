@@ -314,3 +314,7 @@ Simplified commit 30ae143 passed CI 45316577015. External profiles and protocol/
 | DeepSeek Harness | 0.2.2-rc.3 | FAIL at tools/list | 4/4 PASS |
 
 User-provided local test report: doctor, provider profile review, billing estimate, and illustrative provider handoff matched CLI outputs; separate direct MCP protocol checks found 27 tools. Offline Rust build, 109 Rust tests and Clippy passed. GitHub CI 45317825701 passed on Windows/Linux/macOS. No GPU rented. The DeepSeek SDK rejected missing required MCP 2026-07-28 tools/list cache metadata. This patch adds the two required fields to both tools/list and server/discover for modern MCP only, with a regression test; actual client retest at the new commit is NOT RUN. No private local paths or raw session evidence are committed.
+
+## Public provider source review and distribution candidates
+
+2026-11-24: checked RunPod REST v2 official SDK/migration references, Modal server CLI/public pricing, Lambda Cloud API and DigitalOcean GPU Droplet docs. Fixed the illustrative RunPod Serverless draft to require a template and use the documented queue/worker shape; added a DigitalOcean external profile, smoke-test checklist and native distribution CI. No account-specific provider read, GPU inference, actual invoice, six-target build result or release publication is asserted by this entry. See docs/PROVIDER-VERIFICATION.md and docs/RELEASE.md for exact boundaries.

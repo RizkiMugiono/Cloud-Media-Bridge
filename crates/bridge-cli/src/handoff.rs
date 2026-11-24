@@ -79,7 +79,7 @@ pub(crate) fn review(raw:&Value)->Result<Value,String>{
             json!({"transport":"rest_draft","method":"POST","url":"https://api.runpod.io/v2/serverless",
                 "body":{"name":name,"type":"QUEUE","templateId":p["template_id"],"gpu":{"pools":[p["gpu_pool"]],"count":qty},
                 "workers":{"min":p["min_workers"],"max":p["max_workers"],"idleTimeout":p["idle_seconds"]},
-                "scaling":{"type":"QUEUE_DELAY","queueDelay":p["queue_delay_seconds"]},"dataCenterIds":[region]},
+                "scaling":{"type":"QUEUE_DELAY","queueDelay":p["queue_delay_seconds"]},"dataCenterIds":[region],"flashboot":"OFF"},
                 "credential_env":"RUNPOD_API_KEY"})
         },
         "modal"=>{

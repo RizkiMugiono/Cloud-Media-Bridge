@@ -14,3 +14,5 @@ GitHub Actions runs Windows, Linux and macOS checks, including Linux CPU-only fi
 Before enabling a native provider/runtime path, test current official API schemas and read-only account/offer checks, trusted host approval, image and runtime compatibility, and provider-native lifecycle behavior. Only the real GPU smoke tests, performance and actual invoice validation require separately approved GPU credits. No custom authorization or monitoring subsystem is required.
 
 Record actual results and commit SHA in [the results ledger](Cloud-Media-Bridge-TEST-RESULTS.md); historical PASS applies only to the recorded revision. Missing or skipped evidence is NOT RUN.
+
+The native distribution workflow also tests release-mode MCP stdio on six native target runners and uploads candidates with SHA-256 checksums. Public provider contract review and remaining paid smoke-test criteria: docs/PROVIDER-VERIFICATION.md.
