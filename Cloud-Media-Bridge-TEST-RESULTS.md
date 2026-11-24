@@ -4,7 +4,7 @@
 **Repository:** https://github.com/RizkiMugiono/Cloud-Media-Bridge  
 **Specification:** [Cloud-Media-Bridge.md](Cloud-Media-Bridge.md)  
 **Test plan:** [Cloud-Media-Bridge-TESTING.md](Cloud-Media-Bridge-TESTING.md)  
-**Overall application status:** **38 Rust unit tests + 14 Rust MCP integration tests + Python HTTP worker tests passed in Linux offline CI; Windows/macOS and Docker CI are independently tracked. Real GPU deployment, model inference and cloud operations remain untested**
+**Overall application status:** **53 Rust unit tests + 14 Rust MCP integration tests + 14 Python worker tests passed in offline CI across Linux, Windows, macOS; CPU Docker fixture verified on Linux. Real GPU deployment, inference and provider stop remain untested**
 
 This file records **actual observations only**. All-media catalog checks demonstrate classification and MCP contract behavior, **not** model inference or true universal runtime compatibility. Passing documentation checks do not prove an implemented application is secure, functional or deployable. The implemented Rust code covers MCP, a read-only provider catalog, media classification, evidence-based Rust runtime matching, Hub discovery functions and a non-mutating planner. Real Hub connectivity, GPU deployment and inference still lack verified live tests.
 
@@ -198,13 +198,13 @@ These are offline adapter/worker-contract tests only. Real GPUs and provider cre
 
 | Test ID | Scenario | Status | Evidence |
 |---|---|---|---|
-| C01 | RunPod v2 create and response parsing | **NOT RUN** | Pending CI trace |
-| C02 | Vast selected offer and safe stop | **NOT RUN** | Pending CI trace |
-| C03 | Provider HTTPS credential/endpoint validation | **NOT RUN** | Pending CI trace |
-| C04 | Exact plan and one-shot approval journal | **NOT RUN** | Pending CI trace |
-| C05 | Bridge ownership and active job/transfer stop gate | **NOT RUN** | Pending CI trace |
-| C06 | Provider-confirmed stop and uncertain state | **NOT RUN** | Pending CI trace |
-| C07 | Authenticated real worker health and remote artifact integrity | **NOT RUN** | Pending CI trace |
+| C01 | RunPod v2 create and response parsing | **PASS (offline contract only)** | [Cross-platform CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45304466027): runpod_and_vast_create_requests_have_exact_pinned_identity_and_private_worker_token; new_resource_id_is_parsed_from_actual_provider_response_shape |
+| C02 | Vast selected offer and safe stop | **PASS (offline contract only)** | [Cross-platform CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45304466027): Vast PUT operation and selected-offer validation; provider stop operation contract |
+| C03 | Provider HTTPS credential/endpoint validation | **PASS (offline contract only)** | [Cross-platform CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45304466027): allowlist_rejects_credentials_in_urls_and_alternate_hosts; secure_curl_config_keeps_token_off_argv |
+| C04 | Exact plan and one-shot approval journal | **PASS (offline contract only)** | [Cross-platform CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45304466027): deployment_is_blocked_without_pinned_and_live_verified_runtime_evidence; journal_tampering_or_unknown_resources_refuse_any_mutation |
+| C05 | Bridge ownership and active job/transfer stop gate | **PASS (offline contract only)** | [Cross-platform CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45304466027): stop_checks_exact_ownership_and_last_job_before_sending_requests |
+| C06 | Provider-confirmed stop and uncertain state | **PASS (offline contract only)** | [Cross-platform CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45304466027): successful_stop_must_be_confirmed_by_provider_observation; an_accepted_stop_is_not_falsely_reported_as_confirmed |
+| C07 | Authenticated real worker health and remote artifact integrity | **PASS (offline contract only)** | [Cross-platform CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45304466027): test_real_worker_health_requires_auth_and_identifies_exact_deployment; refuse_simulated_results_and_mismatched_or_unsafe_artifacts |
 | C08 | Actual real provider model inference and auto-stop | **NOT RUN** | Requires separately approved provider credentials/GPU credits |
 
 ## 3. Test level status
