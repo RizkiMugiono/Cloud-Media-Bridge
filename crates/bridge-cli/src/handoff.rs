@@ -134,7 +134,7 @@ pub(crate) fn review(raw:&Value)->Result<Value,String>{
                 "spec":{"restartPolicy":"Never","automountServiceAccountToken":false,"nodeSelector":selector,
                 "containers":[{"name":"media-worker","image":plan["image"],"resources":{"limits":limits},
                     "env":env.as_object().ok_or("Invalid model environment")?.iter().map(|(k,v)|json!({"name":k,"value":v})).collect::<Vec<_>>(),
-                    "securityContext":{"allowPrivilegeEscalation":false}}]}}},"secret_injection_requires_trusted_operator":true})
+                    "securityContext":{"allowPrivilegeEscalation":false}}]}},"secret_injection_requires_trusted_operator":true})
         },
         _=>return Err("Unknown provider".into()),
     };
