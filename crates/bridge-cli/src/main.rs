@@ -4,6 +4,7 @@ mod handoff;
 mod market;
 mod billing;
 mod lifecycle;
+mod lifecycle_action;
 mod planning;
 mod cloud_operator;
 mod crypto;
@@ -287,6 +288,7 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "market_quote_check" => market::check(&arguments["quote"]),
         "provider_handoff" => handoff::review(&arguments["manifest"]),
         "cloud_review" => planning::review(&arguments["manifest"]),
+        "lifecycle_action" => lifecycle_action::draft(&arguments["plan"], &arguments["receipt"], &arguments["observed"]),
         "lifecycle_advice" => lifecycle::advise(&arguments["plan"], &arguments["receipt"], &arguments["observed"]),
         "billing_estimate" => billing::estimate(&arguments["quote"]),
         "media_tasks_list" => media::catalog(),
@@ -415,6 +417,7 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
         "market_quote_check" => has_only(&["quote"]) && arguments["quote"].is_object(),
         "provider_handoff" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
         "cloud_review" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
+        "lifecycle_action" => has_only(&["plan","receipt","observed"]) && ["plan","receipt","observed"].iter().all(|k| arguments[k].is_object()),
         "lifecycle_advice" => has_only(&["plan","receipt","observed"]) && ["plan","receipt","observed"].iter().all(|k| arguments[k].is_object()),
         "billing_estimate" => has_only(&["quote"]) && arguments["quote"].is_object(),
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
@@ -486,6 +489,7 @@ fn tool_names() -> &'static [&'static str] {
         "provider_handoff",
         "cloud_review",
         "lifecycle_advice",
+        "lifecycle_action",
         "media_tasks_list",
         "runtimes_list",
         "runtime_resolve",
@@ -519,6 +523,9 @@ fn tool_definitions() -> Value {
          "annotations":{"readOnlyHint":true}},
         {"name":"billing_policy","description":"Read GPU billing granularity and independent user lifecycle choice; no cloud actions.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"lifecycle_action","description":"Draft the exact lifecycle action only if caller observations support the selected policy. No dispatch or authorization.",
+         "inputSchema":{"type":"object","properties":{"plan":{"type":"object"},"receipt":{"type":"object"},"observed":{"type":"object"}},"required":["plan","receipt","observed"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"lifecycle_advice","description":"Evaluate a prepared plan and caller-reported consent and observations. Returns advice only.",
          "inputSchema":{"type":"object","properties":{"plan":{"type":"object"},"receipt":{"type":"object"},"observed":{"type":"object"}},"required":["plan","receipt","observed"],"additionalProperties":false},

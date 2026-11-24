@@ -39,7 +39,12 @@ pub(crate) fn advise(plan: &Value, receipt: &Value, observed: &Value) -> Result<
         return result("reconcile_identity_without_mutation");
     }
     match observed["provider_state"].as_str() {
-        Some("stopped" | "terminated" | "scaled_to_zero") => {
+        Some("stopped" | "terminated" | "scaled_to_zero" | "suspended") => {
+            let expected=match plan["stop_policy"]["action"].as_str(){
+                Some("stop")=>"stopped",Some("terminate")=>"terminated",
+                Some("scale_to_zero")=>"scaled_to_zero",Some("suspend")=>"suspended",_=>"",
+            };
+            if observed["provider_state"]!=expected{return result("reconcile_unexpected_terminal_state");}
             return result("verify_remaining_charges")
         }
         Some("running") => (),
@@ -160,6 +165,30 @@ mod tests {
             obs[signal] = json!(true);
             assert_eq!(advise(&p, &r, &obs).unwrap()["recommendation"], "request_approved_stop_and_verify");
         }
+    }
+
+    #[test]
+    fn every_remaining_trigger_and_terminal_state_is_distinct() {
+        let mut p=manifest();p["request_id"]=json!("req");
+        for (mode,parameter,signal,low,high) in [
+            ("persistent","","user_requested_stop",json!(false),json!(true)),
+            ("disconnect_timeout","disconnect_timeout_ms","disconnected_ms",json!(24),json!(25)),
+            ("billing_boundary","stop_at_unix_ms","now_unix_ms",json!(24),json!(25)),
+            ("budget_limit","","exposure_micro_usd",json!(20),json!(5000000)),
+        ]{
+            p["stop_policy"]["mode"]=json!(mode);
+            if !parameter.is_empty(){p["stop_policy"][parameter]=json!(25);}
+            let r=receipt(&p);let mut obs=observed(&p);
+            obs[signal]=low;
+            assert_eq!(advise(&p,&r,&obs).unwrap()["recommendation"],"monitor_within_approved_limits");
+            obs[signal]=high;
+            assert_eq!(advise(&p,&r,&obs).unwrap()["recommendation"],"request_approved_stop_and_verify");
+        }
+        p["stop_policy"]["action"]=json!("suspend");let r=receipt(&p);let mut obs=observed(&p);
+        obs["provider_state"]=json!("stopped");
+        assert_eq!(advise(&p,&r,&obs).unwrap()["recommendation"],"reconcile_unexpected_terminal_state");
+        obs["provider_state"]=json!("suspended");
+        assert_eq!(advise(&p,&r,&obs).unwrap()["recommendation"],"verify_remaining_charges");
     }
 
     #[test]
