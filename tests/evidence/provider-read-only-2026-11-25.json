@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "tested_commit": "80c82b45b233f9cf6b884e430ee24113cea7b1f5",
+  "tested_on": "2026-11-25",
+  "source": "User-supplied independent operator report, reviewed but not re-executed",
+  "source_sha256": "413fd04cd52f78a802bed6f0dadb2f4be31b7f3e6ab8cf2ca60ccc8d6016b196",
+  "debug_binary_sha256_reported": "2520f2402f1a5a2d7e9efdef4bebd0b0df34330cea920dd8cdef425846fde7ad",
+  "platform": "Windows",
+  "providers": {
+    "runpod-pods": {
+      "bridge_account_check_reported": "pass",
+      "account_match_reported": true,
+      "remaining_credit": "unverified"
+    },
+    "vast-instances": {
+      "bridge_account_check_reported": "pass",
+      "account_match_reported": true,
+      "trailing_slash_fix_reported": "pass"
+    },
+    "modal": {
+      "official_cli_version": "1.6.4",
+      "authentication_reported": "pass",
+      "billing_rates_reported": "pass",
+      "billing_summary_reported": "pass",
+      "remaining_credit": "unverified"
+    },
+    "digitalocean-gpu": {
+      "authenticated_test": "deferred_missing_credential",
+      "reason": "User reports deposit required for API key"
+    },
+    "lambda-cloud": {
+      "authenticated_test": "deferred_missing_credential",
+      "reason": "User reports deposit required for API key"
+    }
+  },
+  "ci": {
+    "offline": {
+      "run_id": 45538951205,
+      "conclusion": "success"
+    },
+    "native_candidates": {
+      "run_id": 45538951029,
+      "conclusion": "success"
+    }
+  },
+  "model_candidate": {
+    "id": "openai/whisper-tiny",
+    "revision": "169d4a4341b33bc18d8881c4b69c2e104e1cc0af",
+    "metadata_recheck_reported": "pass",
+    "runtime_gpu_image": "unverified",
+    "real_inference": "not_run",
+    "real_artifact_retrieval": "not_run"
+  },
+  "gpu_rented_reported": false,
+  "incremental_cost_usd_reported": 0,
+  "not_verified": [
+    "raw authenticated responses",
+    "account/workspace consent for paid operations",
+    "remaining promotional credit",
+    "real GPU inference",
+    "real provider lifecycle",
+    "actual GPU invoice"
+  ],
+  "note": "Private account identifiers, balances, credential details, and local paths are not published."
+}
