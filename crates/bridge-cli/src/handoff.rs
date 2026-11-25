@@ -86,18 +86,17 @@ pub(crate) fn review(raw:&Value)->Result<Value,String>{
             require(p,&["min_workers","max_workers","idle_seconds","cpu_cores","memory_mib","compute_region_evidence"],&mut gaps);
             if gpu.contains(' '){gaps.push("Use exact Modal GPU identifier".into());}
             if action=="scale_to_zero"&&p["min_workers"]!=0{gaps.push("Scale-to-zero requires zero minimum containers".into());}
-            if !matches!(action,"scale_to_zero"|"terminate"){gaps.push("Modal Server does not imply instance stop".into());}
-            gaps.push("Ingress region is not compute-placement proof; verify actual constraints".into());
-            let mut args=vec![json!("server"),json!("deploy"),json!("--image"),plan["image"].clone(),
-                json!("--port"),json!("8000"),json!("--gpu"),json!(format!("{gpu}:{}",qty.unwrap_or(0))),
-                json!("--app-name"),json!(name),json!("--env"),plan["workspace"].clone(),json!("--region"),json!(region),
-                json!("--secret-from-env"),json!("CMB_WORKER_TOKEN")];
-            for (flag,key) in [("--min-containers","min_workers"),("--max-containers","max_workers"),("--scaledown-window","idle_seconds"),("--cpu","cpu_cores"),("--memory","memory_mib")]{
-                if let Some(n)=p[key].as_u64(){args.extend([json!(flag),json!(n.to_string())]);}
-            }
-            for (k,v) in env.as_object().ok_or("Invalid model environment")?{if let Some(s)=v.as_str(){args.extend([json!("--env-var"),json!(format!("{k}={s}"))]);}}
-            json!({"transport":"official_cli_draft","executable":"modal","arguments":args,
-                "require_authenticated_proxy":true,"never_pass_yes_or_unauthenticated":true})
+            if !matches!(action,"scale_to_zero"|"terminate"){gaps.push("Modal does not imply instance stop".into());}
+            gaps.push("Select the native workload mode: one-shot Function/App or verified persistent service; an OCI base image is not an HTTP server".into());
+            gaps.push("Verify actual Modal environment, optional compute placement, idle minimum, complete runtime recipe and resource limits".into());
+            if p["idle_seconds"].as_u64().is_some_and(|n|n<2){gaps.push("Verify idle timeout against the selected Modal interface minimum; do not silently change the plan".into());}
+            json!({"transport":"official_agent_handoff","native_interface":"cli_or_sdk",
+                "workload_modes":[{"mode":"one_shot","native_reference":"modal run","requires_reviewed_app_entrypoint":true,"detach":false},
+                    {"mode":"persistent","native_reference":"modal deploy or modal server deploy","requires_reviewed_service_contract":true}],
+                "allocation":{"gpu":gpu,"quantity":qty,"workspace":plan["workspace"],"account":plan["account"],"region_evidence":region,"disk_gb":plan["disk_gb"]},
+                "runtime":{"image":plan["image"],"recipe":plan["runtime_recipe"],"model_id":plan["model_id"],"model_sha":plan["model_sha"],"task":plan["task"],"family":plan["runtime_family"]},
+                "provider_parameters":p,"resource_name":name,"selected_lifecycle":plan["stop_policy"],
+                "steps":["Select the native workload mode and check its official contract","Match all actual resource limits and lifecycle to the plan; confirm workspace and environment separately","Bind the exact entrypoint or serving image and final native operation to fresh user approval before dispatch","Use only required credentials; do not create an HTTP service for a one-shot task","Verify result, actual resource state and invoice"]})
         },
         "vast-instances"=>{
             require(p,&["offer_region_evidence"],&mut gaps);
@@ -176,7 +175,13 @@ mod tests{
             let h=review(&p).unwrap();assert_eq!(h["provider"],id);assert_eq!(h["quantity"],2);
             assert_eq!(h["provider_operation_sent"],false);assert_eq!(h["approval_granted"],false);assert_eq!(h["production_ready"],false);
             if id=="runpod-pods"{assert_eq!(h["create_draft"]["body"]["gpu"]["count"],2);}
-            if id=="modal"{assert!(!h["create_draft"]["arguments"].as_array().unwrap().contains(&json!("--unauthenticated")));}
+            if id=="modal"{
+                assert_eq!(h["create_draft"]["transport"],"official_agent_handoff");
+                assert!(h["create_draft"]["arguments"].is_null());
+                assert_eq!(h["create_draft"]["workload_modes"][0]["native_reference"],"modal run");
+                assert_eq!(h["create_draft"]["workload_modes"][0]["detach"],false);
+                assert_eq!(h["create_draft"]["workload_modes"][1]["requires_reviewed_service_contract"],true);
+            }
         }
         assert!(validate_parameters("runpod-pods",&json!({"token":"secret"})).is_err());
         assert!(validate_parameters("modal",&json!({"max_workers":0})).is_err());

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "tested_commit": "80c82b45b233f9cf6b884e430ee24113cea7b1f5",
+  "tested_on": "2026-11-25",
+  "source": "User-supplied report and App script/manifest; reviewed, not re-executed",
+  "source_sha256": {
+    "report": "c7b21a46ae23596bdf37ba851596a078e74906f7307dbdd83fd5f57ba213ee38",
+    "script": "36d2c4d768c2758d47d63867a33af894cbc02274d12abe6965ce45037efb9c5d",
+    "manifest": "3fef9d537d571d390f271ceded21a75e8aacd9c9ee4a4f5284c8131989fcccf8"
+  },
+  "model": {
+    "id": "openai/whisper-tiny",
+    "revision": "169d4a4341b33bc18d8881c4b69c2e104e1cc0af"
+  },
+  "base_image_reported": "pytorch/pytorch:2.14.1-cuda12.6-cudnn9-runtime@sha256:1262abc856a428933c0477b4be87079173a0b087b7691c47fcb396b7b5775c56",
+  "cpu_inference": {
+    "status": "reported_pass",
+    "audio_seconds": 7.18,
+    "inference_seconds": 0.82,
+    "raw_evidence": "not_supplied"
+  },
+  "script_syntax": "parsed_by_editor",
+  "manifest": "parsed_by_editor",
+  "reported_cost_usd": 0,
+  "not_verified": [
+    "remaining credit",
+    "exact final dependency/image identity",
+    "actual GPU execution and remote artifact",
+    "actual app lifecycle and invoice"
+  ],
+  "note": "Raw manifest and account details not published. Original estimated cost and exact resource plan need correction before approval."
+}

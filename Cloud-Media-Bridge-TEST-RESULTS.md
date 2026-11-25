@@ -332,3 +332,7 @@ User-provided operator files reviewed: authenticated RunPod and Vast account/cat
 ## Authenticated adapter retest (80c82b4)
 
 2026-11-25 independent operator report: CMB's exact RunPod Pods and Vast Instances `cloud account-check` returned account_match true; Modal CLI 1.6.4 authenticated and returned billing rates and zero usage summary. Remaining Modal/RunPod credit not confirmed; DigitalOcean/Lambda credentialed tests deferred because user reports deposit required to generate keys. No paid resources or incremental costs reported. Report reviewed and sanitized; raw responses not supplied. Offline CI 45538951205 and native candidates 45538951029 both passed on the tested revision. Real GPU-compatible image, inference, media retrieval and actual cloud cleanup/billing remain unverified. See docs/PROVIDER-VERIFICATION.md and tests/evidence/provider-read-only-2026-11-25.json. Evidence-only update; no changes to execution code or policy.
+
+## Modal one-shot preparation (reported tested code 80c82b4)
+
+Operator reported pinned model metadata, registry base-image digest, genuine CPU Whisper Tiny transcript and reviewed Modal App draft; no cloud image build or GPU operation. Source script/manifest reviewed, raw CPU evidence not supplied. Corrected Modal handoff/preview/lifecycle to require selection of one-shot or persistent service; fresh CI required. Corrected billing and cleanup assumptions in provider verification. Remaining credit, final runtime, actual GPU inference and provider cleanup/invoice unverified.

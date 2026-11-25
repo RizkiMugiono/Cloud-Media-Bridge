@@ -19,7 +19,10 @@
       ],
       "documentation": [
         "https://modal.com/docs/guide/gpu",
-        "https://modal.com/docs/cli/latest/server"
+        "https://modal.com/docs/cli/latest/server",
+        "https://modal.com/docs/cli/latest/run",
+        "https://modal.com/docs/sdk/py/latest/App",
+        "https://modal.com/docs/cli/latest/app"
       ],
       "updates": [
         "https://modal.com/docs/reference/changelog"

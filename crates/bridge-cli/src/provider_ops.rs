@@ -61,9 +61,10 @@ pub(crate) fn preview(provider:&str,image:&str,gpu:&str,disk:u64,offer_id:Option
             )
         },
         "modal" => (
-            json!({"command":"modal","arguments":["server","deploy","--image",image,"--port","8000"],
-                "environment":"user-owned Modal auth","requires_verified_http_worker":true,
-                "additional_gpu_flags":"must be verified against current installed Modal CLI before execution"}),
+            json!({"transport":"official_agent_handoff","image":image,"gpu":gpu,"disk_gb":disk_gb,
+                "native_modes":["modal run (reviewed one-shot App)","modal deploy (reviewed Function/App)","modal server deploy (verified HTTP server image only)"],
+                "requires_mode_selection":true,"environment":"user-owned Modal auth",
+                "additional_gpu_flags":"verify selected workload and installed Modal CLI before execution"}),
             json!({"lifecycle":"serverless_scale_to_zero","idle_workers":0,
                 "verify_app_ownership_and_worker_state":true}),
             "serverless","Modal CLI arguments and selected GPU flags require live-version validation; not executable from this preview"
