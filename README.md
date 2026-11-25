@@ -86,6 +86,10 @@ cloud-media-bridge tools call provider_profile_review arguments.json
 
 An agent may supply a pinned upstream runtime recipe instead of a finished OCI image, including for a newly discovered runtime architecture. See the [recipe-only external manifest](examples/external-deployment-manifest.NOT-EXECUTABLE.json). Recipe references are validated structurally, not downloaded or executed; review their actual contents, dependencies and compatibility. If the selected provider needs an OCI image, build and pin it before the final native request and refresh user approval when the plan changes.
 
+### Agent-operated cloud smoke evidence
+
+A user-operated Modal native CPU Function reportedly transcribed a synthetic speech fixture with Whisper Tiny using the bridge's advisory handoff/review workflow. The uploaded local/remote transcript files and input WAV hashes match, and metered billing rows reconcile. T4 provisioning was rejected because the account lacked a payment method; **GPU inference remains unverified**. See [provider verification and evidence limitations](docs/PROVIDER-VERIFICATION.md#modal-native-cpu-execution-and-gpu-account-block-2026-11-25). No paid native executor is enabled.
+
 ## Release candidates
 
 The [native distribution workflow](.github/workflows/distribution.yml) builds and checks Windows, Linux and macOS x86-64/ARM64 binaries. See [distribution](docs/RELEASE.md) and [provider verification / real GPU smoke checklist](docs/PROVIDER-VERIFICATION.md). Candidate CI artifacts are not a published release or a claim of live GPU readiness.
