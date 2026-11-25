@@ -136,7 +136,7 @@
     "hourly_display_price_never_assumed_to_be_hourly_minimum": true,
     "actual_increment_and_minimum_must_be_checked": true,
     "billable_time_includes_provisioning_and_stop_confirmation": true,
-    "user_approved_compute_budget_required": true,
+    "user_approved_compute_budget_required": false,
     "idle_reuse_requires_separate_explicit_permission": true,
     "unknown_calendar_prepaid_reserved_charges": "contract_review_required_no_estimated_per_job_invoices",
     "continuing_storage_and_network_fees": "must_be_disclosed",

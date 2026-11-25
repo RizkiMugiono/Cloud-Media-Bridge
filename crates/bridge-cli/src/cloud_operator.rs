@@ -174,16 +174,14 @@ fn verified_runtime(plan:&Value)->Result<(),String>{
 fn verified_billing_terms(plan:&Value)->Result<(),String>{
     let quote=&plan["billing_quote"];
     if quote.is_null() {
-        return Err("Actual provider billing granularity, minimum, runtime estimate and compute budget must be confirmed before paid deployment".into());
+        return Err("Actual provider billing granularity, minimum, and runtime estimate must be confirmed before paid deployment".into());
     }
     let forecast=crate::billing::estimate(quote)?;
     if forecast["requires_contract_review"]==true {
         return Err("Calendar/prepaid/unknown GPU contracts require separate human contract review; automated paid deployment remains disabled".into());
     }
-    if forecast["over_approved_compute_budget"]==true
-        || forecast["max_approved_compute_micro_usd"].is_null()
-    {
-        return Err("GPU compute estimate exceeds an explicitly approved budget or no compute budget is supplied".into());
+    if forecast["over_approved_compute_budget"]==true {
+        return Err("GPU compute estimate exceeds an explicitly approved budget".into());
     }
     if quote["pricing_source"].as_str().is_none_or(|v|v.is_empty()||v.len()>512)
         || quote["provider"]!=plan["provider"]
@@ -608,6 +606,8 @@ mod tests {
         });
         assert!(verified_billing_terms(&plan).is_err());
         plan["billing_quote"]["max_approved_compute_micro_usd"]=json!(1_000_000);
+        assert!(verified_billing_terms(&plan).is_ok());
+        plan["billing_quote"].as_object_mut().unwrap().remove("max_approved_compute_micro_usd");
         assert!(verified_billing_terms(&plan).is_ok());
         plan["billing_quote"]["provider"]=json!("vast-instances");
         assert!(verified_billing_terms(&plan).is_err());

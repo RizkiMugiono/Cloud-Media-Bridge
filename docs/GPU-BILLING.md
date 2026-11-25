@@ -71,6 +71,8 @@ MCP exposes `billing_policy` and `billing_estimate`. The quote schema for **usag
 }
 ```
 
+Users may omit the plan fields `max_total_micro_usd` and `max_elapsed_ms` and the quote field `max_approved_compute_micro_usd`. The bridge supplies no default spending or duration limit. `billable_elapsed_ms` is an estimate used for pricing. Paid operations require separate plan-specific user approval even when the user chooses no cap.
+
 USD is represented using integer **micro-USD** (1,000,000 micro-USD = USD 1), and durations in milliseconds. For metered quotes, the estimator computes `ceil(quoted_micro_usd_per_hour × max(minimum_billable_ms, round_up(elapsed_ms, increment_ms)) / 3,600,000)`, rounding the final amount upward to micro-USD.
 
 For **calendar, annual, prepaid, reserved and unknown contracts**, the estimator intentionally returns `not_estimable_from_job_duration` instead of pretending the full contract can be inferred from a five-second task.

@@ -80,10 +80,9 @@ pub(crate) fn estimate(quote: &Value) -> Result<Value, String> {
     let min_ms = number(quote, "minimum_billable_ms")?;
     let elapsed_ms = number(quote, "billable_elapsed_ms")?;
     let rate = number(quote, "quoted_micro_usd_per_hour")?;
-    if elapsed_ms == 0 || elapsed_ms > 366 * 86_400_000
-        || min_ms > 366 * 86_400_000 || rate == 0
+    if elapsed_ms == 0 || rate == 0
     {
-        return Err("Quote requires positive bounded elapsed time and price".into());
+        return Err("Quote requires positive estimated elapsed time and price".into());
     }
     let step = u128::from(increment_ms);
     let rounded = ceil_div(u128::from(elapsed_ms), step)?
@@ -92,10 +91,12 @@ pub(crate) fn estimate(quote: &Value) -> Result<Value, String> {
         .checked_mul(step).ok_or("Billing duration overflow")?;
     let amount = ceil_div(u128::from(rate).checked_mul(billable)
         .ok_or("Billing amount overflow")?, MS_PER_HOUR)?;
+    let billable = u64::try_from(billable).map_err(|_| "Billing duration overflow")?;
+    let amount = u64::try_from(amount).map_err(|_| "Billing amount overflow")?;
     let max_budget = quote.get("max_approved_compute_micro_usd")
         .map(|v| v.as_u64().ok_or("Budget must be a nonnegative integer"))
         .transpose()?;
-    let over_budget = max_budget.is_some_and(|limit| amount > u128::from(limit));
+    let over_budget = max_budget.is_some_and(|limit| amount > limit);
 
     result["estimate_status"] = json!(if over_budget {
         "estimate_exceeds_approved_compute_budget"

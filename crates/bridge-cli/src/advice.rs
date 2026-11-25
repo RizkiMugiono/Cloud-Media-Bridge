@@ -85,8 +85,10 @@ pub(crate) fn evaluate(plan: &Value) -> Result<Value, String> {
         gaps.push("Explain selected GPU compatibility with this exact model and workload".into());
     }
     let selected_cost_valid = gaps.is_empty();
-    if !positive(&plan["max_elapsed_ms"]) || !positive(&plan["max_total_micro_usd"]) {
-        gaps.push("Specify time limit and total budget".into());
+    for field in ["max_elapsed_ms", "max_total_micro_usd"] {
+        if !plan[field].is_null() && plan[field].as_u64().is_none() {
+            gaps.push(format!("{field} must be a nonnegative integer when supplied"));
+        }
     }
     if let (Some(elapsed), Some(limit)) = (
         plan["billing_quote"]["billable_elapsed_ms"].as_u64(),
@@ -106,7 +108,8 @@ pub(crate) fn evaluate(plan: &Value) -> Result<Value, String> {
     }
     let policy = &plan["stop_policy"];
     let valid = match policy["mode"].as_str() {
-        Some("after_job" | "manual" | "persistent" | "budget_limit" | "session_end" | "error_trigger") => true,
+        Some("after_job" | "manual" | "persistent" | "session_end" | "error_trigger") => true,
+        Some("budget_limit") => plan["max_total_micro_usd"].is_u64() || plan["max_elapsed_ms"].is_u64(),
         Some("idle_timeout" | "reuse") => positive(&policy["idle_timeout_ms"]),
         Some("scheduled" | "billing_boundary") => positive(&policy["stop_at_unix_ms"]),
         Some("disconnect_timeout") => positive(&policy["disconnect_timeout_ms"]),

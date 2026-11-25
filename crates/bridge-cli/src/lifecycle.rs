@@ -62,8 +62,8 @@ pub(crate) fn advise(plan: &Value, receipt: &Value, observed: &Value) -> Result<
     let (Some(elapsed), Some(exposure)) = (elapsed, exposure) else {
         return result("reconcile_time_and_cost");
     };
-    let reached_limit = Some(elapsed) >= plan["max_elapsed_ms"].as_u64()
-        || Some(exposure) >= plan["max_total_micro_usd"].as_u64();
+    let reached_limit = plan["max_elapsed_ms"].as_u64().is_some_and(|limit| elapsed >= limit)
+        || plan["max_total_micro_usd"].as_u64().is_some_and(|limit| exposure >= limit);
     let due = match policy["mode"].as_str() {
         Some("after_job") => observed["final_job_terminal"].as_bool(),
         Some("manual" | "persistent") => observed["user_requested_stop"].as_bool(),
@@ -119,6 +119,37 @@ mod tests {
             "provider_state":"running","active_jobs":0,"active_transfers":0,"elapsed_ms":100,
             "exposure_micro_usd":20,"supported_action":"stop","final_job_terminal":true,
             "user_requested_stop":true,"idle_ms":25,"now_unix_ms":100})
+    }
+
+    #[test]
+    fn optional_limits_never_supply_consent_or_invent_a_stop_trigger() {
+        let mut plan = manifest();
+        plan["request_id"] = json!("req");
+        plan["stop_policy"]["mode"] = json!("manual");
+        for key in ["max_elapsed_ms", "max_total_micro_usd"] {
+            plan.as_object_mut().unwrap().remove(key);
+        }
+        plan["billing_quote"].as_object_mut().unwrap().remove("max_approved_compute_micro_usd");
+        let mut observation = observed(&plan);
+        observation["user_requested_stop"] = json!(false);
+        for (time, cost) in [(None, None), (Some(60000), None), (None, Some(50000)), (Some(60000), Some(50000))] {
+            if let Some(value) = time { plan["max_elapsed_ms"] = json!(value); }
+            if let Some(value) = cost { plan["max_total_micro_usd"] = json!(value); }
+            let review = crate::planning::review(&plan).unwrap();
+            assert_eq!(review["advice"]["review_items"], json!([]));
+            assert_eq!(review["approval_granted"], false);
+            assert_eq!(advise(&plan, &Value::Null, &observation).unwrap()["recommendation"], "ask_user_for_fresh_plan_bound_consent");
+            assert_eq!(advise(&plan, &receipt(&plan), &observation).unwrap()["recommendation"], "monitor_within_approved_limits");
+            for key in ["max_elapsed_ms", "max_total_micro_usd"] {
+                plan.as_object_mut().unwrap().remove(key);
+            }
+        }
+        for key in ["max_elapsed_ms", "max_total_micro_usd"] {
+            plan[key] = json!(0);
+            let review = crate::planning::review(&plan).unwrap();
+            assert!(!review["advice"]["review_items"].as_array().unwrap().is_empty());
+            plan.as_object_mut().unwrap().remove(key);
+        }
     }
 
     #[test]
