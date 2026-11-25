@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "tested_on": "2026-11-25",
+  "tested_commit_reported": "e024e94456298ac6c36a1b0a82697bfd76eda1d0",
+  "commit_attribution_note": "Preparation report gives exact SHA; later execution reports contain a mistyped SHA. Executed binary not independently rehashed.",
+  "source": "User-provided operator reports and attached files, not independently replayed against the cloud account",
+  "source_sha256": {
+    "laporan-final-smoke-test-e024e94.md": "1ab568f27dbae9ac8105bc75fc5053546d5598af10b8bf08f149f1268786e65f",
+    "cpu-inference-result.json": "dceb5eabdb8af65305d63db29a493b51bcc0b2d88d22e674a8934244077b63e2",
+    "speech-16k-mono.wav": "6e6f4d605555863e27ea42aed087e0a070fdc9784f86ce953a16e60f83abeb3a",
+    "cpu-transcript.txt": "fb2cdf10c514196b6a9d7de3de25e93dcdf0c0f19469f35a458c02038f8686bc",
+    "laporan-eksekusi-modal-2026-11-25.md": "5687ab1bffeb075f62b05be60920aaa8a33e7d9968c889079573d82f5a54a892",
+    "modal-run.log": "1ec84f28473e22b822a54aba9d22ace5f80cf78d1f906cd6b51550d8624b943e",
+    "laporan-eksekusi-cpu-modal-berhasil.md": "c67588391dd6d905cb18b397b05491d70855fb5f8624a043f3a391385c2117ec",
+    "modal-run-result-cpu.json": "ae7b071b3497949747c0fa5cae72d5c8bd559eb38da43191fca2e2cbad69a991",
+    "modal-transcript-cpu.txt": "fb2cdf10c514196b6a9d7de3de25e93dcdf0c0f19469f35a458c02038f8686bc",
+    "billing-report-today.json": "d95f327bdcbdb0ec3a1ab284b23b9a01c1ee817e0d13bfe2373be4403f7dd186"
+  },
+  "model": {
+    "id": "openai/whisper-tiny",
+    "requested_revision": "169d4a4341b33bc18d8881c4b69c2e104e1cc0af",
+    "local_resolved_commit": null,
+    "base_image": "pytorch/pytorch:2.14.1-cuda12.6-cudnn9-runtime@sha256:1262abc856a428933c0477b4be87079173a0b087b7691c47fcb396b7b5775c56",
+    "final_provider_image_id_reported": true,
+    "final_oci_digest_verified": false
+  },
+  "cpu": {
+    "local": {
+      "status": "reported_pass",
+      "python": "3.12.10",
+      "torch": "2.15.0+cpu",
+      "transformers": "5.21.0",
+      "inference_seconds": 0.82
+    },
+    "modal": {
+      "status": "reported_pass",
+      "python": "3.12.3",
+      "torch": "2.14.1+cu126",
+      "transformers": "5.21.0",
+      "effective_device": "cpu",
+      "cuda_available": false,
+      "cuda_build_version": "12.6",
+      "inference_seconds": 1.07
+    },
+    "file_checks_independently_recomputed": {
+      "wav_format": "PCM mono 16-bit",
+      "sample_rate": 16000,
+      "frames": 114880,
+      "duration_seconds": 7.18,
+      "audio_sha256_matches_both_results": true,
+      "transcript_value_sha256": "ab82d674c4d46bf319c5762867d0abc6fad688394c7eaf0a0f11635bf2428dc1",
+      "transcript_values_equal": true,
+      "transcript_files_byte_equal": true,
+      "transcript_files_sha256": "fb2cdf10c514196b6a9d7de3de25e93dcdf0c0f19469f35a458c02038f8686bc"
+    }
+  },
+  "gpu": {
+    "status": "blocked_payment_method",
+    "rejection_log_reviewed": true,
+    "gpu_inference_verified": false
+  },
+  "billing": {
+    "source": "uploaded resource report; sums independently recomputed using decimal arithmetic",
+    "currency": "USD",
+    "resource_costs": {
+      "CPU": "0.00125605",
+      "Memory": "0.00025447",
+      "Network Egress": "0.00001557"
+    },
+    "total_metered": "0.00152609",
+    "billed_app_count": 4,
+    "successful_cpu_app_metered": "0.00035772",
+    "gpu_rows_present": false,
+    "billed_cost_zero_reported": true,
+    "remaining_credit_verified": false
+  },
+  "lifecycle": {
+    "source": "operator report; raw snapshot not supplied",
+    "stopped_apps_reported": 7,
+    "active_containers_reported": 0,
+    "volumes_reported": 0
+  },
+  "ci": {
+    "offline": {
+      "id": 45545933437,
+      "conclusion": "success"
+    },
+    "native_candidates": {
+      "id": 45545933465,
+      "conclusion": "success"
+    }
+  },
+  "not_supplied": [
+    "raw successful cloud execution log",
+    "final executing App source and final manifest",
+    "raw CPU handoff/review outputs",
+    "raw final lifecycle and billing summary snapshots",
+    "executed binary"
+  ],
+  "not_verified": [
+    "actual GPU inference",
+    "live replay or authenticated provider state by editor",
+    "final OCI digest",
+    "remaining credit and final invoice",
+    "all model families/provider modes"
+  ],
+  "notes": [
+    "The file comparisons establish consistency for one input, not general model determinism.",
+    "Operator reports CPU-only native execution and CMB advisory review; no CMB direct paid executor used.",
+    "Private account, task, image and App IDs, raw logs, media and billing rows are not published."
+  ]
+}

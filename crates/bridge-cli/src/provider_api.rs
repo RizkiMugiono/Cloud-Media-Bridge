@@ -16,6 +16,40 @@ pub(crate) trait Transport {
     fn send(&mut self, op: &Operation) -> Result<Value, String>;
 }
 
+pub(crate) const RUNPOD_ACCOUNT_QUERY:&str="query myself { myself { id } }";
+
+pub(crate) fn account_operation(provider:&str)->Result<Operation,String>{
+    match provider{
+        "runpod-pods"|"runpod-serverless"=>Ok(Operation{
+            method:"POST",url:"https://api.runpod.io/graphql".into(),
+            body:Some(json!({"query":RUNPOD_ACCOUNT_QUERY})),credential_env:"RUNPOD_API_KEY"}),
+        "vast-instances"|"vast-serverless"=>Ok(Operation{
+            method:"GET",url:"https://cloud.vast.ai/api/v0/users/current/".into(),
+            body:None,credential_env:"VAST_API_KEY"}),
+        _=>Err("No native account verification adapter for this provider".into()),
+    }
+}
+
+/// Only the provider's account identifier is compared. Never return raw
+/// identity responses or claim that account matching verifies a workspace.
+pub(crate) fn verify_account<T:Transport>(backend:&mut T,provider:&str,expected:&str)->Result<Value,String>{
+    if !identifier(expected){return Err("An exact provider account ID is required".into());}
+    let response=backend.send(&account_operation(provider)?)?;
+    if response.get("error").is_some()||response["success"]==false||
+        response.get("errors").is_some_and(|e|!e.is_null()&&!e.as_array().is_some_and(Vec::is_empty)){
+        return Err("Provider account lookup failed".into());
+    }
+    let raw=match provider{
+        "runpod-pods"|"runpod-serverless"=>&response["data"]["myself"]["id"],
+        "vast-instances"|"vast-serverless"=>&response["id"],
+        _=>return Err("Unsupported account verification provider".into()),
+    };
+    let matched=raw.as_str().is_some_and(|s|s==expected)||raw.as_u64().is_some_and(|n|n.to_string()==expected);
+    if !matched{return Err("Provider account ID does not match the approved plan".into());}
+    Ok(json!({"provider":provider,"account_match":true,"workspace_verified":false,
+        "provider_mutation_sent":false,"approval_granted":false}))
+}
+
 fn identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
@@ -57,6 +91,9 @@ pub(crate) struct Deployment<'a> {
     pub(crate) image: &'a str,
     pub(crate) gpu: &'a str,
     pub(crate) disk_gb: u64,
+    pub(crate) region: &'a str,
+    pub(crate) quantity: u64,
+    pub(crate) cloud: &'a str,
     pub(crate) offer_id: Option<u64>,
     pub(crate) model_id: &'a str,
     pub(crate) model_sha: &'a str,
@@ -71,7 +108,8 @@ impl Deployment<'_> {
             || !image_pinned(self.image)
             || !model_identifier(self.model_id)
             || !revision(self.model_sha)
-            || !identifier(self.gpu)
+            || self.gpu.is_empty() || self.gpu.len()>128 || !self.gpu.bytes().all(|b| b.is_ascii_alphanumeric()||b"-_. ".contains(&b))
+            || !identifier(self.region) || !(1..=64).contains(&self.quantity)
             || !identifier(self.task)
             || !identifier(self.family)
             || !(10..=2000).contains(&self.disk_gb)
@@ -104,13 +142,17 @@ fn env_vars(plan: &Deployment<'_>) -> Value {
 pub(crate) fn create_operation(plan: &Deployment<'_>) -> Result<Operation, String> {
     plan.validate()?;
     match plan.provider {
+        "runpod-pods" if !matches!(plan.cloud,"SECURE"|"COMMUNITY") => Err("RunPod requires an exact cloud tier".into()),
         "runpod-pods" => Ok(Operation {
             method: "POST",
             url: "https://api.runpod.io/v2/pods".into(),
             body: Some(json!({
                 "name": safe_label(plan.request_id),
                 "image": plan.image,
-                "gpu": {"id":plan.gpu,"count":1},
+                "gpu": {"id":plan.gpu,"count":plan.quantity},
+                "dataCenterIds":[plan.region],
+                "cloud":plan.cloud,
+                "startSsh":false,
                 "disk":plan.disk_gb,
                 "globalNetworking":false,
                 "env":env_vars(plan)
@@ -203,12 +245,24 @@ pub(crate) fn stop_operation(provider: &str, id: &str) -> Result<Operation, Stri
     }
 }
 
+fn item<'a>(provider:&str,response:&'a Value)->Option<&'a Value>{
+    match provider {
+        "runpod-pods"=>Some(response.get("pod").unwrap_or(response)),
+        "vast-instances"=>Some(response.get("instances").or_else(||response.get("instance")).unwrap_or(response)),
+        _=>None,
+    }
+}
+fn provider_owned(provider:&str,response:&Value,id:&str,owner:&str)->bool{
+    let Some(row)=item(provider,response) else{return false;};
+    let same_id=row["id"].as_str().is_some_and(|s|s==id)||row["id"].as_u64().is_some_and(|n|n.to_string()==id);
+    same_id && row[if provider=="runpod-pods"{"name"}else{"label"}]==safe_label(owner)
+}
+fn running(provider:&str,response:&Value)->bool{
+    let Some(row)=item(provider,response) else{return false;};
+    match provider{"runpod-pods"=>row["status"]=="RUNNING"||row["runtimeStatus"]=="running", "vast-instances"=>row["actual_status"]=="running",_=>false}
+}
 pub(crate) fn stopped(provider: &str, response: &Value) -> bool {
-    let item = match provider {
-        "runpod-pods" => response.get("pod").unwrap_or(response),
-        "vast-instances" => response.get("instance").unwrap_or(response),
-        _ => return false
-    };
+    let Some(item)=item(provider,response) else{return false;};
     match provider {
         "runpod-pods" => item["status"]=="EXITED"
             || (item["desiredStatus"]=="EXITED" && item["runtimeStatus"]=="stopped"),
@@ -217,6 +271,28 @@ pub(crate) fn stopped(provider: &str, response: &Value) -> bool {
         },
         _ => false
     }
+}
+
+/// Provider-observed state only; a successful HTTP status or desired state
+/// never proves actual GPU release. Do not expose the raw provider response.
+pub(crate) fn observe_owned<T: Transport>(
+    backend:&mut T, provider:&str, id:&str, owner:&str, record:&Value
+)->Result<Value,String>{
+    if !identifier(owner)||record["owner_request_id"]!=owner||record["id"]!=id
+        ||record["provider"]!=provider||record["created_by_bridge"]!=true {
+        return Err("Missing exact local resource ownership record".into());
+    }
+    let response=backend.send(&inspect_operation(provider,id)?)?;
+    if response.get("error").is_some()||response["success"]==false||!provider_owned(provider,&response,id,owner){
+        return Err("Provider-observed ownership is not established".into());
+    }
+    let state=match (running(provider,&response),stopped(provider,&response)){
+        (true,false)=>"running",(false,true)=>"stopped",_=>"unknown",
+    };
+    Ok(json!({"resource_id":id,"provider":provider,"owner_request_id":owner,
+        "provider_state":state,"provider_identity_matched":true,
+        "billing_stopped_confirmed":false,"active_jobs_verified":false,
+        "active_transfers_verified":false,"provider_mutation_sent":false}))
 }
 
 /// Reconcile only the resource recorded as created by this deployment. If
@@ -239,10 +315,13 @@ pub(crate) fn stop_owned<T: Transport>(
         return Err("Resource ownership or active-job/artifact state is not confirmed; stop forbidden".into());
     }
     let before = backend.send(&inspect_operation(provider, resource_id)?)?;
+    if before.get("error").is_some()||before["success"]==false||!provider_owned(provider,&before,resource_id,owner_request_id){return Err("Provider ownership marker or resource identity missing/mismatched; stop forbidden".into());}
+    if stopped(provider, &before) && running(provider,&before){return Err("Conflicting actual provider state; reconcile before stop".into());}
     if stopped(provider, &before) {
         return Ok(json!({"resource_id":resource_id,"state":"STOP_CONFIRMED","already_stopped":true,
             "storage_or_network_charges_may_remain":true}));
     }
+    if !running(provider,&before){return Err("Provider actual resource state is uncertain; reconcile before stop".into());}
     let request = stop_operation(provider, resource_id)?;
     let response = backend.send(&request)?;
     if response.get("error").is_some() || response["success"] == false {
@@ -250,7 +329,7 @@ pub(crate) fn stop_owned<T: Transport>(
     }
     // A successful stop HTTP response is not itself stopped-state evidence.
     let after = backend.send(&inspect_operation(provider, resource_id)?)?;
-    if !stopped(provider, &after) {
+    if after.get("error").is_some()||after["success"]==false||!provider_owned(provider,&after,resource_id,owner_request_id) || !stopped(provider, &after) || running(provider,&after) {
         return Ok(json!({"resource_id":resource_id,"state":"STOP_UNCERTAIN",
             "manual_reconciliation_required":true,"storage_or_network_charges_may_remain":true}));
     }
@@ -275,7 +354,7 @@ mod tests {
     fn plan(provider: &'static str) -> Deployment<'static> {
         Deployment {
             provider,request_id:"req001",image:"ghcr.io/example/worker@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            gpu:"H100",disk_gb:50,offer_id:Some(123),model_id:"example/media",
+            gpu:"H100",disk_gb:50,region:"US-TEST-1",quantity:2,cloud:"SECURE",offer_id:Some(123),model_id:"example/media",
             model_sha:"0123456789abcdef0123456789abcdef01234567",
             task:"text-to-image",family:"diffusers",
             worker_token:"example-secret-for-offline-tests-123456"
@@ -293,6 +372,9 @@ mod tests {
         assert_eq!(pod.url,"https://api.runpod.io/v2/pods");
         assert_eq!(pod.body.as_ref().unwrap()["env"]["CMB_MODEL_SHA"],plan("runpod-pods").model_sha);
         assert_eq!(pod.body.as_ref().unwrap()["globalNetworking"],false);
+        assert_eq!(pod.body.as_ref().unwrap()["gpu"]["count"],2);
+        assert_eq!(pod.body.as_ref().unwrap()["dataCenterIds"],json!(["US-TEST-1"]));
+        assert_eq!(pod.body.as_ref().unwrap()["cloud"],"SECURE");
         let vast=create_operation(&plan("vast-instances")).unwrap();
         assert_eq!(vast.method,"PUT");
         assert_eq!(vast.url,"https://cloud.vast.ai/api/v0/asks/123/");
@@ -302,6 +384,34 @@ mod tests {
         }
     }
 
+    #[test]
+    fn account_lookup_refuses_mismatch_errors_and_does_not_leak_identity(){
+        let mut r=Replay{replies:vec![json!({"data":{"myself":{"id":"user_123","pubKey":"secret"}}})],sent:vec![]};
+        let checked=verify_account(&mut r,"runpod-pods","user_123").unwrap();
+        assert_eq!(checked["account_match"],true);
+        assert_eq!(checked["workspace_verified"],false);
+        assert!(!checked.to_string().contains("secret"));
+        assert_eq!(r.sent[0].body.as_ref().unwrap()["query"],RUNPOD_ACCOUNT_QUERY);
+        let mut v=Replay{replies:vec![json!({"id":123,"email":"private@example.invalid"}),json!({"id":456}),json!({"id":123,"error":"auth_error"})],sent:vec![]};
+        assert!(verify_account(&mut v,"vast-instances","123").is_ok());
+        assert!(verify_account(&mut v,"vast-instances","123").is_err());
+        assert!(verify_account(&mut v,"vast-instances","123").is_err());
+        assert!(v.sent.iter().all(|o|o.method=="GET"&&o.body.is_none()));
+    }
+    #[test]
+    fn observation_is_get_only_redacted_and_never_proves_billing_or_job_state(){
+        let record=json!({"owner_request_id":"req","id":"p01","provider":"runpod-pods","created_by_bridge":true});
+        let mut fake=Replay{replies:vec![json!({"id":"p01","name":"cmb-req","status":"EXITED","env":{"SECRET":"private"}})],sent:vec![]};
+        let observed=observe_owned(&mut fake,"runpod-pods","p01","req",&record).unwrap();
+        assert_eq!(observed["provider_state"],"stopped");
+        assert_eq!(observed["billing_stopped_confirmed"],false);
+        assert_eq!(observed["active_jobs_verified"],false);
+        assert!(!observed.to_string().contains("private"));
+        assert_eq!(fake.sent.len(),1);
+        assert_eq!(fake.sent[0].method,"GET");
+        let mut conflict=Replay{replies:vec![json!({"id":"p01","name":"cmb-req","status":"EXITED","runtimeStatus":"running"})],sent:vec![]};
+        assert_eq!(observe_owned(&mut conflict,"runpod-pods","p01","req",&record).unwrap()["provider_state"],"unknown");
+    }
     #[test]
     fn new_resource_id_is_parsed_from_actual_provider_response_shape() {
         let mut pod=Replay{replies:vec![json!({"id":"pod123"})],sent:vec![]};
@@ -327,9 +437,9 @@ mod tests {
     #[test]
     fn successful_stop_must_be_confirmed_by_provider_observation() {
         let mut fake=Replay{replies:vec![
-            json!({"desiredStatus":"RUNNING"}),
+            json!({"id":"p01","name":"cmb-req001","status":"RUNNING"}),
             json!({"success":true}),
-            json!({"status":"EXITED","runtimeStatus":"stopped"})
+            json!({"id":"p01","name":"cmb-req001","status":"EXITED","runtimeStatus":"stopped"})
         ],sent:vec![]};
         let result=stop_owned(&mut fake,"runpod-pods","p01","req001",&owned("runpod-pods","p01")).unwrap();
         assert_eq!(result["state"],"STOP_CONFIRMED");
@@ -341,14 +451,24 @@ mod tests {
     #[test]
     fn an_accepted_stop_is_not_falsely_reported_as_confirmed() {
         let mut fake=Replay{replies:vec![
-            json!({"actual_status":"running"}),
+            json!({"id":123,"label":"cmb-req001","actual_status":"running"}),
             json!({"success":true}),
-            json!({"actual_status":"running"})
+            json!({"id":123,"label":"cmb-req001","actual_status":"running"})
         ],sent:vec![]};
         let result=stop_owned(&mut fake,"vast-instances","123","req001",&owned("vast-instances","123")).unwrap();
         assert_eq!(result["state"],"STOP_UNCERTAIN");
         assert_eq!(result["manual_reconciliation_required"],true);
         assert!(!stopped("vast-instances",&json!({"intended_status":"stopped","actual_status":"running"})));
+    }
+
+    #[test]
+    fn provider_ownership_and_actual_state_are_required_before_mutation(){
+        let mut fake=Replay{replies:vec![json!({"id":"p01","name":"other","status":"RUNNING"})],sent:vec![]};
+        assert!(stop_owned(&mut fake,"runpod-pods","p01","req001",&owned("runpod-pods","p01")).is_err());
+        assert_eq!(fake.sent.len(),1);
+        let mut unknown=Replay{replies:vec![json!({"id":"p01","name":"cmb-req001","desiredStatus":"RUNNING"})],sent:vec![]};
+        assert!(stop_owned(&mut unknown,"runpod-pods","p01","req001",&owned("runpod-pods","p01")).is_err());
+        assert_eq!(unknown.sent.len(),1);
     }
 
     #[test]
@@ -366,7 +486,7 @@ mod tests {
 
     #[test]
     fn provider_errors_are_never_interpreted_as_success_or_termination() {
-        let mut fake=Replay{replies:vec![json!({"actual_status":"running"}),json!({"success":false})],sent:vec![]};
+        let mut fake=Replay{replies:vec![json!({"id":123,"label":"cmb-req001","actual_status":"running"}),json!({"success":false})],sent:vec![]};
         assert!(stop_owned(&mut fake,"vast-instances","123","req001",&owned("vast-instances","123")).is_err());
         assert_eq!(fake.sent.len(),2);
         assert_ne!(fake.sent[1].method,"DELETE");

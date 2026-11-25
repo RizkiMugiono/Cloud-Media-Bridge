@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "digitalocean-gpu",
+  "name": "DigitalOcean GPU Droplets",
+  "pricing": [
+    "https://docs.digitalocean.com/products/droplets/details/pricing/"
+  ],
+  "documentation": [
+    "https://docs.digitalocean.com/products/droplets/how-to/gpu/create/",
+    "https://docs.digitalocean.com/reference/api/reference/droplets/",
+    "https://docs.digitalocean.com/reference/doctl/reference/compute/droplet-action/power-off/"
+  ],
+  "transport": "cli",
+  "lifecycle_actions": [
+    "stop",
+    "terminate"
+  ]
+}

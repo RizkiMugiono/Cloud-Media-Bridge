@@ -14,6 +14,7 @@ import hmac
 import io
 import json
 import os
+from pathlib import Path
 import re
 import threading
 import uuid
@@ -82,10 +83,38 @@ def _as_wav(audio: Any, sample_rate: int) -> bytes:
     return out.getvalue()
 
 
+def validate_smoke_release(release_path: Path, expected_sha: str, worker_path: Path,
+                           lock_path: Path, model_id: str, revision: str, task: str,
+                           family: str) -> dict[str, Any]:
+    """Validate a pinned build bundle; never treat it as verified GPU evidence."""
+    if not re.fullmatch(r"[a-f0-9]{64}", expected_sha):
+        raise ValueError("Exact runtime release SHA-256 required")
+    if any(p.is_symlink() or not p.is_file() for p in (release_path, worker_path, lock_path)):
+        raise ValueError("Runtime bundle must contain regular non-linked files")
+    if release_path.stat().st_size > 16384 or lock_path.stat().st_size > 4 * 1024 * 1024 or worker_path.stat().st_size > 1024 * 1024:
+        raise ValueError("Runtime bundle exceeds size limit")
+    data = release_path.read_bytes()
+    if not hmac.compare_digest(hashlib.sha256(data).hexdigest(), expected_sha):
+        raise ValueError("Runtime release digest mismatch")
+    value = json.loads(data)
+    if not isinstance(value, dict) or value.get("schema_version") != 1 or value.get("purpose") != "gpu_smoke":
+        raise ValueError("Invalid runtime smoke release")
+    for key, expected in {"model_id": model_id, "model_sha": revision, "task": task,
+                          "runtime_family": family,
+                          "worker_sha256": hashlib.sha256(worker_path.read_bytes()).hexdigest(),
+                          "dependency_lock_sha256": hashlib.sha256(lock_path.read_bytes()).hexdigest()}.items():
+        if value.get(key) != expected:
+            raise ValueError("Runtime release identity or file digest mismatch")
+    if not re.fullmatch(r"[A-Za-z0-9._/:-]+@sha256:[a-f0-9]{64}", value.get("base_image", "")):
+        raise ValueError("Runtime base image must be pinned by digest")
+    return value
+
+
 class Worker:
     def __init__(self, model_id: str, revision: str, task: str, family: str,
                  token: str, fixture: bool = False,
-                 deployment_request_id: str | None = None):
+                 deployment_request_id: str | None = None,
+                 smoke_release: dict[str, Any] | None = None):
         if not ID_RE.fullmatch(model_id) or not SHA_RE.fullmatch(revision):
             raise ValueError("Model identifier and immutable SHA must be valid")
         if not token or len(token) < 16:
@@ -98,6 +127,9 @@ class Worker:
         self.family = family
         self.token = token
         self.fixture = fixture
+        self.smoke_release = smoke_release
+        if smoke_release is not None and (fixture or not deployment_request_id or any(smoke_release.get(k) != v for k, v in {"model_id": model_id, "model_sha": revision, "task": task, "runtime_family": family}.items())):
+            raise ValueError("Smoke release must bind the non-fixture worker and deployment")
         if deployment_request_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", deployment_request_id):
             raise ValueError("Invalid deployment request ID")
         self.deployment_request_id = deployment_request_id
@@ -105,6 +137,9 @@ class Worker:
         self.asset_bytes = 0
         self.lock = threading.RLock()
         self.pipeline: Any = None
+        self.inference_lock = threading.Lock()
+        self.jobs: dict[str, dict[str, Any]] = {}
+        self.worker_instance_id = uuid.uuid4().hex
 
     def authorize(self, header: str) -> bool:
         return hmac.compare_digest(header, f"Bearer {self.token}")
@@ -213,6 +248,20 @@ class Worker:
             return ("speech" if self.task == "text-to-speech" else "audio"), "audio/wav", data
         raise WorkerError("UNSUPPORTED_RUNTIME", "No verified handler for this model family", 422)
 
+    def job_status(self, request_id: str) -> dict[str, Any]:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", request_id):
+            raise WorkerError("INVALID_REQUEST_ID", "Invalid job identifier")
+        with self.lock:
+            entry = self.jobs.get(request_id)
+            return {"schema_version": 1, "request_id": request_id,
+                    "deployment_request_id": self.deployment_request_id,
+                    "worker_instance_id": self.worker_instance_id,
+                    "status": entry["status"] if entry else "unknown",
+                    "result": entry.get("result") if entry else None,
+                    "simulation_only": self.fixture,
+                    "active_jobs": sum(job["status"] == "running" for job in self.jobs.values()),
+                    "active_transfers_verified": False, "durable": False}
+
     def generate(self, request: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(request, dict):
             raise WorkerError("INVALID_REQUEST", "Request must be an object")
@@ -225,7 +274,7 @@ class Worker:
         if request.get("task") != self.task:
             raise WorkerError("TASK_MISMATCH", "Task differs from preapproved worker")
         request_id = request.get("request_id")
-        if not isinstance(request_id, str) or not 1 <= len(request_id) <= 128:
+        if not isinstance(request_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", request_id):
             raise WorkerError("INVALID_REQUEST_ID", "Valid request ID required")
         items = request.get("inputs")
         params = request.get("parameters", {})
@@ -238,8 +287,49 @@ class Worker:
             if kind not in {"image", "video", "audio", "speech", "music", "three_d", "spatial", "document", "multimodal"}:
                 raise WorkerError("INVALID_FIXTURE", "Unknown fixture kind")
             kind, mime, data = _fixture(kind)
+        elif self.smoke_release is not None:
+            if request.get("worker_instance_id") != self.worker_instance_id:
+                raise WorkerError("WORKER_INSTANCE_MISMATCH", "Request must bind current worker instance", 409)
+            # Retain every accepted job ID for this process; never silently evict
+            # an ID and make it executable again. A restarted worker is a new
+            # instance and missing IDs must be reconciled, never retried.
+            try:
+                fingerprint = hashlib.sha256(json.dumps(
+                    request, sort_keys=True, separators=(",", ":"), allow_nan=False
+                ).encode()).hexdigest()
+            except (TypeError, ValueError) as exc:
+                raise WorkerError("INVALID_INPUT", "Invalid request content") from exc
+            if not self.inference_lock.acquire(blocking=False):
+                raise WorkerError("WORKER_BUSY", "One inference at a time on this worker", 409)
+            try:
+                with self.lock:
+                    existing = self.jobs.get(request_id)
+                    if existing is not None:
+                        if existing["fingerprint"] != fingerprint:
+                            raise WorkerError("REQUEST_CONFLICT", "Job ID already bound to different inputs", 409)
+                        if existing["status"] == "completed":
+                            return existing["result"]
+                        raise WorkerError("JOB_ALREADY_ACCEPTED", "Inspect previous job; never rerun", 409)
+                    if len(self.jobs) >= 128:
+                        raise WorkerError("JOB_LEDGER_FULL", "Job ledger capacity exhausted", 503)
+                    self.jobs[request_id] = {"status": "running", "fingerprint": fingerprint}
+                try:
+                    kind, mime, data = self._real_generate(items, params)
+                    artifact = self.store(kind, mime, data)
+                    result = {"schema_version": 1, "request_id": request_id,
+                              "status": "completed", "simulation_only": False,
+                              "artifacts": [artifact]}
+                    with self.lock:
+                        self.jobs[request_id].update(status="completed", result=result)
+                    return result
+                except BaseException:
+                    with self.lock:
+                        self.jobs[request_id]["status"] = "failed"
+                    raise
+            finally:
+                self.inference_lock.release()
         else:
-            kind, mime, data = self._real_generate(items, params)
+            raise WorkerError("PRODUCTION_DISABLED", "Production runtime and authorization are not release-verified", 403)
         artifact = self.store(kind, mime, data)
         return {"schema_version": 1, "request_id": request_id, "status": "completed",
                 "simulation_only": self.fixture, "artifacts": [artifact]}
@@ -286,10 +376,17 @@ def handler_for(worker: Worker) -> type[BaseHTTPRequestHandler]:
                     "status": "ok", "family": worker.family, "task": worker.task,
                     "model_id": worker.model_id, "revision_sha": worker.revision,
                     "deployment_request_id": worker.deployment_request_id,
-                    "simulation_only": worker.fixture
+                    "simulation_only": worker.fixture,
+                    "worker_instance_id": worker.worker_instance_id
                 })
                 return
             if not self._auth():
+                return
+            if self.path.startswith("/v1/media/jobs/"):
+                try:
+                    self._response(200, worker.job_status(self.path.removeprefix("/v1/media/jobs/")))
+                except WorkerError as e:
+                    self._response(e.status, {"error": {"code": e.code, "message": str(e)}})
                 return
             if not self.path.startswith("/v1/media/artifacts/"):
                 self._response(404, {"error": {"code": "NOT_FOUND", "message": "Unknown endpoint"}})
@@ -347,11 +444,22 @@ def main() -> None:
         raise SystemExit("Fixture mode is restricted to local loopback tests")
     if host not in {"127.0.0.1", "::1"} and os.getenv("CMB_PRIVATE_NETWORK_ACK") != "1":
         raise SystemExit("Non-loopback worker binding requires explicit private-network/TLS ingress acknowledgment")
+    release = None
+    if not fixture:
+        if os.getenv("CMB_WORKER_MODE") != "gpu_smoke" or os.getenv("CMB_ENABLE_GPU_SMOKE") != "I_ACCEPT_GPU_CHARGES":
+            raise SystemExit("Production disabled; only independently approved, pinned GPU smoke worker mode is supported")
+        if not os.getenv("CMB_DEPLOYMENT_REQUEST_ID"):
+            raise SystemExit("GPU smoke requires exact deployment request ID")
+        release = validate_smoke_release(
+            Path("/app/runtime-release.json"), os.environ["CMB_RUNTIME_RELEASE_SHA256"],
+            Path(__file__), Path("/app/requirements.lock"), os.environ["CMB_MODEL_ID"],
+            os.environ["CMB_MODEL_SHA"], os.environ["CMB_TASK"], os.environ["CMB_RUNTIME_FAMILY"]
+        )
     token = os.environ["CMB_WORKER_TOKEN"]
     worker = Worker(
         os.environ["CMB_MODEL_ID"], os.environ["CMB_MODEL_SHA"],
         os.environ["CMB_TASK"], os.environ["CMB_RUNTIME_FAMILY"], token, fixture,
-        os.getenv("CMB_DEPLOYMENT_REQUEST_ID")
+        os.getenv("CMB_DEPLOYMENT_REQUEST_ID"), release
     )
     server = ThreadingHTTPServer((host, int(os.getenv("CMB_PORT", "8000"))), handler_for(worker))
     server.serve_forever()

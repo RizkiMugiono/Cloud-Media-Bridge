@@ -1,0 +1,240 @@
+{
+  "tested_commit": "5b99967de6166ccdcde0a225dfb76aa8e4788b73",
+  "tested_on": "2026-11-24",
+  "os": "Windows x86_64",
+  "bridge_version": "0.1.0",
+  "debug_binary_sha256_reported": "3b0ae10648d46776af4c3d8d4094ae955ea21f4666ca4b7f785aef98e924e35e",
+  "tool_count_from_cli_reported": 27,
+  "cli_result_sha256": {
+    "doctor": "057fe46653235d61ab03890ed494a72f1b78295e35d861016285f23ce690a713",
+    "provider_profile_review": "e338bc3583e683ca8a3a3119d8c5f3b0b83010fbd6350442fa4c66bb46100026",
+    "billing_estimate": "69d4c62f929c79d43716765e78acc75b7540586f8f5c080118313f3c732b33c0",
+    "provider_handoff": "47f31f56359514fa36116770e65d071490c60a80043664c6e9e228b7f8b53d76"
+  },
+  "source": "User-supplied independent retest; uploaded relay audits and agent logs reviewed, not re-executed by repository editor.",
+  "source_sha256": {
+    "report": "e2d653dfe7eb0b625a44d53c6ae482049b30551331ff5c7d08d58f29ed1676d8",
+    "submitted_json": "399bc506968eb4ee002244c3f4dd9b8c63fc6c466ec532f07e2e2ff14a8e51e9",
+    "expected_json": "f8beeb53350ab26f1e1a5e7ffb7b5726b057442ec38c8ed3df7006ff52e6d8dd",
+    "relay": "3227dc38a690616e8a7d0ba5f1cc8bac1fc69292cb54a741a13535f4c3ac9b60"
+  },
+  "totals": {
+    "agents_passed": 5,
+    "target_calls": 20,
+    "successful_matching_calls": 20,
+    "attempted_calls": 21,
+    "failed_attempts": 1
+  },
+  "clients": [
+    {
+      "client": "Codex CLI",
+      "version": "0.167.0-alpha.3.2",
+      "model_route": "existing ChatGPT session",
+      "tools_list_count_reported": 27,
+      "tools_list_equals_cli_reported": true,
+      "tools_list_count_in_client_log": null,
+      "agent_exit_code": null,
+      "audit_sha256": "fdcc102201bfcd005cc871115c06de9da2305b90fa40cbe3fac896d7393597d7",
+      "successful_target_calls": 4,
+      "calls": [
+        {
+          "tool": "provider_profile_review",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "doctor",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "billing_estimate",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "provider_handoff",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        }
+      ]
+    },
+    {
+      "client": "Claude Code",
+      "version": "2.1.318",
+      "model_route": "openrouter/free",
+      "tools_list_count_reported": 27,
+      "tools_list_equals_cli_reported": true,
+      "tools_list_count_in_client_log": 27,
+      "agent_exit_code": null,
+      "audit_sha256": "de5130ac1fb406c0578306d930759984f63e3ad9c780e784ff92107643d5e5e9",
+      "successful_target_calls": 4,
+      "calls": [
+        {
+          "tool": "doctor",
+          "is_error": true,
+          "result_equals_cli": false,
+          "arguments_match_fixture": false,
+          "error": "Invalid parameters"
+        },
+        {
+          "tool": "doctor",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "provider_profile_review",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "billing_estimate",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "provider_handoff",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        }
+      ]
+    },
+    {
+      "client": "Hermes Agent",
+      "version": "0.23.1 (3b4215785882)",
+      "model_route": "existing openai-codex session (reported)",
+      "tools_list_count_reported": null,
+      "tools_list_equals_cli_reported": null,
+      "tools_list_count_in_client_log": null,
+      "agent_exit_code": null,
+      "audit_sha256": "f3aead642dbe158171f279d8f8481778bfbfeaa7c741874e2ad71e1c1bc73595",
+      "successful_target_calls": 4,
+      "calls": [
+        {
+          "tool": "doctor",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": null
+        },
+        {
+          "tool": "provider_profile_review",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": null
+        },
+        {
+          "tool": "billing_estimate",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": null
+        },
+        {
+          "tool": "provider_handoff",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": null
+        }
+      ]
+    },
+    {
+      "client": "DeepSeek Harness",
+      "version": "0.2.2-rc.3",
+      "model_route": "openrouter/free (reported)",
+      "tools_list_count_reported": null,
+      "tools_list_equals_cli_reported": null,
+      "tools_list_count_in_client_log": null,
+      "agent_exit_code": null,
+      "audit_sha256": "f3aead642dbe158171f279d8f8481778bfbfeaa7c741874e2ad71e1c1bc73595",
+      "successful_target_calls": 4,
+      "calls": [
+        {
+          "tool": "doctor",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "provider_profile_review",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "billing_estimate",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "provider_handoff",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        }
+      ]
+    },
+    {
+      "client": "OpenCode",
+      "version": "2.1.4",
+      "model_route": "opencode/deepseek-v4.1-flash-free",
+      "tools_list_count_reported": 27,
+      "tools_list_equals_cli_reported": true,
+      "tools_list_count_in_client_log": null,
+      "agent_exit_code": null,
+      "audit_sha256": "f3aead642dbe158171f279d8f8481778bfbfeaa7c741874e2ad71e1c1bc73595",
+      "successful_target_calls": 4,
+      "calls": [
+        {
+          "tool": "doctor",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "provider_profile_review",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "billing_estimate",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        },
+        {
+          "tool": "provider_handoff",
+          "is_error": false,
+          "result_equals_cli": true,
+          "arguments_match_fixture": true
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "The relay records tool name, successful structured result and equality with the CLI reference; it does not record tools/list, input arguments or process exit codes.",
+    "Four agents have matching fixture inputs and outputs in their client logs; Hermes shows calls in its log and equality in its relay audit, but exact input objects are not independently available in its log.",
+    "Hermes and DeepSeek tool list counts are null in the submitted structured report; no full list parity claimed for this retest.",
+    "No GPU operation, additional paid model usage or repository edits during the local test were reported. Billing fixture is illustrative, not a provider invoice.",
+    "Claude Code test permissions were relaxed for the read-only fixture; this is not a recommendation for real cloud operations. OpenCode also queried MCP resources. Neither establishes a paid operation approval."
+  ],
+  "not_verified": [
+    "Live provider account, offer and GPU availability",
+    "Real GPU deployment, media inference, artifact retrieval and lifecycle",
+    "Actual provider invoice",
+    "All clients beyond the five tested",
+    "Complete tools/list equality for each client on this revision"
+  ],
+  "superseded_for_tools": [
+    "provider_handoff"
+  ],
+  "applicability_note": "Historical exact revision/fixture evidence only. External recipe-only fixture did not exercise Modal. Modal-specific draft changed in e024e94 and requires fresh five-client evidence for a current Modal coverage claim. Direct protocol regression and the 4a0d84d audit do not substitute for five-client retest."
+}

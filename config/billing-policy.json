@@ -31,22 +31,23 @@
     "unknown": "block_auto_optimize_and_require_user_review"
   },
   "default_lifecycle": {
-    "after_final_job": "stop_bridge_owned_compute_immediately_when_safe_and_supported",
+    "after_final_job": "explicit_user_selected_policy_required",
     "wait_until_end_of_paid_period": false,
     "idle_reuse_requires_new_explicit_permission": true,
     "minimum_billable_period_is_not_a_keep_running_instruction": true,
     "do_not_repeat_resource_creation_to_satisfy_usage_period": true,
     "always_verify_provider_observed_stopped_state": true,
     "no_destructive_fallback_without_separate_approval": true,
-    "crash_recovery_requires_provider_side_expiry_or_independent_controller": true
+    "crash_recovery_requires_provider_side_expiry_or_independent_controller": true,
+    "immediate_stop_is_recommendation_not_default": true
   },
   "special_cases": {
-    "hourly_minimum": "a five_second_job_may_be_charged_for_one_full_hour;_stop_now_anyway_by_default",
+    "hourly_minimum": "five seconds may cost one full hour; user selects whether to stop or retain",
     "pro_rata_hourly_display": "hourly_price_may_be_a_display_rate_only; use_actual_provider_increment",
     "storage_after_stop": "may_continue_until_delete; no_automatic_deletion",
     "calendar_prepaid": "stopping_compute_does_not_cancel_a_monthly_or_yearly_commitment",
     "termination_only": "stop_is_not_supported; present_explicit_destructive_action_choice_and_continuing_charges",
-    "warm_pool": "optional_and_only_user_approved_idle_expiry_and_cost_limit",
+    "warm_pool": "requires user-approved policy and independently reliable expiry if promised; not yet executable",
     "serverless": "request_scale_to_zero_and_verify; billed_startup_model_load_and_idle_windows_may_exceed_inference_time"
   },
   "cost_calculation": {

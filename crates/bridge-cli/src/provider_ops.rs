@@ -2,7 +2,7 @@
 //! No credential access, curl, subprocesses or live cloud operations.
 use serde_json::{json, Value};
 
-fn pinned_image(s: &str) -> bool {
+pub(crate) fn pinned_image(s: &str) -> bool {
     let Some((name, digest)) = s.rsplit_once("@sha256:") else {return false;};
     !name.is_empty() && name.len() <= 250
         && !name.bytes().any(|b| b.is_ascii_whitespace() || b < 32 || b==127)
@@ -15,7 +15,7 @@ fn safe_identity(s:&str) -> bool {
     !s.is_empty() && s.len()<=96
         && s.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_. ".contains(&b))
 }
-fn gpu_identity(s:&str) -> bool {
+pub(crate) fn gpu_identity(s:&str) -> bool {
     safe_identity(s)
 }
 pub(crate) fn preview(provider:&str,image:&str,gpu:&str,disk:u64,offer_id:Option<u64>) -> Result<Value,String> {
@@ -39,14 +39,14 @@ pub(crate) fn preview(provider:&str,image:&str,gpu:&str,disk:u64,offer_id:Option
         ),
         "runpod-serverless" => (
             json!({"method":"POST","url":"https://api.runpod.io/v2/serverless",
-                "body":{"name":name,"image":image,"gpu":{"pools":[gpu],"count":1},
-                    "workers":{"min":0,"max":1},
-                    "scaling":{"type":"QUEUE_DELAY","value":4,"idleTimeout":5},
-                    "timeout":300000},
+                "body":{"name":name,"templateId":null,"gpu":{"pools":[gpu],"count":1},
+                    "workers":{"min":0,"max":1,"idleTimeout":5},
+                    "scaling":{"type":"QUEUE_DELAY","queueDelay":4},
+                    "type":"QUEUE","flashboot":"OFF"},
                 "credential_env":"RUNPOD_API_KEY"}),
             json!({"lifecycle":"provider_worker_scale_to_zero","workers_min":0,
                 "verification_required":true,"not_a_pod_stop":true}),
-            "serverless","Serverless endpoint control plane may remain; autoscaling worker idle must be verified"
+            "serverless","Serverless requires a verified queue template ID; the image belongs to the template, not endpoint create. Verify actual idle worker count"
         ),
         "vast-instances" => {
             let offer=offer_id.filter(|n|*n>0).ok_or("Vast.ai instance creation requires a specific real offer ID")?;
@@ -61,9 +61,10 @@ pub(crate) fn preview(provider:&str,image:&str,gpu:&str,disk:u64,offer_id:Option
             )
         },
         "modal" => (
-            json!({"command":"modal","arguments":["server","deploy","--image",image,"--port","8000"],
-                "environment":"user-owned Modal auth","requires_verified_http_worker":true,
-                "additional_gpu_flags":"must be verified against current installed Modal CLI before execution"}),
+            json!({"transport":"official_agent_handoff","image":image,"gpu":gpu,"disk_gb":disk,
+                "native_modes":["modal run (reviewed one-shot App)","modal deploy (reviewed Function/App)","modal server deploy (verified HTTP server image only)"],
+                "requires_mode_selection":true,"environment":"user-owned Modal auth",
+                "additional_gpu_flags":"verify selected workload and installed Modal CLI before execution"}),
             json!({"lifecycle":"serverless_scale_to_zero","idle_workers":0,
                 "verify_app_ownership_and_worker_state":true}),
             "serverless","Modal CLI arguments and selected GPU flags require live-version validation; not executable from this preview"
@@ -157,6 +158,13 @@ mod tests {
     fn serverless_defaults_to_zero_workers_and_lambda_refuses_implicit_termination() {
         let s=preview("runpod-serverless",&image(),"ADA_24",50,None).unwrap();
         assert_eq!(s["proposed_create_operation"]["body"]["workers"]["min"],0);
+        let body=&s["proposed_create_operation"]["body"];
+        assert_eq!(body["workers"]["idleTimeout"],5);
+        assert_eq!(body["scaling"]["queueDelay"],4);
+        assert_eq!(body["type"],"QUEUE");
+        assert_eq!(body["flashboot"],"OFF");
+        assert!(body.get("templateId").is_some_and(Value::is_null));
+        assert!(body.get("image").is_none());
         let l=preview("lambda-cloud",&image(),"gpu_1x_h100",50,None).unwrap();
         assert_eq!(l["proposed_stop_or_idle_policy"]["auto_terminate"],false);
         assert_eq!(l["proposed_stop_or_idle_policy"]["lifecycle"],"STOP_UNSUPPORTED_ACTION_REQUIRED");

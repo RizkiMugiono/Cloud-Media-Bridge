@@ -23,7 +23,8 @@
       "docs": "https://modal.com/docs/cli/latest/server",
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
-      "post_job_lifecycle_target": "serverless_scale_to_zero",
+      "post_job_lifecycle_target": "ask_user_and_verify_provider_support",
+      "provider_lifecycle_hint": "serverless_scale_to_zero",
       "lifecycle_implementation": "not_implemented",
       "billing": {
         "metering_hint": "per_second",
@@ -58,7 +59,8 @@
       "docs": "https://docs.runpod.io/serverless/endpoints/overview",
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
-      "post_job_lifecycle_target": "serverless_scale_to_zero",
+      "post_job_lifecycle_target": "ask_user_and_verify_provider_support",
+      "provider_lifecycle_hint": "serverless_scale_to_zero",
       "lifecycle_implementation": "not_implemented",
       "billing": {
         "metering_hint": "per_second",
@@ -92,7 +94,8 @@
       "docs": "https://docs.runpod.io/pods/overview",
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
-      "post_job_lifecycle_target": "auto_stop_owned_resource_when_supported",
+      "post_job_lifecycle_target": "ask_user_and_verify_provider_support",
+      "provider_lifecycle_hint": "auto_stop_owned_resource_when_supported",
       "lifecycle_implementation": "not_implemented",
       "billing": {
         "metering_hint": "per_second",
@@ -126,7 +129,8 @@
       "docs": "https://vast.ai/developers/api",
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
-      "post_job_lifecycle_target": "serverless_scale_to_zero",
+      "post_job_lifecycle_target": "ask_user_and_verify_provider_support",
+      "provider_lifecycle_hint": "serverless_scale_to_zero",
       "lifecycle_implementation": "not_implemented",
       "billing": {
         "metering_hint": "provider_dependent",
@@ -161,7 +165,8 @@
       "docs": "https://vast.ai/developers/api",
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
-      "post_job_lifecycle_target": "auto_stop_owned_resource_when_supported",
+      "post_job_lifecycle_target": "ask_user_and_verify_provider_support",
+      "provider_lifecycle_hint": "auto_stop_owned_resource_when_supported",
       "lifecycle_implementation": "not_implemented",
       "billing": {
         "metering_hint": "per_second",
@@ -195,7 +200,8 @@
       "docs": "https://docs.lambda.com/api/cloud",
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
-      "post_job_lifecycle_target": "auto_stop_if_stop_supported_else_manual_action",
+      "post_job_lifecycle_target": "ask_user_and_verify_provider_support",
+      "provider_lifecycle_hint": "auto_stop_if_stop_supported_else_manual_action",
       "lifecycle_implementation": "not_implemented",
       "stop_api_status": "unverified_terminate_may_be_only_supported_action",
       "billing": {
@@ -230,7 +236,8 @@
       "docs": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/docs/PROVIDERS.md",
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
-      "post_job_lifecycle_target": "externally_managed",
+      "post_job_lifecycle_target": "ask_user_and_verify_provider_support",
+      "provider_lifecycle_hint": "externally_managed",
       "lifecycle_implementation": "not_implemented",
       "note": "Do not stop preexisting or externally managed hardware without verified bridge ownership and explicit scope",
       "billing": {
@@ -263,7 +270,8 @@
       "docs": "https://github.com/RizkiMugiono/Cloud-Media-Bridge/blob/main/docs/PROVIDERS.md",
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
-      "post_job_lifecycle_target": "externally_managed_unless_owned_and_stop_capable",
+      "post_job_lifecycle_target": "ask_user_and_verify_provider_support",
+      "provider_lifecycle_hint": "externally_managed_unless_owned_and_stop_capable",
       "lifecycle_implementation": "not_implemented",
       "note": "Do not stop preexisting or externally managed hardware without verified bridge ownership and explicit scope",
       "billing": {
@@ -296,7 +304,8 @@
       "docs": "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/",
       "development_track": "parallel",
       "deployment_approval": "fresh_human_consent_for_every_deployment",
-      "post_job_lifecycle_target": "terminate_owned_workload_and_reconcile_node_lifecycle_if_supported",
+      "post_job_lifecycle_target": "ask_user_and_verify_provider_support",
+      "provider_lifecycle_hint": "terminate_owned_workload_and_reconcile_node_lifecycle_if_supported",
       "lifecycle_implementation": "not_implemented",
       "billing": {
         "metering_hint": "unknown",

@@ -1,6 +1,6 @@
 # GPU billing increments, commitments and stop policy
 
-**Decision:** Cloud-Media-Bridge automatically attempts to stop a **bridge-created and bridge-owned** GPU resource immediately after its last job and artifact transfer. The implementation must not wait until the end of an advertised hourly/daily billing period. The stop must be observed in the provider API; otherwise the journal must report uncertainty and continuing potential charges.
+**Decision:** the user chooses the lifecycle policy independently of the billing model. Immediate stop is a recommendation for short jobs; when explicitly selected, the bridge attempts to stop its own resource after the last job and artifact transfer. Manual stop instead retains the resource and may incur ongoing charges. The stop must be observed in the provider API; otherwise the journal must report uncertainty and continuing potential charges.
 
 A provider's **displayed USD/hour price is not necessarily the actual billing increment**. The user/agent must distinguish quoted unit price, metering granularity, minimum charge, prepaid period, stopping effects, and unrelated fees. No rates are hardcoded as universal prices.
 
@@ -8,9 +8,9 @@ A provider's **displayed USD/hour price is not necessarily the actual billing in
 
 | Contract | What the estimator does | Post-job operation |
 |---|---|---|
-| USD/hour displayed, actually **per second** | Uses real billable duration rounded to whole seconds | Stop compute immediately |
-| Per millisecond | Rounds by one millisecond | Stop compute immediately |
-| Per minute | Uses an applicable minute minimum/increment | Stop compute immediately |
+| USD/hour displayed, actually **per second** | Uses real billable duration rounded to whole seconds | Immediate stop recommended; user chooses |
+| Per millisecond | Rounds by one millisecond | Immediate stop recommended; user chooses |
+| Per minute | Uses an applicable minute minimum/increment | Immediate stop recommended; user chooses |
 | **Full hour minimum** | A five-second resource lifetime may incur an entire hour | Still stop immediately, unless the user explicitly opted into a warm instance |
 | Per day | Applies provider-specific day increment/minimum | Stop after the job; no automatic day-long idle |
 | Per month/year/prepaid/reserved | Cannot derive the contractual obligation from five seconds of inference | Stop **compute** where supported; no promise of a refund or contract cancellation |
@@ -36,12 +36,12 @@ Official provider references: [Modal pricing](https://modal.com/pricing), [RunPo
 1. **Read source terms.** Fetch the actual selected offer/plan, not just the nominal price. Identify `billing_model`, `billing_increment_ms`, `minimum_billable_ms`, refundable vs. sunk commitments, storage/network fees and stop/terminate actions.
 2. **Estimate total resource lifetime.** Use expected provisioning + model load + job + transfer + shutdown-confirmation, not inference duration alone. Treat the result as a forecast; do not present it as a provider invoice.
 3. **Present a quote and maximum approved compute exposure.** Use a new human approval per deployment. If the quote is missing, monthly/yearly terms are unclear or estimated exposure exceeds the budget, the automatic paid-deploy path must fail closed.
-4. **After the last job and artifact transfer, stop immediately where supported.** Verify the provider state. If it is uncertain or unsupported, report remaining charges and require operator reconciliation. Never automatically delete persistent data or terminate committed resources.
+4. **Apply the approved lifecycle after the last job and artifact transfer.** If immediate stop was selected, stop where supported. Verify the provider state. If it is uncertain or unsupported, report remaining charges and require operator reconciliation. Never automatically delete persistent data or terminate committed resources.
 5. **Reconcile actual provider billing.** Compare provider charges against the forecast and report discrepancies. A local MCP process cannot guarantee cleanup if the user machine or network disappears; provider-side TTL/watchdog or another independent controller is needed for stronger guarantees.
 
 ### Warm reuse is an explicit opt-in
 
-Keeping a GPU alive to use the remainder of an already-paid hour or day is **not the default**. A user may separately authorize a reuse window, maximum additional compute/idle charges and a hard expiry. Until an independently reliable expiry mechanism and cost guard exist, the bridge does **not** implement such reuse.
+Keeping a GPU alive is never inferred from an already-paid period. A user may select manual retention with explicit acknowledgment that charges can continue without a hard cap. A bounded reuse window, scheduled stop and budget enforcement require an independently reliable expiry mechanism and cost guard and are not executable yet.
 
 ## Read-only Rust billing tools
 
@@ -70,6 +70,8 @@ MCP exposes `billing_policy` and `billing_estimate`. The quote schema for **usag
   "provider": "example-provider"
 }
 ```
+
+Users may omit the plan fields `max_total_micro_usd` and `max_elapsed_ms` and the quote field `max_approved_compute_micro_usd`. The bridge supplies no default spending or duration limit. `billable_elapsed_ms` is an estimate used for pricing. Paid operations require separate plan-specific user approval even when the user chooses no cap.
 
 USD is represented using integer **micro-USD** (1,000,000 micro-USD = USD 1), and durations in milliseconds. For metered quotes, the estimator computes `ceil(quoted_micro_usd_per_hour × max(minimum_billable_ms, round_up(elapsed_ms, increment_ms)) / 3,600,000)`, rounding the final amount upward to micro-USD.
 

@@ -205,6 +205,13 @@ class WorkerSecurityTests(unittest.TestCase):
                              "model": {"id": MODEL, "revision_sha": SHA}, "inputs": []})
         self.assertEqual(error.exception.code, "TASK_MISMATCH")
 
+    def test_valid_nonfixture_inference_is_refused(self):
+        worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN, fixture=False)
+        with self.assertRaises(WorkerError) as error:
+            worker.generate({"schema_version": 1, "request_id": "job", "task": "text-to-image",
+                             "model": {"id": MODEL, "revision_sha": SHA}, "inputs": []})
+        self.assertEqual(error.exception.code, "PRODUCTION_DISABLED")
+
     def test_fixture_flag_cannot_trigger_real_inference_worker(self):
         worker = Worker(MODEL, SHA, "text-to-image", "diffusers", TOKEN, fixture=False)
         with self.assertRaises(WorkerError) as error:

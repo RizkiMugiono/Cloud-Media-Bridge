@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "tested_commit": "4a0d84d8328be92292f54e2d5dd84548f12577a2",
+  "tested_on": "2026-11-25",
+  "source": "Six user-supplied independent audit reports; raw 97 referenced evidence files not supplied; report claims not replayed",
+  "source_sha256": {
+    "final-independent-validation.md": "aa28316e4c071f37a54b98cf343eb332467bfd5aaf301d3aa8c85fb67a406511",
+    "final-compatibility-matrix.json": "c21928cbec40636fd9ab83d81001f2ae90e4d1433d9047f7fdcfb536bf5720bd",
+    "gpu-smoke-test-evidence.json": "d44593c0c22559a3f64098a445d4c46d4c075f90b0423abf9bafd180773c5baf",
+    "billing-reconciliation.json": "14c8a881d3dff371be7dbad5c9f6730010b5455651846e189bed4286c0882af1",
+    "release-readiness.md": "c3936f7e801c9010bf47e9a63c6e0a468668c64f67954127e161103988a4ba94",
+    "remaining-blockers.md": "8a3960e2ee6f91c761a442568e439c36ba945134861d88ad075c3d32f6012c9c"
+  },
+  "matrix_rows_recounted": {
+    "total": 21,
+    "PASS_OFFLINE": 17,
+    "PASS_CPU_LIVE": 1,
+    "PASS_GPU_LIVE": 0,
+    "BLOCKED": 1,
+    "NOT_TESTED": 2,
+    "FAIL": 0
+  },
+  "tally_note": "Report says two PASS_CPU_LIVE but actual check rows contain one catalog read entry. Earlier real CPU inference is separate historical evidence. Network metadata probes are not strictly offline.",
+  "reported": {
+    "tools": 27,
+    "model_discovery_probes": 8,
+    "runtime_candidate_matches": 7,
+    "stdio_tests": 25,
+    "credential_output_paths": 19,
+    "sentinel_leaks": 0,
+    "incremental_audit_spend_usd": 0,
+    "prior_metered_total_usd": "0.00152609",
+    "gpu_live": false
+  },
+  "findings": {
+    "F1": "Historical five-client evidence marked superseded for changed handoff; exact original fixture external, not Modal; direct parity regression added, third-party retest pending",
+    "F2": "3D discovery only; documented existing model-specific recipe path, no verified candidate invented",
+    "F3": "Context-specific JSON input errors",
+    "F4": "-V alias"
+  },
+  "limitations": [
+    "97 raw evidence files not supplied",
+    "five-client Modal retest not performed",
+    "no live GPU",
+    "remaining credit unverified",
+    "TTY nonce is not human authentication",
+    "successful CPU report manifest/commit attribution discrepancies remain; metered totals previously verified, latest per-App resource split differs from original billing rows"
+  ],
+  "ci_for_audited_commit": {
+    "offline": 45556692376,
+    "native": 45556692395
+  }
+}

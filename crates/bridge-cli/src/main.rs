@@ -1,4 +1,10 @@
+mod advice;
+mod handoff;
+mod market;
 mod billing;
+mod lifecycle;
+mod lifecycle_action;
+mod planning;
 mod cloud_operator;
 mod crypto;
 mod media;
@@ -7,7 +13,9 @@ mod provider_api;
 mod provider_http;
 mod remote_worker;
 mod provider_ops;
+mod provider_profile;
 mod runtime;
+mod runtime_bundle;
 mod worker_client;
 
 use serde_json::{json, Value};
@@ -18,6 +26,7 @@ use std::process::Command;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL: &str = "2025-11-25";
+const MODERN_PROTOCOL: &str = "2026-07-28";
 const MAX_FRAME: u64 = 1024 * 1024;
 const PROVIDER_CATALOG: &str = include_str!("../../../config/providers.json");
 const DEPLOYMENT_POLICY: &str = include_str!("../../../config/deployment-policy.json");
@@ -235,8 +244,8 @@ fn provider_info(id: &str) -> Result<Value, String> {
         .ok_or_else(|| format!("Unknown provider: {id}"))
 }
 
-fn plan_generation(model: &str, provider: &str) -> Result<Value, String> {
-    let selected = provider_info(provider)?;
+fn plan_generation(model: &str, provider: &str, profile:&Value) -> Result<Value, String> {
+    let selected = provider_profile::resolve(provider,profile)?;
     let inspected = inspect_model(model)?;
     let classification = inspected["media"]["classification_status"].as_str().unwrap_or("unclassified_requires_review");
     let resolved = runtime::resolve(&inspected, &selected)?;
@@ -276,6 +285,14 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         "providers_list" => providers_list(),
         "deployment_policy" => deployment_policy(),
         "billing_policy" => billing::policy(),
+        "provider_sources" => if arguments["profile"].is_null(){market::sources(arguments["provider"].as_str())}else{provider_profile::sources(get_string(arguments,"provider")?,&arguments["profile"])},
+        "market_refresh" => if arguments["profile"].is_null(){market::refresh(get_string(arguments,"provider")?)}else{Ok(json!({"provider":arguments["provider"],"sources":provider_profile::sources(get_string(arguments,"provider")?,&arguments["profile"])?, "status":"agent_read_official_sources", "quote_ready":false,"gpu_rented":false,"approval_granted":false}))},
+        "market_quote_check" => market::check_profile(&arguments["quote"],&arguments["profile"]),
+        "provider_profile_review" => provider_profile::review(&arguments["profile"]),
+        "provider_handoff" => handoff::review(&arguments["manifest"]),
+        "cloud_review" => planning::review(&arguments["manifest"]),
+        "lifecycle_action" => lifecycle_action::draft(&arguments["plan"], &arguments["receipt"], &arguments["observed"]),
+        "lifecycle_advice" => lifecycle::advise(&arguments["plan"], &arguments["receipt"], &arguments["observed"]),
         "billing_estimate" => billing::estimate(&arguments["quote"]),
         "media_tasks_list" => media::catalog(),
         "runtimes_list" => runtime::registry(),
@@ -302,7 +319,7 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
         ),
         "runtime_resolve" => {
             let inspected = inspect_model(get_string(arguments, "model")?)?;
-            let provider = provider_info(get_string(arguments, "provider")?)?;
+            let provider = provider_profile::resolve(get_string(arguments, "provider")?,&arguments["profile"])?;
             runtime::resolve(&inspected, &provider)
         },
         "providers_show" => provider_info(get_string(arguments, "provider")?),
@@ -312,7 +329,7 @@ fn execute_tool(name: &str, arguments: &Value) -> Result<Value, String> {
             arguments["limit"].as_u64().unwrap_or(10) as usize,
         ),
         "models_inspect" => inspect_model(get_string(arguments, "model")?),
-        "plan_generation" => plan_generation(get_string(arguments, "model")?, get_string(arguments, "provider")?),
+        "plan_generation" => plan_generation(get_string(arguments, "model")?, get_string(arguments, "provider")?,&arguments["profile"]),
         _ => Err("Unknown MCP tool".into()),
     }
 }
@@ -326,6 +343,7 @@ enum Phase {
     New,
     Negotiated,
     Ready,
+    Modern,
 }
 
 fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
@@ -354,6 +372,37 @@ fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
     if request.get("params").is_some() && !params.is_object() {
         return Some(error(id, -32602, "Invalid parameters"));
     }
+    let modern_version=&params["_meta"]["io.modelcontextprotocol/protocolVersion"];
+    if *phase==Phase::Modern || (*phase==Phase::New && (method==Some("server/discover") || !modern_version.is_null())) {
+        if modern_version!=MODERN_PROTOCOL {
+            let mut response=error(id,-32022,"UnsupportedProtocolVersion");
+            response["error"]["data"]=json!({"supported":[MODERN_PROTOCOL]});
+            return Some(response);
+        }
+        if !params["_meta"]["io.modelcontextprotocol/clientCapabilities"].is_object(){
+            return Some(error(id,-32602,"Missing modern client capabilities"));
+        }
+        if let Some(info)=params["_meta"].get("io.modelcontextprotocol/clientInfo") {
+            if !info["name"].is_string()||!info["version"].is_string(){return Some(error(id,-32602,"Invalid clientInfo"));}
+        }
+        *phase=Phase::Modern;
+        let mut result=match method?{
+            "server/discover"=>json!({"supportedVersions":[MODERN_PROTOCOL],"capabilities":{"tools":{}}}),
+            "tools/list"=>json!({"tools":tool_definitions()}),
+            "tools/call"=>match call_tool(params){Ok(value)=>value,Err(())=>return Some(error(id,-32602,"Invalid parameters"))},
+            _=>return Some(error(id,-32601,"Method not found")),
+        };
+        result["resultType"]=json!("complete");
+        // MCP 2026-07-28 requires cache hints for these two cacheable results.
+        // The catalog is small; use conservative no-reuse freshness and
+        // authorization-context scope, so an updated local binary is re-read.
+        if matches!(method,Some("server/discover"|"tools/list")){
+            result["ttlMs"]=json!(0);
+            result["cacheScope"]=json!("private");
+        }
+        result["_meta"]=json!({"io.modelcontextprotocol/serverInfo":{"name":"cloud-media-bridge","version":VERSION}});
+        return Some(json!({"jsonrpc":"2.0","id":id,"result":result}));
+    }
     let result = match method? {
         "ping" => json!({}),
         "initialize" if *phase == Phase::New => {
@@ -365,32 +414,37 @@ fn handle(frame: &[u8], phase: &mut Phase) -> Option<Value> {
                 return Some(error(id, -32602, "Invalid parameters"));
             }
             *phase = Phase::Negotiated;
-            json!({"protocolVersion":PROTOCOL, "capabilities":{"tools":{}},
+            let requested=params["protocolVersion"].as_str().unwrap_or(PROTOCOL);
+            let version=match requested{"2024-11-05"|"2025-03-26"|"2025-06-18"|"2025-11-25"=>requested,_=>PROTOCOL};
+            json!({"protocolVersion":version, "capabilities":{"tools":{}},
                    "serverInfo":{"name":"cloud-media-bridge","version":VERSION}})
         }
         "initialize" => return Some(error(id, -32600, "Already initialized")),
         _ if *phase != Phase::Ready => return Some(error(id, -32002, "Session not initialized")),
         "tools/list" => json!({"tools": tool_definitions()}),
-        "tools/call" => {
-            let Some(name) = params["name"].as_str() else {
-                return Some(error(id, -32602, "Invalid parameters"));
-            };
-            let empty = json!({});
-            let arguments = params.get("arguments").unwrap_or(&empty);
-            if !arguments.is_object() || !tool_names().contains(&name) || !valid_tool_args(name, arguments) {
-                return Some(error(id, -32602, "Invalid parameters"));
-            }
-            match execute_tool(name, arguments) {
-                Ok(value) => {
-                    let text = if name == "doctor" { doctor() } else { value.to_string() };
-                    json!({"content":[{"type":"text","text":text}], "structuredContent": value})
-                },
-                Err(message) => json!({"content":[{"type":"text","text":message}],"isError":true}),
-            }
-        }
+        "tools/call" => match call_tool(params){Ok(v)=>v,Err(())=>return Some(error(id,-32602,"Invalid parameters"))},
         _ => return Some(error(id, -32601, "Method not found")),
     };
     Some(json!({"jsonrpc":"2.0", "id":id, "result":result}))
+}
+
+// Identical validation and dispatch for legacy MCP, modern MCP and the CLI.
+fn call_tool(params:&Value)->Result<Value,()>{
+    let name=params["name"].as_str().ok_or(())?;
+    let empty=json!({});
+    let arguments=params.get("arguments").unwrap_or(&empty);
+    if !tool_names().contains(&name)||!valid_tool_args(name,arguments){return Err(());}
+    Ok(match execute_tool(name,arguments){
+        Ok(value)=>{
+            let text=if name=="doctor"{doctor()}else{value.to_string()};
+            json!({"content":[{"type":"text","text":text}],"structuredContent":value})
+        },
+        Err(message)=>json!({"content":[{"type":"text","text":message}],"isError":true}),
+    })
+}
+fn cli_tool(name:&str,arguments:&Value)->Result<Value,String>{
+    if !tool_names().contains(&name)||!valid_tool_args(name,arguments){return Err("Invalid tool name or arguments".into());}
+    execute_tool(name,arguments)
 }
 
 fn valid_tool_args(name: &str, arguments: &Value) -> bool {
@@ -398,6 +452,14 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
     let has_only = |keys: &[&str]| object.keys().all(|key| keys.contains(&key.as_str()));
     match name {
         "doctor" | "providers_list" | "deployment_policy" | "billing_policy" | "media_tasks_list" | "runtimes_list" => object.is_empty(),
+        "provider_sources" => has_only(&["provider","profile"]) && arguments.get("provider").is_none_or(Value::is_string) && arguments.get("profile").is_none_or(|p|p.is_object()&&arguments["provider"].is_string()),
+        "market_refresh" => has_only(&["provider","profile"]) && arguments["provider"].is_string() && arguments.get("profile").is_none_or(Value::is_object),
+        "market_quote_check" => has_only(&["quote","profile"]) && arguments["quote"].is_object() && arguments.get("profile").is_none_or(Value::is_object),
+        "provider_profile_review" => has_only(&["profile"]) && arguments["profile"].is_object(),
+        "provider_handoff" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
+        "cloud_review" => has_only(&["manifest"]) && arguments["manifest"].is_object(),
+        "lifecycle_action" => has_only(&["plan","receipt","observed"]) && ["plan","receipt","observed"].iter().all(|k| arguments[k].is_object()),
+        "lifecycle_advice" => has_only(&["plan","receipt","observed"]) && ["plan","receipt","observed"].iter().all(|k| arguments[k].is_object()),
         "billing_estimate" => has_only(&["quote"]) && arguments["quote"].is_object(),
         "providers_show" => has_only(&["provider"]) && arguments["provider"].is_string(),
         "models_search" => {
@@ -446,10 +508,8 @@ fn valid_tool_args(name: &str, arguments: &Value) -> bool {
             has_only(&["directory"])
                 && arguments["directory"].as_str().is_some_and(|v| !v.is_empty() && v.len() <= 1024)
         },
-        "plan_generation" | "runtime_resolve" => {
-            has_only(&["model", "provider"]) && arguments["model"].is_string()
-                && arguments["provider"].is_string()
-        }
+        "runtime_resolve" => has_only(&["model","provider","profile"]) && arguments["model"].is_string() && arguments["provider"].is_string() && arguments.get("profile").is_none_or(Value::is_object),
+        "plan_generation" => has_only(&["model","provider","profile"]) && arguments["model"].is_string() && arguments["provider"].is_string() && arguments.get("profile").is_none_or(Value::is_object),
         _ => false,
     }
 }
@@ -462,6 +522,14 @@ fn tool_names() -> &'static [&'static str] {
         "deployment_policy",
         "billing_policy",
         "billing_estimate",
+        "provider_sources",
+        "market_refresh",
+        "market_quote_check",
+        "provider_profile_review",
+        "provider_handoff",
+        "cloud_review",
+        "lifecycle_advice",
+        "lifecycle_action",
         "media_tasks_list",
         "runtimes_list",
         "runtime_resolve",
@@ -490,11 +558,35 @@ fn tool_definitions() -> Value {
          "inputSchema":{"type":"object","properties":{"provider":{"type":"string"}},
                         "required":["provider"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, owned resource auto-stop intent.",
+        {"name":"deployment_policy","description":"Read approved deployment design (not enforced): two runtime routes, parallel GPU adapter work, per-deployment consent, explicit user-selected lifecycle options and implementation status.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"billing_policy","description":"Read GPU billing granularity and post-job auto-stop policy; no cloud actions.",
+        {"name":"billing_policy","description":"Read GPU billing granularity and independent user lifecycle choice; no cloud actions.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"lifecycle_action","description":"Draft the exact lifecycle action only if caller observations support the selected policy. No dispatch or authorization.",
+         "inputSchema":{"type":"object","properties":{"plan":{"type":"object"},"receipt":{"type":"object"},"observed":{"type":"object"}},"required":["plan","receipt","observed"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"lifecycle_advice","description":"Evaluate a prepared plan and caller-reported consent and observations. Returns advice only.",
+         "inputSchema":{"type":"object","properties":{"plan":{"type":"object"},"receipt":{"type":"object"},"observed":{"type":"object"}},"required":["plan","receipt","observed"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"provider_sources","description":"Get official pricing/docs/release references or user-selected external profile references. Agent must verify live sources.",
+         "inputSchema":{"type":"object","properties":{"provider":{"type":"string"},"profile":{"type":"object"}},"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"market_refresh","description":"Read a provider catalog using a fixed GET endpoint and locally configured credentials when supported. No GPU rental; otherwise return official sources for agent research.",
+         "inputSchema":{"type":"object","properties":{"provider":{"type":"string"},"profile":{"type":"object"}},"required":["provider"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true,"openWorldHint":true}},
+        {"name":"market_quote_check","description":"Check caller quote source and timestamp freshness. Never authenticates a quote or approves spending.",
+         "inputSchema":{"type":"object","properties":{"quote":{"type":"object"},"profile":{"type":"object"}},"required":["quote"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"provider_profile_review","description":"Validate a user-selected external provider profile and official source references. No fetch, execution or authorization.",
+         "inputSchema":{"type":"object","properties":{"profile":{"type":"object"}},"required":["profile"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"provider_handoff","description":"Build a plan-bound provider request draft and disclose missing capabilities. No mutation, approval or credential access.",
+         "inputSchema":{"type":"object","properties":{"manifest":{"type":"object"}},"required":["manifest"],"additionalProperties":false},
+         "annotations":{"readOnlyHint":true}},
+        {"name":"cloud_review","description":"Review a proposed GPU plan, compare quoted costs and explain stop choices. No approval, filesystem writes or cloud operations.",
+         "inputSchema":{"type":"object","properties":{"manifest":{"type":"object"}},"required":["manifest"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"billing_estimate","description":"Calculate an offline, caller-quoted usage-metered GPU compute estimate by actual billing increment/minimum, or mark monthly/yearly/prepaid terms not estimable. Does not guarantee invoice amounts.",
          "inputSchema":{"type":"object","properties":{"quote":{"type":"object"}},
@@ -506,8 +598,8 @@ fn tool_definitions() -> Value {
         {"name":"runtimes_list","description":"List versioned upstream runtime families and unverified OCI or installer recipe candidates. Does not deploy.",
          "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"runtime_resolve","description":"Inspect an exact Hugging Face media model, compare it to trusted upstream runtime candidate metadata and a GPU provider. Read-only; execution unavailable.",
-         "inputSchema":{"type":"object","properties":{"model":{"type":"string"},"provider":{"type":"string"}},
+        {"name":"runtime_resolve","description":"Inspect an exact Hugging Face media model, compare it to trusted upstream runtime candidate metadata and a GPU provider. Optional external provider profile. Read-only.",
+         "inputSchema":{"type":"object","properties":{"model":{"type":"string"},"provider":{"type":"string"},"profile":{"type":"object"}},
                         "required":["model","provider"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
         {"name":"offline_fixture_demo","description":"Create a fully offline simulated deployment and fixture-media artifact in a new user-specified local directory, then verify mock resource auto-stop. NOT real AI, model inference, cloud or GPU.",
@@ -556,8 +648,8 @@ fn tool_definitions() -> Value {
          "inputSchema":{"type":"object","properties":{"model":{"type":"string"}},
                         "required":["model"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}},
-        {"name":"plan_generation","description":"Make a read-only plan for a model and a user-selected GPU provider; never deploy.",
-         "inputSchema":{"type":"object","properties":{"model":{"type":"string"},"provider":{"type":"string"}},
+        {"name":"plan_generation","description":"Make a read-only plan for a model and user-selected GPU provider; optional external provider profile. Never deploy.",
+         "inputSchema":{"type":"object","properties":{"model":{"type":"string"},"provider":{"type":"string"},"profile":{"type":"object"}},
                         "required":["model","provider"],"additionalProperties":false},
          "annotations":{"readOnlyHint":true}}
     ])
@@ -604,15 +696,23 @@ fn print_json(value: Result<Value, String>) -> i32 {
 
 fn run_cli(args: &[String]) -> i32 {
     match args {
+        [cmd,action] if cmd=="tools"&&action=="list"=>print_json(Ok(tool_definitions())),
+        [cmd,action,name,file] if cmd=="tools"&&action=="call"=>print_json(planning::load_json(file,1024*1024,"tool arguments").and_then(|v|cli_tool(name,&v))),
         [cmd] if cmd == "doctor" => {
             println!("{}", doctor());
             0
         }
-        [cmd] if cmd == "--version" => {
+        [cmd] if matches!(cmd.as_str(), "--version"|"-V") => {
             println!("{VERSION}");
             0
         }
         [cmd] if cmd == "providers" => print_json(providers_list()),
+        [cmd, sub] if cmd == "market" && sub == "sources" => print_json(market::sources(None)),
+        [cmd, sub, provider] if cmd == "market" && sub == "sources" => print_json(market::sources(Some(provider))),
+        [cmd, sub, provider] if cmd == "market" && sub == "refresh" => print_json(market::refresh(provider)),
+        [cmd, sub, file] if cmd == "market" && sub == "check" => print_json(planning::load_json(file, 16384,"billing quote").and_then(|v| market::check(&v))),
+        [cmd, sub, file, profile] if cmd == "market" && sub == "check" => print_json(planning::load_json(file,16384,"billing quote").and_then(|q|planning::load_json(profile,8192,"provider profile").and_then(|p|market::check_profile(&q,&p)))),
+        [cmd, sub, file] if cmd == "providers" && sub == "profile" => print_json(planning::load_json(file,8192,"provider profile").and_then(|v|provider_profile::review(&v))),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
         [cmd] if cmd == "billing" => print_json(billing::policy()),
         [cmd, sub, file] if cmd == "billing" && sub == "estimate" => {
@@ -623,11 +723,25 @@ fn run_cli(args: &[String]) -> i32 {
                 .and_then(|quote|billing::estimate(&quote)))
         },
         [cmd] if cmd == "runtimes" => print_json(runtime::registry()),
+        [cmd, sub, dir] if cmd == "runtimes" && sub == "bundle-verify" => print_json(runtime_bundle::verify(dir)),
+        [cmd, sub, file] if cmd == "cloud" && sub == "handoff" => print_json(planning::load_manifest(file,16384).and_then(|v|handoff::review(&v))),
+        [cmd, sub, file] if cmd == "cloud" && sub == "review" => {
+            print_json(planning::load_manifest(file, 16384).and_then(|v| planning::review(&v)))
+        }
+        [cmd, sub, file] if cmd == "cloud" && sub == "advice" => {
+            print_json(planning::load_json(file, 65536,"lifecycle observation").and_then(|v| lifecycle::advise(&v["plan"], &v["receipt"], &v["observed"])))
+        }
         [cmd, sub, dir, manifest] if cmd == "cloud" && sub == "prepare" => {
             print_json(cloud_operator::prepare(dir,manifest))
         }
+        [cmd, sub, dir] if cmd == "cloud" && sub == "inspect" => print_json(cloud_operator::inspect(dir)),
+        [cmd, sub, dir] if cmd == "cloud" && sub == "account-check" => print_json(cloud_operator::account_check(dir)),
+        [cmd, sub, dir] if cmd == "cloud" && sub == "job-check" => print_json(cloud_operator::job_check(dir)),
         [cmd, sub, dir] if cmd == "cloud" && sub == "status" => {
             print_json(cloud_operator::status(dir))
+        }
+        [cmd, sub, ..] if cmd == "cloud" && sub == "terminate" => {
+            print_json(Err("Termination is not implemented; separate destructive authorization required".into()))
         }
         [cmd, sub, dir] if cmd == "cloud" && sub == "deploy" => {
             print_json(cloud_operator::deploy(dir))
@@ -664,6 +778,9 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, sub, dir] if cmd == "offline" && sub == "reconcile" => print_json(offline::reconcile(dir)),
         [cmd, sub, dir] if cmd == "offline" && sub == "verify" => print_json(offline::verify(dir)),
         [cmd, sub, dir] if cmd == "offline" && sub == "status" => print_json(offline::status(dir)),
+        [cmd, action, model, provider, profile] if cmd == "runtimes" && action == "resolve" => {
+            print_json(planning::load_json(profile,8192,"provider profile").and_then(|p|provider_profile::resolve(provider,&p)).and_then(|selected|inspect_model(model).and_then(|inspected|runtime::resolve(&inspected,&selected))))
+        },
         [cmd, action, model, provider] if cmd == "runtimes" && action == "resolve" => {
             print_json(inspect_model(model).and_then(|inspected| {
                 provider_info(provider).and_then(|selected| runtime::resolve(&inspected, &selected))
@@ -696,25 +813,39 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, action, model] if cmd == "models" && action == "inspect" => {
             print_json(inspect_model(model))
         }
+        [cmd, model, provider, profile] if cmd=="plan"=>print_json(planning::load_json(profile,8192,"provider profile").and_then(|p|plan_generation(model,provider,&p))),
         [cmd, model, provider] if cmd == "plan" => {
-            print_json(plan_generation(model, provider))
+            print_json(plan_generation(model, provider,&Value::Null))
         }
         [cmd] if cmd == "--help" => {
             println!("Usage:
   cloud-media-bridge doctor
   cloud-media-bridge mcp
+  cloud-media-bridge tools list
+  cloud-media-bridge tools call <tool-name> <arguments.json>
   cloud-media-bridge providers [provider-id]
+  cloud-media-bridge providers profile <profile.json>
   cloud-media-bridge policy
   cloud-media-bridge runtimes
-  cloud-media-bridge runtimes resolve <model> <provider-id>
+  cloud-media-bridge runtimes resolve <model> <provider-id> [profile.json]
+  cloud-media-bridge runtimes bundle-verify <local-build-context>
   cloud-media-bridge provider-preview <provider> <image@sha256> <gpu> <disk_gb> [offer_id]
   cloud-media-bridge billing
   cloud-media-bridge billing estimate <quote.json>
+  cloud-media-bridge market sources [provider]
+  cloud-media-bridge market refresh <provider>
+  cloud-media-bridge market check <quote.json> [profile.json]
+  cloud-media-bridge cloud handoff <deployment-manifest.json>
+  cloud-media-bridge cloud review <deployment-manifest.json> (read-only comparison)
+  cloud-media-bridge cloud advice <plan-receipt-observation.json> (read-only)
   cloud-media-bridge cloud prepare <new-directory> <deployment-manifest.json>
   cloud-media-bridge cloud status <directory>
-  cloud-media-bridge cloud deploy <directory>       (verified runtime + real human TTY + CMB_ENABLE_LIVE_GPU required)
-  cloud-media-bridge cloud stop <directory>         (only bridge-created and owned resources)
-  cloud-media-bridge cloud generate <directory> <inputs.json> (operator-only; verified worker + auto-stop)
+  cloud-media-bridge cloud inspect <directory> (credentialed read-only; existing resource)
+  cloud-media-bridge cloud account-check <directory> (credentialed read-only; no GPU rental)
+  cloud-media-bridge cloud job-check <directory> (read-only worker recovery)
+  cloud-media-bridge cloud deploy <directory>       (production release gate disabled)
+  cloud-media-bridge cloud stop <directory>         (production release gate disabled; owned resources only)
+  cloud-media-bridge cloud generate <directory> <inputs.json> (production release gate disabled; approved lifecycle only)
   cloud-media-bridge offline worker-smoke <output-directory> <loopback-port> <media-kind>
   cloud-media-bridge offline demo <new-directory> <media-kind>
   cloud-media-bridge offline prepare <new-directory> <media-kind>
@@ -727,7 +858,7 @@ fn run_cli(args: &[String]) -> i32 {
   cloud-media-bridge models search <query> [limit]
   cloud-media-bridge models search-task <pipeline_tag> [limit]
   cloud-media-bridge models inspect <owner/model|https://huggingface.co/owner/model>
-  cloud-media-bridge plan <model> <provider-id>
+  cloud-media-bridge plan <model> <provider-id> [profile.json]
 
 This version supports read-only model discovery/planning and an offline
 deployment simulation with synthetic fixture-media artifacts and mock auto-stop.
@@ -805,7 +936,7 @@ mod tests {
         assert_eq!(policy["resource_lifecycle"]["pod_vm_instance"]["auto_terminate"], false);
         assert_eq!(
             policy["resource_lifecycle"]["pod_vm_instance"]["after_last_job"],
-            "automatically_stop_bridge_owned_resource_if_provider_supports_stop"
+            "explicit_user_selected_policy_required"
         );
         assert_eq!(policy["execution"]["current_capability"], "read_only");
     }

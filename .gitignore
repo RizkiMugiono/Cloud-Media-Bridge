@@ -54,3 +54,6 @@ temp/
 *.db-wal
 evidence/private/
 test-results/private/
+
+# Local Python worker tests
+__pycache__/

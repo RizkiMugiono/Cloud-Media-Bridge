@@ -28,7 +28,8 @@
     ],
     "verification": "independent_per_provider",
     "not_live_verified_means": "not_operational",
-    "credential_ownership": "individual_end_user"
+    "credential_ownership": "individual_end_user",
+    "external_profiles": "user_selected_data_only_native_agent_handoff"
   },
   "approval": {
     "deployment": "new_human_approval_for_every_deployment_request",
@@ -44,24 +45,37 @@
       "runtime_recipe_digest",
       "gpu_resource",
       "operation",
-      "request_nonce"
+      "request_nonce",
+      "billing_quote",
+      "region",
+      "quantity",
+      "alternatives",
+      "compatibility_reason",
+      "max_elapsed_ms",
+      "max_total_micro_usd",
+      "stop_policy",
+      "provider_parameters",
+      "provider_profile",
+      "runtime_recipe"
     ],
     "agent_or_mcp_may_self_approve": false,
     "non_deployment_generation": "governed_by_separate_model_and_worker_policy",
-    "user_must_review": "resource_cost_exposure_and_lifecycle_before_deployment"
+    "user_must_review": "resource_cost_exposure_and_lifecycle_before_deployment",
+    "trust_boundary": "user_approval_via_agent_host_or_provider_native_ui",
+    "built_in_cli_fallback": "interactive_exact_operation_confirmation_not_identity_authentication"
   },
   "resource_lifecycle": {
     "serverless": {
-      "after_last_job": "provider_scale_to_zero_when_supported",
-      "min_active_workers_when_idle": 0,
+      "after_last_job": "explicit_user_selected_policy_and_provider_capabilities",
+      "min_active_workers_when_idle": "user_selected_if_supported",
       "verify_actual_idle_state": true,
       "storage_charges_may_remain": true
     },
     "pod_vm_instance": {
-      "after_last_job": "automatically_stop_bridge_owned_resource_if_provider_supports_stop",
+      "after_last_job": "explicit_user_selected_policy_required",
       "ownership_proof_required": true,
       "no_other_active_jobs_required": true,
-      "on_success_failure_or_cancellation": "reconcile_then_attempt_stop",
+      "on_success_failure_or_cancellation": "apply_only_approved_policy_reconcile_uncertain_state",
       "require_provider_confirmed_stop": true,
       "stop_unsupported": "report_action_required_and_never_claim_stopped",
       "auto_destroy": false,
@@ -69,18 +83,52 @@
       "preserve_user_preexisting_and_shared_resources": true,
       "warn_residual_storage_network_and_idle_charges": true,
       "lost_connection_or_crash": "recover_from_durable_resource_record_and_reconcile",
-      "deployment_approval_must_disclose_auto_stop": true
+      "deployment_approval_must_disclose_lifecycle": true
     },
     "external_user_managed": {
       "after_last_job": "report_external_lifecycle_no_unapproved_stop"
     },
-    "stop_failure": "surface_resource_id_redacted_status_and_manual_next_step"
+    "stop_failure": "surface_resource_id_redacted_status_and_manual_next_step",
+    "choices": {
+      "selection": "required_no_implicit_default",
+      "implemented_operator_contract_not_live_verified": [
+        "after_job",
+        "manual",
+        "persistent"
+      ],
+      "read_only_guidance": [
+        "after_job",
+        "manual",
+        "persistent",
+        "idle_timeout",
+        "reuse",
+        "scheduled",
+        "billing_boundary",
+        "budget_limit",
+        "session_end",
+        "disconnect_timeout",
+        "error_trigger"
+      ],
+      "read_only_actions": [
+        "stop",
+        "suspend",
+        "terminate",
+        "scale_to_zero"
+      ],
+      "production_enforcement_available": false,
+      "unsupported_choice": "reject_no_fallback",
+      "termination_requires_separate_destructive_approval": true
+    }
   },
   "execution": {
     "current_capability": "read_only",
     "no_cloud_actions_from_read_only_tools": true,
     "automatic_provider_or_model_switch": false,
-    "do_not_claim_deployment_or_stop_success_without_actual_verified_operation": true
+    "do_not_claim_deployment_or_stop_success_without_actual_verified_operation": true,
+    "production_authorization_verified": false,
+    "production_gate_reason": "native_provider_runtime_and_host_approval_boundary_not_release_verified",
+    "provider_handoff": "nine_mode_native_request_drafts_and_review_items",
+    "preferred_operation_path": "agent_uses_current_provider_native_api_cli_after_user_approval"
   },
   "billing": {
     "reference": "config/billing-policy.json",
@@ -88,12 +136,12 @@
     "hourly_display_price_never_assumed_to_be_hourly_minimum": true,
     "actual_increment_and_minimum_must_be_checked": true,
     "billable_time_includes_provisioning_and_stop_confirmation": true,
-    "user_approved_compute_budget_required": true,
-    "immediate_stop_after_final_job_even_with_prepurchased_hour": true,
+    "user_approved_compute_budget_required": false,
     "idle_reuse_requires_separate_explicit_permission": true,
     "unknown_calendar_prepaid_reserved_charges": "contract_review_required_no_estimated_per_job_invoices",
     "continuing_storage_and_network_fees": "must_be_disclosed",
     "billing_estimate_is_not_hard_provider_budget_cap": true,
-    "provider_invoice_reconciliation_required": true
+    "provider_invoice_reconciliation_required": true,
+    "billing_model_does_not_select_lifecycle": true
   }
 }

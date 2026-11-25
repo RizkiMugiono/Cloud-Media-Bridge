@@ -270,3 +270,81 @@ Never commit access tokens, token secrets, private account identifiers, signed U
 - **NOT RUN:** any test that lacks a traceable execution record remains explicitly unverified.
 
 This ledger must be updated **by whichever developer, maintainer or automated test runner actually performs the test**, with reproducible evidence. Do not fabricate PASS results.
+
+## User-selected lifecycle follow-up
+
+Historical PASS entries above refer to their linked commits and the old immediate-stop contract. The new user-selected policy and revised estimator have new offline assertions; status **NOT RUN at authoring time**. See the new pull request's actual CI results before promoting any claim. Live GPU, actual invoice, and independent shutdown guarantees remain NOT RUN.
+
+## Consolidated planning follow-up
+
+The advisory source branch reports 76 Rust tests and 15 Python tests across its local environments; those results do not apply to this consolidated commit. New CI evidence is required; no new tests are claimed as PASS at authoring time.
+
+## Dynamic market follow-up
+
+The consolidated preceding commit passed offline CI (run 45309916340). Dynamic market changes require their own CI result. Live credentialed catalog calls, actual quote accuracy, production authorization, inference and GPU lifecycle are NOT RUN at authoring time.
+
+## Authorization and provider handoff follow-up
+
+Dynamic market commit 91ca8c5 passed CI 45310844087; signed authorization commit f95a2d3 passed CI 45312407341. Follow-up provider handoff and real ephemeral signature integration require fresh CI. Live catalog/account, independent operator deployment and GPU operations remain NOT RUN.
+
+## Recovery follow-up
+
+Candidate runtime commit f7c4a6a passed CI 45313388510. Stop-intent/recovery commit b986229 passed CI 45314827449. Runtime packaging and account identity follow-ups require fresh CI. No live account credentials, GPU deployment or real inference were used by these tests.
+
+## Worker job recovery follow-up
+
+Account preflight commit 9cd0fed passed CI 45315074933; CPU-only container packaging commit 80e2ec5 passed CI 45315147002. New job recovery changes require independent CI. No paid GPU or live worker requests were made.
+
+## Scope simplification
+
+Commit 2c8d642 passed offline CI 45315800849 before scope reduction. Custom OpenSSH approval and supervisor subsystems are retired; their older test results are historical only. Native provider mechanisms, plan validation, worker recovery and runtime tests remain. The simplified revision requires new CI evidence; no paid GPU has been rented.
+
+## Generic provider and agent interoperability
+
+Simplified commit 30ae143 passed CI 45316577015. External profiles and protocol/CLI interoperability changes require fresh CI. No real third-party agent client, paid provider deployment, or GPU inference is claimed verified.
+
+## Actual Windows client interoperability (reported local test, commit 0393fb5)
+
+| Client | Version | Native MCP calls | CLI fallback |
+|---|---|---|---|
+| Codex CLI | 0.171.0-alpha.13 | 4/4 PASS | Reference comparison |
+| Claude Code | 2.1.318 | 4/4 PASS | Reference comparison |
+| Hermes Agent | 0.23.1 | 4/4 PASS | Reference comparison |
+| OpenCode | 2.1.4 | 4/4 PASS | Reference comparison |
+| DeepSeek Harness | 0.2.2-rc.3 | FAIL at tools/list | 4/4 PASS |
+
+User-provided local test report: doctor, provider profile review, billing estimate, and illustrative provider handoff matched CLI outputs; separate direct MCP protocol checks found 27 tools. Offline Rust build, 109 Rust tests and Clippy passed. GitHub CI 45317825701 passed on Windows/Linux/macOS. No GPU rented. The DeepSeek SDK rejected missing required MCP 2026-07-28 tools/list cache metadata. This patch adds the two required fields to both tools/list and server/discover for modern MCP only, with a regression test; actual client retest at the new commit is NOT RUN. No private local paths or raw session evidence are committed.
+
+## Public provider source review and distribution candidates
+
+2026-11-24: checked RunPod REST v2 official SDK/migration references, Modal server CLI/public pricing, Lambda Cloud API and DigitalOcean GPU Droplet docs. Fixed the illustrative RunPod Serverless draft to require a template and use the documented queue/worker shape; added a DigitalOcean external profile, smoke-test checklist and native distribution CI. No account-specific provider read, GPU inference, actual invoice, six-target build result or release publication is asserted by this entry. See docs/PROVIDER-VERIFICATION.md and docs/RELEASE.md for exact boundaries.
+
+Follow-up source review confirmed Vast's published GET search and PUT instance operations, plus separate serverless endpoint/workergroup documentation. The published OpenAPI also describes POST search; live authenticated verification remains outstanding. Identified the public pinned Whisper Tiny candidate; no weights/runtime downloaded or inference performed. A compile-time delimiter error in the first RunPod draft patch was corrected; the next CI must establish the result.
+
+## Independent five-agent retest and distribution verification (5b99967)
+
+2026-11-24: five Windows clients passed all 20 target MCP calls against CLI references (21 attempts, one invalid-parameter rejection followed by success). The uploaded audit and logs were reviewed; see docs/AGENT-COMPATIBILITY.md and tests/evidence/agent-compatibility.json for limitations and source hashes. Historical 2f40c7c evidence is retained separately. Offline CI 45327961794 and six-target native candidate CI 45327961850 passed. Independent WSL report: 110 Rust tests, Clippy, 27 tools and CPU fixture demo passed. No GPU resource, live provider invoice or live deployment is verified. This update changes evidence/docs only.
+
+## Independent provider read-only test (5b99967)
+
+User-provided operator files reviewed: authenticated RunPod and Vast account/catalog reads and reported CMB market refresh success, Modal missing official client, DigitalOcean/Lambda missing keys. No GPU rental or incremental charge reported. Exact native account-check calls and raw HTTP responses were not supplied. Corrected Vast account path to the observed trailing slash without enabling redirects; fresh CI and authenticated retest required. DigitalOcean official per-second minimum and destroy billing boundary recorded in provider verification. No raw catalogs, private account details or credentials committed. Paid execution remains unverified.
+
+## Authenticated adapter retest (80c82b4)
+
+2026-11-25 independent operator report: CMB's exact RunPod Pods and Vast Instances `cloud account-check` returned account_match true; Modal CLI 1.6.4 authenticated and returned billing rates and zero usage summary. Remaining Modal/RunPod credit not confirmed; DigitalOcean/Lambda credentialed tests deferred because user reports deposit required to generate keys. No paid resources or incremental costs reported. Report reviewed and sanitized; raw responses not supplied. Offline CI 45538951205 and native candidates 45538951029 both passed on the tested revision. Real GPU-compatible image, inference, media retrieval and actual cloud cleanup/billing remain unverified. See docs/PROVIDER-VERIFICATION.md and tests/evidence/provider-read-only-2026-11-25.json. Evidence-only update; no changes to execution code or policy.
+
+## Modal one-shot preparation (reported tested code 80c82b4)
+
+Operator reported pinned model metadata, registry base-image digest, genuine CPU Whisper Tiny transcript and reviewed Modal App draft; no cloud image build or GPU operation. Source script/manifest reviewed, raw CPU evidence not supplied. Corrected Modal handoff/preview/lifecycle to require selection of one-shot or persistent service; fresh CI required. Corrected billing and cleanup assumptions in provider verification. Remaining credit, final runtime, actual GPU inference and provider cleanup/invoice unverified.
+
+## Agent-native Modal CPU smoke and GPU account block (2026-11-25)
+
+Preparation report identifies tested code e024e94 (execution report headers contain a mistyped SHA). Both CI workflows 45545933437/45545933465 passed for e024e94. Independent operator reports Modal native CPU Whisper Tiny inference succeeded; editor independently verified WAV and transcript hashes, identical text files, and exact sum of uploaded billing rows (USD 0.00152609 total; USD 0.00035772 successful CPU App). GPU rejected for missing payment method per uploaded CLI log; result cuda_available false; no GPU rows in submitted billing report. Operator reports seven stopped Apps, zero active containers/volumes; raw lifecycle snapshot not supplied. Successful raw CPU run log, final executing script, final manifest and CLI handoff/review outputs not supplied. Final runtime provider image ID is not an OCI digest. No live GPU execution claim, no production-gate changes, no release or merge. See docs/PROVIDER-VERIFICATION.md and tests/evidence/modal-cpu-smoke-2026-11-25.json for evidence scope. Documentation/evidence-only change.
+
+## Final independent audit (4a0d84d, 2026-11-25)
+
+Six uploaded reports were reviewed; 97 referenced raw files were not supplied. The 21 actual matrix rows contain 17 PASS_OFFLINE, one PASS_CPU_LIVE (authenticated catalog reads, not a CPU inference), one BLOCKED, two NOT_TESTED and zero FAIL/PASS_GPU_LIVE. The reported extra PASS_CPU_LIVE refers to earlier Modal CPU inference, documented separately, and is not counted twice. The operator reported zero incremental audit spend, 27 tools and two MCP handshake modes, eight model discovery probes, seven runtime candidate matches, image/audio simulation-only lifecycle, no observed sentinel leakage in 19 paths, and clean release build/lint. The 25 test count refers to stdio; do not infer it is the entire Rust suite. A terminal nonce challenge is not proof of independent human identity against an agent controlling a terminal. The old five-agent fixture was external recipe-only; no five-client Modal-specific retest was performed. F1/F2 documentation corrected, F3/F4 CLI diagnostics and alias updated with regression tests, and a direct Modal CLI/MCP parity test added. New CI required before any advisory pre-release. GPU eligibility still blocked; no native paid gate changes. See tests/evidence/final-independent-audit-2026-11-25.json.
+
+## Final agent regression (21fd3bd, 2026-11-25)
+
+Operator reports 27 passing stdio tests, clean Clippy, release build, all four previous audit findings addressed, and 12 successful MCP calls on Codex/Hermes/OpenCode. Uploaded parity summary shows 10/12 equal to original CLI fixtures; two OpenCode same-input replays reported equal, raw replay evidence not supplied. Two clients blocked by local installation/profile limitations. CLI baseline confirms corrected Modal handoff shape, not a real deployment. Both CI runs 45562710897/45562710913 passed. Zero additional cloud spending reported. See tests/evidence/agent-modal-retest-2026-11-25.json. Historical five-client coverage is not extrapolated to HEAD. The operator's final Modal T4 probe on 2026-11-25 was rejected at app load because a payment method was required. No container or GPU was allocated and the before/after billing summaries showed zero additional cost. The maintainer deferred live GPU validation and approved publication of v0.1.0-rc.1 after release CI and binary verification.

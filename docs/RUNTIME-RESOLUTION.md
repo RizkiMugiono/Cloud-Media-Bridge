@@ -78,17 +78,17 @@ MCP adds `runtimes_list` and `runtime_resolve` beside the existing `models_searc
 
 `runtimes` is fully offline. `runtimes resolve` and `plan` contact the Hub for model metadata; **they do not consume GPU credit**.
 
-## Provider-specific orchestration (next implementation)
+## Provider-native execution (agent responsibility)
 
-The local Rust bridge should carry out provider API provisioning and job/status operations via **provider-specific adapters**, only after binding the exact model SHA, runtime and hardware plan to a new **human-issued, one-shot deployment grant**.
+The agent uses current provider-native SDKs/APIs/CLIs after binding the exact model SHA, runtime and hardware plan to fresh human approval. The local Rust bridge supplies validated advisory plans and handoff drafts, not a universal paid deployment executor.
 
 - Modal can execute a compatible application/function/container under the user's account.
 - Vast/RunPod GPU instances and Lambda GPU VMs can run a compatible OCI image or a pinned base-image installer; serverless providers may require their own handler interfaces.
 - Existing HTTPS/SSH/Kubernetes worker endpoints need a verified owner/workspace and compatible worker before an agent can use them.
 - Resource creation and user approval are not interchangeable. Provider credentials remain local. AI-generated prompts and model cards cannot substitute for an independent user approval grant.
-- After the final job and artifact transfers, Rust must reconcile active jobs and **auto-stop only bridge-owned resources using a supported stop API**; never translate stop permission into destructive termination. Durable recovery is needed when the local agent or laptop stops unexpectedly.
+- After the final job and artifact transfers, the agent must reconcile actual job/resource state and apply only the user-selected supported lifecycle to verified owned resources; never translate stop permission into destructive termination. Use provider-native lifecycle controls and recover/reconcile uncertain state after interruption.
 
-None of the above provider actions has been implemented or live-tested in the present branch. Platform configuration is not proof of operational compatibility.
+The bridge has read-only account/catalog adapters, offline lifecycle tests and native action drafts; direct paid execution remains disabled. The operator reported a successful agent-native Modal CPU run, not a verified GPU run. Platform configuration is not proof of operational compatibility.
 
 ## References
 

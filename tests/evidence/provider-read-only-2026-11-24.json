@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "tested_commit": "5b99967de6166ccdcde0a225dfb76aa8e4788b73",
+  "tested_on": "2026-11-24",
+  "source": "User-supplied independent read-only report; file contents reviewed, not re-executed by repository editor",
+  "source_sha256": {
+    "provider-authentication-report.md": "2e6749bc5dbebb8aca8d104c0286886a2f04c89e4798eec6a6cef991f9085152",
+    "live-gpu-pricing.json": "f20b9d787792bf153fe8fd2e4718e96ac8d6ccd61ecbfda43b0cc7de8bb8e881",
+    "provider-compatibility.json": "84c81504da614c7bedc103adc1e78d82b5b5782ac1bacc556bfe32e27c226bb5",
+    "gpu-smoke-test-plan.md": "27d1480429b5f1d6b33f935c7d37ba674c3ca26432df148d9ee3a43759202ced"
+  },
+  "providers": {
+    "runpod-pods": {
+      "account_read_reported": "pass",
+      "catalog_read_reported": "pass",
+      "bridge_market_refresh_reported": "pass",
+      "exact_bridge_account_check": "not_verified",
+      "balance_read": "not_verified"
+    },
+    "vast-instances": {
+      "account_read_reported": "pass",
+      "catalog_read_reported": "pass",
+      "bridge_market_refresh_reported": "pass",
+      "exact_bridge_account_check": "not_verified",
+      "account_path_reported": "GET /api/v0/users/current/ -> 200",
+      "list_path_reported": "GET /api/v0/instances/ -> 410; GET /api/v1/instances/ -> 200"
+    },
+    "modal": {
+      "account_read": "blocked_missing_official_client"
+    },
+    "digitalocean-gpu": {
+      "account_read": "blocked_missing_credential",
+      "promo_gpu_eligibility": "not_verified"
+    },
+    "lambda-cloud": {
+      "account_read": "blocked_missing_credential"
+    }
+  },
+  "gpu_rented_reported": false,
+  "incremental_cost_usd_reported": 0,
+  "not_verified": [
+    "raw authenticated HTTP traces",
+    "exact native account adapter invocation",
+    "real deployment",
+    "real inference",
+    "actual lifecycle",
+    "actual invoice"
+  ],
+  "note": "No account identifiers, balances, live catalog, host/offer identifiers or credentials are published."
+}

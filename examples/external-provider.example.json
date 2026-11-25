@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "new-gpu-cloud",
+  "name": "Illustrative external GPU provider",
+  "pricing": [
+    "https://example.com/pricing"
+  ],
+  "documentation": [
+    "https://example.com/docs"
+  ],
+  "transport": "cli",
+  "lifecycle_actions": [
+    "stop",
+    "terminate"
+  ]
+}

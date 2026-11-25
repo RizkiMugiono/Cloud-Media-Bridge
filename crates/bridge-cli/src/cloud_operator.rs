@@ -15,11 +15,6 @@ use std::path::{Path, PathBuf};
 const JOURNAL: &str = "cloud-resource.json";
 const VERSION: u64 = 1;
 
-fn safe_scope(value:&str)->bool{
-    !value.is_empty() && value.len()<=128
-        && value.bytes().all(|b|b.is_ascii_alphanumeric()||b"-_./".contains(&b))
-}
-
 fn root_dir(directory: &str) -> Result<PathBuf,String> {
     let path=PathBuf::from(directory);
     if path.as_os_str().is_empty(){return Err("Cloud session directory is required".into());}
@@ -59,7 +54,10 @@ fn save(root:&Path,value:&Value)->Result<(),String>{
     file.write_all(&bytes).map_err(|_|"Cannot save cloud journal".to_string())?;
     file.sync_all().map_err(|_|"Cannot sync cloud journal".to_string())?;
     drop(file);
-    fs::rename(&tmp,root.join(JOURNAL)).map_err(|_|"Cannot commit cloud journal".to_string())
+    fs::rename(&tmp,root.join(JOURNAL)).map_err(|_|"Cannot commit cloud journal".to_string())?;
+    #[cfg(unix)]
+    fs::File::open(root).and_then(|dir|dir.sync_all()).map_err(|_|"Cannot sync cloud journal directory; reconcile before retry".to_string())?;
+    Ok(())
 }
 
 fn read(root:&Path)->Result<Value,String>{
@@ -87,6 +85,9 @@ fn request<'a>(plan:&'a Value,token:&'a str)->Result<Deployment<'a>,String>{
         image:get("image")?,
         gpu:get("gpu")?,
         disk_gb:plan["disk_gb"].as_u64().ok_or("Missing bounded disk_gb")?,
+        region:get("region")?,
+        quantity:plan["quantity"].as_u64().ok_or("Missing GPU count")?,
+        cloud:plan["provider_parameters"]["cloud"].as_str().unwrap_or(""),
         offer_id:plan["offer_id"].as_u64(),
         model_id:get("model_id")?,
         model_sha:get("model_sha")?,
@@ -98,53 +99,29 @@ fn request<'a>(plan:&'a Value,token:&'a str)->Result<Deployment<'a>,String>{
     Ok(d)
 }
 
-pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
-    let data=fs::read(manifest).map_err(|_|"Cannot read user deployment manifest".to_string())?;
-    if data.len()>16*1024 {return Err("Deployment manifest exceeds 16 KiB".into());}
-    let raw:Value=serde_json::from_slice(&data).map_err(|_|"Invalid deployment manifest".to_string())?;
-    if raw["schema_version"]!=1 {return Err("Manifest schema_version=1 required".into());}
-    // Only explicit fields are copied into the persisted exact plan. Never
-    // accept credentials, arbitrary commands, or remote API URLs.
-    let nonce=secure_nonce()?;
-    let req_id=secure_nonce()?;
-    let billing_quote=raw.get("billing_quote").cloned().unwrap_or(Value::Null);
-    let billing_preview=if billing_quote.is_null(){
-        json!({"estimate_status":"pricing_terms_unknown",
-            "requires_contract_review":true,"auto_stop_after_last_job":true,
-            "wait_until_paid_period_ends":false})
-    } else {
-        crate::billing::estimate(&billing_quote)?
-    };
-    let plan=json!({
-        "request_id":req_id,
-        "nonce":nonce,
-        "provider":raw["provider"],
-        "model_id":raw["model_id"],
-        "model_sha":raw["model_sha"],
-        "task":raw["task"],
-        "runtime_family":raw["runtime_family"],
-        "runtime_entry_id":raw["runtime_entry_id"],
-        "image":raw["image"],
-        "gpu":raw["gpu"],
-        "disk_gb":raw["disk_gb"],
-        "offer_id":raw["offer_id"],
-        "account":raw["account"],
-        "workspace":raw["workspace"],
-        "automatic_owned_resource_stop":true,
-        "billing_quote":billing_quote,
-        "billing_estimate":billing_preview
-    });
-    if !plan["runtime_entry_id"].is_string()
-        || !plan["account"].is_string()
-        || !plan["workspace"].is_string()
-        || !plan["account"].as_str().is_some_and(safe_scope)
-        || !plan["workspace"].as_str().is_some_and(safe_scope)
-    {
-        return Err("Specific runtime entry, cloud account and workspace are required".into());
+// Read-only review supports more triggers than the current operator can enforce.
+fn should_stop_after_job(plan: &Value) -> Result<bool, String> {
+    if plan["stop_policy"]["action"] != "stop" {
+        return Err("This operator does not implement the selected provider action".into());
     }
-    // This placeholder is validated but is NOT stored or sent anywhere.
-    let deployment=request(&plan,"prepare-validation-only-token-0123456789")?;
-    provider_api::create_operation(&deployment)?;
+    match plan["stop_policy"]["mode"].as_str() {
+        Some("after_job") => Ok(true),
+        Some("manual" | "persistent") => Ok(false),
+        _ => Err("Selected lifecycle requires an independently verified enforcement mechanism".into()),
+    }
+}
+
+pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
+    let raw = crate::planning::load_manifest(manifest, 16384)?;
+    if raw.get("request_id").is_some() || raw.get("nonce").is_some() {
+        return Err("Prepare requires a new manifest, not a previously issued request".into());
+    }
+    let review = crate::planning::review(&raw)?;
+    let mut plan = review["plan"].clone();
+    let nonce = secure_nonce()?;
+    let req_id = secure_nonce()?;
+    plan["nonce"] = json!(nonce);
+    plan["request_id"] = json!(req_id);
     let root=root_dir(directory)?;
     let _lock=Lock::acquire(&root)?;
     if root.join(JOURNAL).exists(){return Err("Cloud session already exists; never overwrite it".into());}
@@ -155,6 +132,7 @@ pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
         "status":"awaiting_human_approval",
         "plan":plan,
         "plan_sha256":plan_sha,
+        "advice":review["advice"],
         "approval":{"status":"pending","consumed":false,"origin":null},
         "resource":null,
         "job":{"active_jobs":0,"active_artifact_transfers":0,"state":"not_submitted"},
@@ -164,9 +142,10 @@ pub(crate) fn prepare(directory:&str,manifest:&str)->Result<Value,String>{
     Ok(json!({
         "status":"awaiting_human_approval","session":root.to_string_lossy(),
         "plan_sha256":plan_sha,"request_id":req_id,
-        "human_challenge":format!("DEPLOY {nonce}"),
-        "billing_estimate":plan["billing_estimate"],
-        "message":"This is a REAL resource plan, not a GPU operation. Live GPU deployment requires verified model/worker, actual provider pricing terms and explicit terminal approval. No GPU is provisioned by prepare."
+        "billing_estimate":review["advice"]["selected_estimate"],
+        "stop_policy":plan["stop_policy"],"plan":plan,"advice":review["advice"],
+        "approval_granted":false,"bridge_can_execute":false,
+        "message":"Plan only. No GPU is provisioned; independent authorization and live runtime/provider verification remain required."
     }))
 }
 
@@ -195,16 +174,14 @@ fn verified_runtime(plan:&Value)->Result<(),String>{
 fn verified_billing_terms(plan:&Value)->Result<(),String>{
     let quote=&plan["billing_quote"];
     if quote.is_null() {
-        return Err("Actual provider billing granularity, minimum, runtime estimate and compute budget must be confirmed before paid deployment".into());
+        return Err("Actual provider billing granularity, minimum, and runtime estimate must be confirmed before paid deployment".into());
     }
     let forecast=crate::billing::estimate(quote)?;
     if forecast["requires_contract_review"]==true {
         return Err("Calendar/prepaid/unknown GPU contracts require separate human contract review; automated paid deployment remains disabled".into());
     }
-    if forecast["over_approved_compute_budget"]==true
-        || forecast["max_approved_compute_micro_usd"].is_null()
-    {
-        return Err("GPU compute estimate exceeds an explicitly approved budget or no compute budget is supplied".into());
+    if forecast["over_approved_compute_budget"]==true {
+        return Err("GPU compute estimate exceeds an explicitly approved budget".into());
     }
     if quote["pricing_source"].as_str().is_none_or(|v|v.is_empty()||v.len()>512)
         || quote["provider"]!=plan["provider"]
@@ -214,32 +191,43 @@ fn verified_billing_terms(plan:&Value)->Result<(),String>{
     Ok(())
 }
 
-fn approved_with_tty(plan:&Value)->Result<(),String>{
-    if !io::stdin().is_terminal() || !io::stderr().is_terminal() {
-        return Err("Each paid deployment requires a local human terminal. MCP/redirected input cannot approve".into());
+fn verified_decision_context(plan: &Value) -> Result<(), String> {
+    let review = crate::planning::review(plan)?;
+    if crate::market::check(&plan["billing_quote"])?["status"] != "freshness_window_met_caller_assertion_only" {
+        return Err("Refresh the exact provider quote before deployment".into());
     }
-    if env::var("CMB_ENABLE_LIVE_GPU").as_deref()!=Ok("I_ACCEPT_GPU_CHARGES"){
-        return Err("CMB_ENABLE_LIVE_GPU must be explicitly set to I_ACCEPT_GPU_CHARGES".into());
+    if !review["advice"]["review_items"].as_array().is_some_and(Vec::is_empty) {
+        return Err("Resolve missing quote, comparison, lifecycle and budget evidence before deployment".into());
     }
-    eprintln!("REAL GPU DEPLOYMENT. This operation can create billable resources.");
-    eprintln!("Provider: {} | Account: {} | Workspace: {}",plan["provider"],plan["account"],plan["workspace"]);
-    eprintln!("Model: {} at {}",plan["model_id"],plan["model_sha"]);
-    eprintln!("Image: {} | GPU: {} | Disk GB: {}",plan["image"],plan["gpu"],plan["disk_gb"]);
-    eprintln!("Plan SHA256: {}",sha256(plan.to_string().as_bytes()));
-    eprintln!("Billing model: {} | estimate (micro-USD, compute only): {} | max approved compute (micro-USD): {}",
-        plan["billing_quote"]["billing_model"],
-        plan["billing_estimate"]["estimated_incremental_compute_micro_usd"],
-        plan["billing_quote"]["max_approved_compute_micro_usd"]);
-    eprintln!("Source: {}. Stopping compute does not cancel prepaid commitments, storage, network or taxes.",
-        plan["billing_quote"]["pricing_source"]);
-    eprintln!("After the final job, only this bridge-owned resource may be stopped where supported; storage/IP charges can persist.");
-    let nonce=plan["nonce"].as_str().ok_or("Missing nonce")?;
-    eprint!("Type DEPLOY {nonce} exactly: ");
-    io::stderr().flush().map_err(|_|"Cannot flush terminal".to_string())?;
+    should_stop_after_job(plan)?;
+    let handoff=crate::handoff::review(plan)?;
+    if !handoff["provider_review_items"].as_array().is_some_and(Vec::is_empty){return Err("Resolve exact provider allocation and native request requirements".into());}
+    Ok(())
+}
+
+// Manual operator fallback, not an identity system. A trusted agent host
+// must independently approve any paid native provider invocation. This CLI
+// still has its separate unverified-production gate.
+fn confirm_operator(plan:&Value,operation:&str,resource:Value,input:Value)->Result<(),String>{
+    if !io::stdin().is_terminal()||!io::stderr().is_terminal(){
+        return Err("Manual native operator fallback requires an interactive terminal; use the agent host approval and official provider tools for the agent-driven path".into());
+    }
+    let scope=json!({"operation":operation,"plan_sha256":sha256(plan.to_string().as_bytes()),
+        "resource_id":resource,"input_sha256":input});
+    let challenge=format!("CONFIRM {}",sha256(scope.to_string().as_bytes()));
+    eprintln!("Exact operation: {}\nPlan: {}\nType {} to confirm.",scope,plan,challenge);
     let mut answer=String::new();
-    io::stdin().read_line(&mut answer).map_err(|_|"Cannot read terminal approval".to_string())?;
-    if answer.trim_end_matches(['\r','\n'])!=format!("DEPLOY {nonce}"){
-        return Err("Deployment approval challenge did not match".into());
+    io::stdin().read_line(&mut answer).map_err(|_|"Cannot read operator confirmation")?;
+    if answer.trim_end_matches(['\r','\n'])!=challenge{return Err("Operator did not confirm exact operation".into());}
+    Ok(())
+}
+
+// This build intentionally preserves adapters without enabling paid cloud operations.
+// A registry edit or the former environment opt-in must not bypass the release gate.
+fn production_boundary() -> Result<(), String> {
+    let policy = crate::deployment_policy()?;
+    if policy["execution"]["production_authorization_verified"] != true {
+        return Err("Live GPU execution disabled: native provider/runtime and host approval boundary are not release-verified".into());
     }
     Ok(())
 }
@@ -247,6 +235,7 @@ fn approved_with_tty(plan:&Value)->Result<(),String>{
 /// No MCP caller can reach this entrypoint; users explicitly invoke a CLI in
 /// their own terminal. Bundled registry has zero enabled workers today.
 pub(crate) fn deploy(directory:&str)->Result<Value,String>{
+    production_boundary()?;
     let root=root_dir(directory)?;
     let _lock=Lock::acquire(&root)?;
     let mut state=read(&root)?;
@@ -255,12 +244,15 @@ pub(crate) fn deploy(directory:&str)->Result<Value,String>{
     }
     verified_runtime(&state["plan"])?;
     verified_billing_terms(&state["plan"])?;
-    approved_with_tty(&state["plan"])?;
+    verified_decision_context(&state["plan"])?;
+    if env::var("CMB_ENABLE_LIVE_GPU").as_deref()!=Ok("I_ACCEPT_GPU_CHARGES"){return Err("Explicit live opt-in required in addition to operator confirmation".into());}
     let token=env::var("CMB_WORKER_TOKEN").map_err(|_|"CMB_WORKER_TOKEN must be supplied securely in environment".to_string())?;
     let plan=state["plan"].clone();
     let deployment=request(&plan,&token)?;
+    verify_plan_account(&plan,&mut CurlTransport)?;
+    confirm_operator(&plan,"deploy",Value::Null,Value::Null)?;
     state["status"]=json!("CREATE_IN_FLIGHT");
-    state["approval"]=json!({"status":"approved","consumed":true,"origin":"human_terminal",
+    state["approval"]=json!({"status":"approved","consumed":true,"origin":"operator_terminal_confirmation",
         "bound_plan_sha256":state["plan_sha256"]});
     save(&root,&state)?;
     let mut api=CurlTransport;
@@ -278,7 +270,7 @@ pub(crate) fn deploy(directory:&str)->Result<Value,String>{
             });
             save(&root,&state)?;
             Ok(json!({"status":"CREATED","provider":plan["provider"],"resource_id":id,
-                      "message":"Resource creation was accepted; worker health, output and auto-stop are still to be verified. Billing may be active."}))
+                      "message":"Resource creation was accepted; worker health, output and approved lifecycle are still to be verified. Billing may be active."}))
         }
         Err(_)=>{
             state["status"]=json!("CREATE_UNCERTAIN");
@@ -299,6 +291,8 @@ pub(crate) fn status(directory:&str)->Result<Value,String>{
         "resource":state["resource"],
         "job":state["job"],
         "approval":state["approval"],
+        "stop_policy":state["plan"]["stop_policy"],
+        "plan":state["plan"],"plan_sha256":state["plan_sha256"],"advice":state["advice"],
         "last_error":state["last_error"],
         "possible_storage_or_network_charges":true,
         "live_cloud_operations_unverified":true
@@ -307,29 +301,88 @@ pub(crate) fn status(directory:&str)->Result<Value,String>{
 
 fn reconcile_with<T:Transport>(root:&Path,api:&mut T)->Result<Value,String>{
     let mut state=read(root)?;
-    if state["status"]!="CREATED" && state["status"]!="STOP_UNCERTAIN" {
+    if state["status"]!="CREATED" {
         return Err("Only recorded, owned resources are eligible for stop reconciliation".into());
     }
     let resource=state["resource"].clone();
     let provider=state["plan"]["provider"].as_str().ok_or("Unknown provider")?;
     let id=resource["id"].as_str().ok_or("Missing resource id")?;
     let owner=state["plan"]["request_id"].as_str().ok_or("Missing request id")?;
-    let answer=provider_api::stop_owned(api,provider,id,owner,&resource)?;
+    // Persist an uncertain mutation boundary BEFORE sending any stop request.
+    // After a crash, recovery is GET-only and never blindly resends stop.
+    let (provider,id,owner)=(provider.to_string(),id.to_string(),owner.to_string());
+    state["status"]=json!("STOP_IN_FLIGHT");
+    save(root,&state)?;
+    let answer=match provider_api::stop_owned(api,&provider,&id,&owner,&resource){
+        Ok(answer)=>answer,
+        Err(e)=>{
+            state["status"]=json!("STOP_UNCERTAIN");
+            state["resource"]["stop_state"]=json!("STOP_UNCERTAIN");
+            state["last_error"]=json!("Stop may not have completed; read-only provider reconciliation required");
+            save(root,&state)?;
+            return Err(e);
+        }
+    };
     state["status"]=answer["state"].clone();
     state["resource"]["stop_state"]=answer["state"].clone();
     save(root,&state)?;
     Ok(answer)
 }
 
+// No mutation or provider billing event is inferred from a GET result.
+fn inspect_with<T:Transport>(state:&Value,api:&mut T)->Result<Value,String>{
+    let resource=&state["resource"];
+    let plan=&state["plan"];
+    let provider=plan["provider"].as_str().ok_or("Missing provider")?;
+    let id=resource["id"].as_str().ok_or("No recorded resource ID; use provider inventory to reconcile uncertain creation")?;
+    let owner=plan["request_id"].as_str().ok_or("Missing request ID")?;
+    let observed=provider_api::observe_owned(api,provider,id,owner,resource)?;
+    Ok(json!({"journal_status":state["status"],"observation":observed,
+        "next_step":match (state["status"].as_str(),observed["provider_state"].as_str()){
+            (Some("STOP_IN_FLIGHT"|"STOP_UNCERTAIN"),Some("stopped"))=>"verify_remaining_charges_and_record_operator_reconciliation",
+            (Some("RUNNING"|"JOB_UNCERTAIN"),_)=>"reconcile_worker_jobs_and_transfers_before_any_mutation",
+            (Some("STOP_IN_FLIGHT"|"STOP_UNCERTAIN"),_)=>"reconcile_previous_stop_without_replay",
+            (_,Some("unknown"))=>"reconcile_provider_state_without_mutation",
+            _=>"monitor_and_apply_only_user_approved_policy",
+        },"journal_modified":false,"provider_mutation_sent":false,"approval_granted":false}))
+}
+fn verify_plan_account<T:Transport>(plan:&Value,api:&mut T)->Result<Value,String>{
+    provider_api::verify_account(api,plan["provider"].as_str().ok_or("Missing provider")?,plan["account"].as_str().ok_or("Missing account ID")?)
+}
+pub(crate) fn account_check(directory:&str)->Result<Value,String>{
+    let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
+    let state=read(&root)?;
+    verify_plan_account(&state["plan"],&mut CurlTransport)
+}
+pub(crate) fn inspect(directory:&str)->Result<Value,String>{
+    let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
+    let state=read(&root)?;
+    verify_plan_account(&state["plan"],&mut CurlTransport)?;
+    inspect_with(&state,&mut CurlTransport)
+}
+
+pub(crate) fn job_check(directory:&str)->Result<Value,String>{
+    let root=fs::canonicalize(directory).map_err(|_|"Session directory missing")?;
+    let state=read(&root)?;
+    verify_plan_account(&state["plan"],&mut CurlTransport)?;
+    let job=&state["job"];
+    let id=job["request_id"].as_str().ok_or("No recorded job request ID; do not retry uncertain work")?;
+    let instance=job["worker_instance_id"].as_str().ok_or("No recorded worker instance; reconcile manually")?;
+    let observation=crate::remote_worker::inspect_job(&state["plan"],id,instance)?;
+    Ok(json!({"journal_status":state["status"],"observation":observation,
+        "journal_modified":false,"provider_mutation_sent":false,"approval_granted":false}))
+}
+
 /// Operator-only real worker execution. The credentialed provider lifecycle
 /// remains bound to the original one-shot human-approved deployment plan.
 /// This operation never approves a new deployment.
 pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,String>{
+    production_boundary()?;
     let root=root_dir(directory)?;
     let _lock=Lock::acquire(&root)?;
     let mut state=read(&root)?;
     if state["status"]!="CREATED"
-        || state["approval"]["origin"]!="human_terminal"
+        || state["approval"]["origin"]!="operator_terminal_confirmation"
         || state["approval"]["status"]!="approved"
         || state["approval"]["consumed"]!=true
         || state["approval"]["bound_plan_sha256"]!=state["plan_sha256"]
@@ -341,6 +394,7 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     {
         return Err("Session is not an approved, idle, bridge-owned cloud deployment".into());
     }
+    let auto_stop = should_stop_after_job(&state["plan"])?;
     verified_runtime(&state["plan"])?;
     let path=Path::new(inputs_manifest);
     let bytes=fs::read(path).map_err(|_|"Cannot read media input manifest".to_string())?;
@@ -351,6 +405,12 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
         return Err("Input JSON needs an inputs array".into());
     }
 
+    verify_plan_account(&state["plan"],&mut CurlTransport)?;
+    let worker_instance=crate::remote_worker::instance(&state["plan"])?;
+    let job_id=secure_nonce()?;
+    confirm_operator(&state["plan"],"generate",state["resource"]["id"].clone(),json!(sha256(&bytes)))?;
+    state["job"]["request_id"]=json!(job_id);
+    state["job"]["worker_instance_id"]=json!(worker_instance);
     // Save the active job state before any remote media request. If the agent
     // crashes, the operator must inspect/reconcile rather than guessing idle.
     state["status"]=json!("RUNNING");
@@ -360,15 +420,18 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     save(&root,&state)?;
 
     let plan=&state["plan"];
-    let result=crate::remote_worker::generate(&root.join("artifacts"),
-        plan["model_id"].as_str().ok_or("Missing model ID")?,
-        plan["model_sha"].as_str().ok_or("Missing model SHA")?,
-        plan["task"].as_str().ok_or("Missing task")?,
-        plan["runtime_family"].as_str().ok_or("Missing family")?,
-        plan["request_id"].as_str().ok_or("Missing request ID")?,
-        &input);
+    let result=crate::remote_worker::generate(&root.join("artifacts"),plan,&job_id,&worker_instance,&input);
 
     let mut state=read(&root)?;
+    if result.is_err(){
+        state["status"]=json!("JOB_UNCERTAIN");
+        state["job"]["state"]=json!("failed_or_uncertain");
+        state["last_error"]=json!("Reconcile active work and transfers before retry or stop.");
+        save(&root,&state)?;
+        return Ok(json!({"generation":{"status":"FAILED_OR_UNCERTAIN","artifact_verified":false},
+            "cleanup":{"state":"RECONCILIATION_REQUIRED","possible_continuing_gpu_charges":true},
+            "message":"No automatic stop or repeat while job state is uncertain."}));
+    }
     state["job"]["active_jobs"]=json!(0);
     state["resource"]["active_jobs"]=json!(0);
     state["job"]["state"]=json!(if result.is_ok(){"completed"}else{"failed_or_uncertain"});
@@ -376,12 +439,17 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
     if let Ok(ref receipt)=result {
         state["job"]["receipt"]=receipt.clone();
     } else {
-        state["last_error"]=json!("Worker inference or artifact retrieval failed. Provider cleanup attempted; verify resource state.");
+        state["last_error"]=json!("Worker inference or artifact retrieval failed; verify resource state before further operation.");
     }
     save(&root,&state)?;
 
-    let mut api=CurlTransport;
-    let cleanup=reconcile_with(&root,&mut api);
+    let cleanup = if auto_stop {
+        let mut api = CurlTransport;
+        reconcile_with(&root, &mut api)
+    } else {
+        Ok(json!({"state":"RETAINED_BY_APPROVED_POLICY","possible_continuing_gpu_charges":true,
+            "manual_stop_required":true}))
+    };
     if let Err(ref error)=cleanup {
         let mut state=read(&root)?;
         state["status"]=json!("STOP_UNCERTAIN");
@@ -400,15 +468,20 @@ pub(crate) fn generate(directory:&str, inputs_manifest:&str)->Result<Value,Strin
             Err(_)=>json!({"state":"STOP_UNCERTAIN","manual_reconciliation_required":true,
                 "possible_continuing_gpu_charges":true})
         },
-        "message":"Provider stop was attempted after job completion/failure. A powered-off client cannot guarantee future stop/recovery."
+        "message":if auto_stop {"Approved provider stop attempted; a powered-off client cannot guarantee recovery."} else {"Manual-stop policy retained compute; charges may continue until the user stops it."}
     }))
 }
 
 /// Executed only as an explicit operator CLI command. No model or worker
 /// generation is claimed completed merely by requesting stop.
 pub(crate) fn stop(directory:&str)->Result<Value,String>{
+    production_boundary()?;
     let root=root_dir(directory)?;
     let _lock=Lock::acquire(&root)?;
+    let state = read(&root)?;
+    if state["status"]!="CREATED"{return Err("Reconcile uncertain resource before stop; never blindly replay".into());}
+    verify_plan_account(&state["plan"],&mut CurlTransport)?;
+    confirm_operator(&state["plan"],"stop",state["resource"]["id"].clone(),Value::Null)?;
     let mut api=CurlTransport;
     reconcile_with(&root,&mut api)
 }
@@ -442,12 +515,26 @@ mod tests {
             "job":{"active_jobs":0,"active_artifact_transfers":0}})
     }
     #[test]
+    fn production_is_disabled_and_operator_never_substitutes_lifecycle() {
+        assert!(production_boundary().is_err());
+        assert!(should_stop_after_job(&json!({})).is_err());
+        assert!(should_stop_after_job(&json!({"stop_policy":{"mode":"idle_timeout","action":"stop"}})).is_err());
+        assert!(should_stop_after_job(&json!({"stop_policy":{"mode":"after_job","action":"terminate"}})).is_err());
+        for billing in ["per_second","per_hour","per_year"] {
+            let mut plan = json!({"billing_quote":{"billing_model":billing},"stop_policy":{"mode":"after_job","action":"stop"}});
+            assert!(should_stop_after_job(&plan).unwrap());
+            plan["stop_policy"]["mode"] = json!("manual");
+            assert!(!should_stop_after_job(&plan).unwrap());
+        }
+    }
+
+    #[test]
     fn a_provider_confirmed_stop_is_persisted_before_reporting_success() {
         let dir=session();
         save(&dir,&state("runpod-pods","p01")).unwrap();
         let mut replay=Replay{replies:vec![
-            json!({"desiredStatus":"RUNNING"}),json!({"success":true}),
-            json!({"status":"EXITED","runtimeStatus":"stopped"})
+            json!({"id":"p01","name":"cmb-req001","status":"RUNNING"}),json!({"success":true}),
+            json!({"id":"p01","name":"cmb-req001","status":"EXITED","runtimeStatus":"stopped"})
         ],requests:vec![]};
         let result=reconcile_with(&dir,&mut replay).unwrap();
         assert_eq!(result["state"],"STOP_CONFIRMED");
@@ -460,11 +547,30 @@ mod tests {
         let dir=session();
         save(&dir,&state("vast-instances","123")).unwrap();
         let mut replay=Replay{replies:vec![
-            json!({"actual_status":"running"}),json!({"success":true}),
-            json!({"actual_status":"running"})
+            json!({"id":123,"label":"cmb-req001","actual_status":"running"}),json!({"success":true}),
+            json!({"id":123,"label":"cmb-req001","actual_status":"running"})
         ],requests:vec![]};
         let result=reconcile_with(&dir,&mut replay).unwrap();
         assert_eq!(result["state"],"STOP_UNCERTAIN");
+        assert_eq!(read(&dir).unwrap()["status"],"STOP_UNCERTAIN");
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn stop_transport_error_is_persisted_and_recovery_never_replays(){
+        let dir=session();
+        save(&dir,&state("runpod-pods","p01")).unwrap();
+        let mut fake=Replay{replies:vec![json!({"id":"p01","name":"cmb-req001","status":"RUNNING"})],requests:vec![]};
+        assert!(reconcile_with(&dir,&mut fake).is_err());
+        assert_eq!(read(&dir).unwrap()["status"],"STOP_UNCERTAIN");
+        assert_eq!(fake.requests.len(),2);
+        let mut recovery=Replay{replies:vec![json!({"id":"p01","name":"cmb-req001","status":"EXITED"})],requests:vec![]};
+        assert!(reconcile_with(&dir,&mut recovery).is_err());
+        assert!(recovery.requests.is_empty());
+        let obs=inspect_with(&read(&dir).unwrap(),&mut recovery).unwrap();
+        assert_eq!(obs["observation"]["provider_state"],"stopped");
+        assert_eq!(obs["journal_modified"],false);
+        assert_eq!(recovery.requests.len(),1);
+        assert_eq!(recovery.requests[0].method,"GET");
         assert_eq!(read(&dir).unwrap()["status"],"STOP_UNCERTAIN");
         fs::remove_dir_all(dir).unwrap();
     }
@@ -500,6 +606,8 @@ mod tests {
         });
         assert!(verified_billing_terms(&plan).is_err());
         plan["billing_quote"]["max_approved_compute_micro_usd"]=json!(1_000_000);
+        assert!(verified_billing_terms(&plan).is_ok());
+        plan["billing_quote"].as_object_mut().unwrap().remove("max_approved_compute_micro_usd");
         assert!(verified_billing_terms(&plan).is_ok());
         plan["billing_quote"]["provider"]=json!("vast-instances");
         assert!(verified_billing_terms(&plan).is_err());

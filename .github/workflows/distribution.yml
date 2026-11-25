@@ -1,0 +1,63 @@
+name: Native binary candidates
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/distribution.yml'
+      - 'crates/**'
+      - 'config/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'examples/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native candidate (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-24.04, target: x86_64-unknown-linux-gnu, binary: cloud-media-bridge}
+          - {os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, binary: cloud-media-bridge}
+          - {os: windows-2025, target: x86_64-pc-windows-msvc, binary: cloud-media-bridge.exe}
+          - {os: windows-11-arm, target: aarch64-pc-windows-msvc, binary: cloud-media-bridge.exe}
+          - {os: macos-15-intel, target: x86_64-apple-darwin, binary: cloud-media-bridge}
+          - {os: macos-15, target: aarch64-apple-darwin, binary: cloud-media-bridge}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    env:
+      CMB_LIVE_GPU_TESTS: "false"
+      TARGET: ${{ matrix.target }}
+      BINARY: ${{ matrix.binary }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build native release binary
+        run: cargo build --locked --release --target "${{ matrix.target }}"
+      - name: Native stdio tests in release mode
+        run: cargo test --locked --release --target "${{ matrix.target }}" --test stdio
+      - name: Package candidate and verify binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $binaryPath = Join-Path "target/$env:TARGET/release" $env:BINARY
+          & $binaryPath doctor
+          if ($LASTEXITCODE -ne 0) { throw 'doctor failed' }
+          & $binaryPath --version
+          if ($LASTEXITCODE -ne 0) { throw 'version failed' }
+          New-Item -ItemType Directory -Path dist | Out-Null
+          Copy-Item $binaryPath,LICENSE,README.md -Destination dist
+          $sha = (Get-FileHash -Algorithm SHA256 (Join-Path dist $env:BINARY)).Hash.ToLowerInvariant()
+          "$sha  $env:BINARY" | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloud-media-bridge-${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

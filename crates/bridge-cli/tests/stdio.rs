@@ -48,7 +48,7 @@ fn h01_list_and_call_local_doctor() {
     assert_eq!(replies[0]["result"]["capabilities"]["tools"], json!({}));
     assert_eq!(replies[1]["id"], 9);
     let tools = replies[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 19);
+    assert_eq!(tools.len(), 27);
     assert_eq!(tools[0]["name"], "doctor");
     assert_eq!(tools[0]["inputSchema"]["type"], "object");
     assert_eq!(replies[2]["id"], 10);
@@ -320,6 +320,7 @@ fn agent_can_prepare_and_inspect_cloud_plan_but_cannot_approve_or_deploy_via_mcp
     assert_eq!(replies[1]["result"]["structuredContent"]["status"],"awaiting_human_approval");
     assert_eq!(replies[2]["result"]["structuredContent"]["status"],"awaiting_human_approval");
     assert_eq!(replies[2]["result"]["structuredContent"]["approval"]["consumed"],false);
+    assert_eq!(replies[2]["result"]["structuredContent"]["stop_policy"]["mode"],"after_job");
     assert_eq!(replies[3]["error"]["code"],-32602);
     assert_eq!(replies[4]["error"]["code"],-32602);
     let _=std::fs::remove_dir_all(root);
@@ -345,6 +346,226 @@ fn billing_quote_mcp_estimates_five_seconds_without_provisioning_gpu() {
     let estimate=&replies[2]["result"]["structuredContent"];
     assert_eq!(estimate["effective_billable_ms"],3_600_000);
     assert_eq!(estimate["estimated_incremental_compute_micro_usd"],1_000_000);
-    assert_eq!(estimate["auto_stop_after_last_job"],true);
+    assert_eq!(estimate["lifecycle_decision"],"not_selected_by_billing");
+    assert_eq!(estimate["requires_user_lifecycle_selection"],true);
     assert_eq!(replies[3]["error"]["code"],-32602);
+}
+
+#[test]
+fn review_and_lifecycle_tools_never_issue_deployment_authorization() {
+    let sample: Value = serde_json::from_str(include_str!("../../../examples/cloud-deployment-manifest.NOT-EXECUTABLE.json")).unwrap();
+    let review = json!({"jsonrpc":"2.0","id":81,"method":"tools/call",
+        "params":{"name":"cloud_review","arguments":{"manifest":sample}}});
+    let mut plan = sample;
+    plan["request_id"] = json!("one-deployment");
+    let advice = json!({"jsonrpc":"2.0","id":82,"method":"tools/call",
+        "params":{"name":"lifecycle_advice","arguments":{"plan":plan,"receipt":{},"observed":{}}}});
+    let replies=exchange(&[INIT,READY,&review.to_string(),&advice.to_string()]);
+    let reviewed=&replies[1]["result"]["structuredContent"];
+    assert_eq!(reviewed["approval_granted"],false);
+    assert_eq!(reviewed["advice"]["selected_estimate"]["estimated_total_micro_usd"],1889);
+    let next=&replies[2]["result"]["structuredContent"];
+    assert_eq!(next["bridge_can_execute"],false);
+    assert_eq!(next["recommendation"],"ask_user_for_fresh_plan_bound_consent");
+}
+
+#[test]
+fn live_commands_remain_blocked_even_with_legacy_opt_in() {
+    for args in [vec!["cloud","deploy","unused"],vec!["cloud","generate","unused","inputs"],vec!["cloud","stop","unused"]] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_cloud-media-bridge"))
+            .args(args).env("CMB_ENABLE_LIVE_GPU","I_ACCEPT_GPU_CHARGES").output().unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("Live GPU execution disabled"));
+    }
+}
+
+#[test]
+fn market_tools_expose_sources_and_never_authorize_gpu() {
+    let sources=json!({"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"provider_sources","arguments":{}}});
+    let refresh=json!({"jsonrpc":"2.0","id":101,"method":"tools/call","params":{"name":"market_refresh","arguments":{"provider":"modal"}}});
+    let check=json!({"jsonrpc":"2.0","id":102,"method":"tools/call","params":{"name":"market_quote_check","arguments":{"quote":{"provider":"modal","pricing_source":"https://modal.com/pricing","retrieved_at_unix_ms":1}}}});
+    let bad=json!({"jsonrpc":"2.0","id":103,"method":"tools/call","params":{"name":"market_refresh","arguments":{"provider":"modal","url":"https://evil.invalid"}}});
+    let replies=exchange(&[INIT,READY,&sources.to_string(),&refresh.to_string(),&check.to_string(),&bad.to_string()]);
+    assert_eq!(replies[1]["result"]["structuredContent"]["providers"].as_object().unwrap().len(),9);
+    assert_eq!(replies[2]["result"]["structuredContent"]["gpu_rented"],false);
+    assert_eq!(replies[2]["result"]["structuredContent"]["agent_read_only_command"]["arguments"],json!(["billing","rates","--json"]));
+    assert_eq!(replies[2]["result"]["structuredContent"]["approval_granted"],false);
+    assert_eq!(replies[3]["result"]["structuredContent"]["status"],"refresh_required");
+    assert_eq!(replies[4]["error"]["code"],-32602);
+}
+
+#[test]
+fn retired_custom_authorization_and_watchdog_commands_are_not_exposed(){
+    for args in [vec!["authorization","challenge","unused","unused"],vec!["cloud","watch","unused","--local-only"]] {
+        let p=std::process::Command::new(env!("CARGO_BIN_EXE_cloud-media-bridge")).args(args).output().unwrap();
+        assert!(!p.status.success());
+        assert!(String::from_utf8_lossy(&p.stderr).contains("Use --help"));
+    }
+}
+
+#[test]
+fn external_provider_uses_same_plan_cost_and_handoff_without_registration(){
+    let profile:Value=serde_json::from_str(include_str!("../../../examples/external-provider.example.json")).unwrap();
+    let mut plan:Value=serde_json::from_str(include_str!("../../../examples/cloud-deployment-manifest.NOT-EXECUTABLE.json")).unwrap();
+    plan["provider"]=profile["id"].clone();
+    plan["provider_profile"]=profile.clone();
+    plan["provider_parameters"]=Value::Null;
+    plan["billing_quote"]["provider"]=profile["id"].clone();
+    plan["billing_quote"]["pricing_source"]=profile["pricing"][0].clone();
+    plan["billing_quote"]["retrieved_at_unix_ms"]=json!(1);
+    let prof=json!({"jsonrpc":"2.0","id":201,"method":"tools/call","params":{"name":"provider_profile_review","arguments":{"profile":profile}}});
+    let review=json!({"jsonrpc":"2.0","id":202,"method":"tools/call","params":{"name":"cloud_review","arguments":{"manifest":plan}}});
+    let draft=json!({"jsonrpc":"2.0","id":203,"method":"tools/call","params":{"name":"provider_handoff","arguments":{"manifest":plan}}});
+    let replies=exchange(&[INIT,READY,&prof.to_string(),&review.to_string(),&draft.to_string()]);
+    assert_eq!(replies[1]["result"]["structuredContent"]["status"],"profile_structure_validated");
+    let p=&replies[2]["result"]["structuredContent"];
+    assert_eq!(p["advice"]["selected_estimate"]["estimated_total_micro_usd"],1889);
+    assert_eq!(p["advice"]["selected_estimate"]["quote_freshness"]["source_recognized"],true);
+    let d=&replies[3]["result"]["structuredContent"];
+    assert_eq!(d["create_draft"]["transport"],"official_agent_handoff");
+    assert_eq!(d["provider_operation_sent"],false);
+    assert_eq!(d["approval_granted"],false);
+    assert_eq!(d["plan_sha256"],p["plan_sha256"]);
+}
+
+#[test]
+fn legacy_mcp_negotiates_each_supported_handshake_revision(){
+    for version in ["2024-11-05","2025-03-26","2025-06-18","2025-11-25"]{
+        let init=INIT.replace("2025-11-25",version);
+        let replies=exchange(&[&init,READY,LIST]);
+        assert_eq!(replies[0]["result"]["protocolVersion"],version);
+        assert_eq!(replies[1]["result"]["tools"].as_array().unwrap().len(),27);
+        assert!(replies[1]["result"].get("ttlMs").is_none());
+        assert!(replies[1]["result"].get("cacheScope").is_none());
+    }
+    let unknown=INIT.replace("2025-11-25","unsupported");
+    assert_eq!(exchange(&[&unknown])[0]["result"]["protocolVersion"],"2025-11-25");
+}
+#[test]
+fn modern_stdio_discovery_and_tool_calls_do_not_need_initialize(){
+    let meta=json!({"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}});
+    let discover=json!({"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":meta}});
+    let list=json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":meta}});
+    let call=json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":meta,"name":"doctor","arguments":{}}});
+    let bad=json!({"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}});
+    let replies=exchange(&[&discover.to_string(),&list.to_string(),&call.to_string(),&bad.to_string()]);
+    assert_eq!(replies[0]["result"]["supportedVersions"],json!(["2026-07-28"]));
+    assert_eq!(replies[0]["result"]["resultType"],"complete");
+    assert_eq!(replies[0]["result"]["ttlMs"],0);
+    assert_eq!(replies[0]["result"]["cacheScope"],"private");
+    assert_eq!(replies[0]["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],"cloud-media-bridge");
+    assert_eq!(replies[1]["result"]["tools"].as_array().unwrap().len(),27);
+    assert_eq!(replies[1]["result"]["ttlMs"],0);
+    assert_eq!(replies[1]["result"]["cacheScope"],"private");
+    assert!(replies[2]["result"]["structuredContent"]["message"].is_string());
+    assert!(replies[2]["result"].get("ttlMs").is_none());
+    assert!(replies[2]["result"].get("cacheScope").is_none());
+    assert_eq!(replies[3]["error"]["code"],-32022);
+    let pinned=exchange(&[&call.to_string()]);
+    assert_eq!(pinned[0]["result"]["resultType"],"complete");
+    let direct=exchange(&[&list.to_string()]);
+    assert_eq!(direct[0]["result"]["resultType"],"complete");
+    assert_eq!(direct[0]["result"]["ttlMs"],0);
+    assert_eq!(direct[0]["result"]["cacheScope"],"private");
+    assert_eq!(direct[0]["result"]["tools"].as_array().unwrap().len(),27);
+}
+#[test]
+fn cli_tool_dispatch_matches_mcp_and_never_exposes_paid_commands(){
+    let root=std::env::temp_dir().join(format!("cmb-cli-tools-{}",std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let path=root.join("args.json");
+    std::fs::write(&path,"{}").unwrap();
+    let output=Command::new(BINARY).args(["tools","list"]).output().unwrap();
+    assert!(output.status.success());
+    let list:Value=serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(list,exchange(&[INIT,READY,LIST])[1]["result"]["tools"]);
+    let output=Command::new(BINARY).args(["tools","call","providers_list"]).arg(&path).output().unwrap();
+    assert!(output.status.success());
+    let cli:Value=serde_json::from_slice(&output.stdout).unwrap();
+    let rpc=r#"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"providers_list","arguments":{}}}"#;
+    assert_eq!(cli,exchange(&[INIT,READY,rpc])[1]["result"]["structuredContent"]);
+    let bad=Command::new(BINARY).args(["tools","call","cloud_deploy"]).arg(&path).output().unwrap();
+    assert!(!bad.status.success());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn external_recipe_plan_prepare_and_lifecycle_stay_bound_to_same_digest(){
+    let mut plan:Value=serde_json::from_str(include_str!("../../../examples/external-deployment-manifest.NOT-EXECUTABLE.json")).unwrap();
+    let root=std::env::temp_dir().join(format!("cmb-external-plan-{}",std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let manifest=root.join("manifest.json");
+    std::fs::write(&manifest,plan.to_string()).unwrap();
+    let session=root.join("session");
+    let output=Command::new(BINARY).args(["cloud","prepare"]).arg(&session).arg(&manifest).output().unwrap();
+    assert!(output.status.success(),"{}",String::from_utf8_lossy(&output.stderr));
+    let prepared:Value=serde_json::from_slice(&output.stdout).unwrap();
+    plan=prepared["plan"].clone();
+    let receipt=json!({"request_id":plan["request_id"],"plan_sha256":prepared["plan_sha256"],"end_user_approved":true,"resource_id":"r1"});
+    let obs=json!({"provider":plan["provider"],"account":plan["account"],"workspace":plan["workspace"],"owner_request_id":plan["request_id"],"resource_id":"r1",
+        "verified_owned":true,"shared":false,"provider_state":"running","active_jobs":0,"active_transfers":0,"elapsed_ms":100,"exposure_micro_usd":20,"supported_action":"stop","final_job_terminal":true});
+    let draft=json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"provider_handoff","arguments":{"manifest":plan}}});
+    let lifecycle=json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"lifecycle_action","arguments":{"plan":plan,"receipt":receipt,"observed":obs}}});
+    let replies=exchange(&[INIT,READY,&draft.to_string(),&lifecycle.to_string()]);
+    let d=&replies[1]["result"]["structuredContent"];
+    assert_eq!(d["plan_sha256"],prepared["plan_sha256"]);
+    assert_eq!(d["create_draft"]["runtime_recipe"],plan["runtime_recipe"]);
+    assert_eq!(d["provider_operation_sent"],false);
+    let l=&replies[2]["result"]["structuredContent"];
+    assert_eq!(l["action_draft"]["transport"],"official_agent_handoff");
+    assert_eq!(l["approval_granted"],false);
+    let mut changed=plan.clone();changed["provider_profile"]["name"]=json!("changed profile");
+    let altered=json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"lifecycle_action","arguments":{"plan":changed,"receipt":receipt,"observed":obs}}});
+    let reply=exchange(&[INIT,READY,&altered.to_string()]);
+    assert_eq!(reply[1]["result"]["structuredContent"]["advice"]["recommendation"],"ask_user_for_fresh_plan_bound_consent");
+    assert!(reply[1]["result"]["structuredContent"]["action_draft"].is_null());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn cli_version_alias_and_json_diagnostics_are_specific() {
+    let full=Command::new(BINARY).arg("--version").output().unwrap();
+    let short=Command::new(BINARY).arg("-V").output().unwrap();
+    assert!(full.status.success() && short.status.success());
+    assert_eq!(full.stdout,short.stdout);
+    let root=std::env::temp_dir().join(format!("cmb-input-diagnostics-{}",std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let missing=root.join("missing.json");
+    let invalid=root.join("invalid.json");
+    std::fs::write(&invalid,"{").unwrap();
+    for (args,label) in [(vec!["tools","call","doctor"],"tool arguments"),(vec!["providers","profile"],"provider profile"),(vec!["market","check"],"billing quote"),(vec!["cloud","advice"],"lifecycle observation"),(vec!["cloud","review"],"manifest")] {
+        let out=Command::new(BINARY).args(&args).arg(&missing).output().unwrap();
+        assert_eq!(out.status.code(),Some(1));
+        assert!(String::from_utf8_lossy(&out.stderr).contains(&format!("Cannot open {label}")));
+        let out=Command::new(BINARY).args(&args).arg(&invalid).output().unwrap();
+        assert_eq!(out.status.code(),Some(1));
+        assert!(String::from_utf8_lossy(&out.stderr).contains(&format!("Invalid {label} JSON")));
+    }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn modal_handoff_cli_and_both_mcp_modes_agree_without_deployment() {
+    let mut plan:Value=serde_json::from_str(include_str!("../../../examples/cloud-deployment-manifest.NOT-EXECUTABLE.json")).unwrap();
+    plan["provider"]=json!("modal");
+    plan["billing_quote"]["provider"]=json!("modal");
+    plan["provider_parameters"]=json!({"min_workers":0,"max_workers":1,"idle_seconds":2,"cpu_cores":1,"memory_mib":2048,"compute_region_evidence":"illustration"});
+    let args=json!({"manifest":plan});
+    let root=std::env::temp_dir().join(format!("cmb-modal-handoff-parity-{}",std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let path=root.join("args.json");
+    std::fs::write(&path,args.to_string()).unwrap();
+    let cli=Command::new(BINARY).args(["tools","call","provider_handoff"]).arg(&path).output().unwrap();
+    assert!(cli.status.success(),"{}",String::from_utf8_lossy(&cli.stderr));
+    let result:Value=serde_json::from_slice(&cli.stdout).unwrap();
+    let legacy=json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"provider_handoff","arguments":args}});
+    let modern=json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}},"name":"provider_handoff","arguments":args}});
+    assert_eq!(result,exchange(&[INIT,READY,&legacy.to_string()])[1]["result"]["structuredContent"]);
+    assert_eq!(result,exchange(&[&modern.to_string()])[0]["result"]["structuredContent"]);
+    assert_eq!(result["create_draft"]["workload_modes"][0]["native_reference"],"modal run");
+    assert_eq!(result["create_draft"]["workload_modes"][0]["detach"],false);
+    assert!(result["create_draft"]["arguments"].is_null());
+    assert_eq!(result["approval_granted"],false);
+    assert_eq!(result["provider_operation_sent"],false);
+    std::fs::remove_dir_all(root).unwrap();
 }

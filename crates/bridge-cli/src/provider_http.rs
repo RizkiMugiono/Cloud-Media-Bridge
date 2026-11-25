@@ -18,19 +18,26 @@ fn allowed_operation(op: &Operation) -> bool {
     }
     match op.credential_env {
         "RUNPOD_API_KEY" => {
+            if op.url=="https://api.runpod.io/graphql" {
+                return op.method=="POST"&&op.body.as_ref().is_some_and(|v|v==&serde_json::json!({"query":crate::provider_api::RUNPOD_ACCOUNT_QUERY}));
+            }
             let base = "https://api.runpod.io/v2/pods";
-            op.url == base || op.url.strip_prefix(&(base.to_string()+"/"))
-                .is_some_and(|path| !path.is_empty() && path.split('/').all(|part|
-                    !part.is_empty() && part.len()<=128 && part.bytes().all(|c|c.is_ascii_alphanumeric()||c==b'-'||c==b'_'))
-                    && path.split('/').count() <= 2)
+            if op.url==base{return op.method=="POST"&&op.body.is_some();}
+            let Some(path)=op.url.strip_prefix(&(base.to_string()+"/")) else{return false;};
+            let parts=path.split('/').collect::<Vec<_>>();
+            let id=parts[0];
+            if id.is_empty()||id.len()>128||!id.bytes().all(|c|c.is_ascii_alphanumeric()||c==b'-'||c==b'_'){return false;}
+            match parts.as_slice(){[_]=>op.method=="GET"&&op.body.is_none(),[_, "action"]=>op.method=="POST"&&op.body.as_ref().is_some_and(|v|v==&serde_json::json!({"action":"stop"})),_=>false}
         }
         "VAST_API_KEY" => {
             let base = "https://cloud.vast.ai/api/v0/";
             let Some(path) = op.url.strip_prefix(base) else {return false};
+            if path=="users/current/"{return op.method=="GET"&&op.body.is_none();}
             let parts=path.split('/').collect::<Vec<_>>();
             match parts.as_slice() {
-                ["asks",id,""]|["instances",id,""] =>
-                    !id.is_empty() && id.len()<=20 && id.bytes().all(|c| c.is_ascii_digit()),
+                ["asks",id,""] => op.method=="PUT"&&op.body.is_some()&&!id.is_empty()&&id.len()<=20&&id.bytes().all(|c|c.is_ascii_digit()),
+                ["instances",id,""] => !id.is_empty()&&id.len()<=20&&id.bytes().all(|c|c.is_ascii_digit())&&
+                    ((op.method=="GET"&&op.body.is_none())||(op.method=="PUT"&&op.body.as_ref().is_some_and(|v|v==&serde_json::json!({"state":"stopped"})))),
                 _=>false
             }
         }
@@ -74,7 +81,7 @@ impl Transport for CurlTransport {
             .map_err(|_|format!("Missing {} in local environment",op.credential_env))?;
         let cfg=build_config(op,&token)?;
         let mut child=Command::new("curl")
-            .args(["--silent","--show-error","--fail","--proto","=https",
+            .args(["--disable","--silent","--show-error","--fail","--proto","=https",
                 "--max-redirs","0","--connect-timeout","10","--max-time","45",
                 "--max-filesize","2097152","--noproxy","",
                 "--request",op.method,"--config","-","--url",&op.url])
@@ -120,6 +127,28 @@ mod tests {
         assert!(!allowed_operation(&o));
         o.url="https://api.runpod.io/v2/pods/../../secrets".into();
         assert!(!allowed_operation(&o));
+        o.url="https://api.runpod.io/v2/pods/p01/action".into();
+        o.body=Some(json!({"action":"start"}));
+        assert!(!allowed_operation(&o));
+        o.body=Some(json!({"action":"stop"}));
+        assert!(allowed_operation(&o));
+        o.method="GET";
+        assert!(!allowed_operation(&o));
+    }
+    #[test]
+    fn account_allowlist_permits_only_fixed_query_or_get(){
+        let mut o=crate::provider_api::account_operation("runpod-pods").unwrap();
+        assert!(allowed_operation(&o));
+        o.body=Some(json!({"query":"mutation { forbidden }"}));
+        assert!(!allowed_operation(&o));
+        let mut v=crate::provider_api::account_operation("vast-instances").unwrap();
+        assert_eq!(v.url,"https://cloud.vast.ai/api/v0/users/current/");
+        assert!(allowed_operation(&v));
+        let mut redirecting=crate::provider_api::account_operation("vast-instances").unwrap();
+        redirecting.url="https://cloud.vast.ai/api/v0/users/current".into();
+        assert!(!allowed_operation(&redirecting));
+        v.method="PUT";
+        assert!(!allowed_operation(&v));
     }
     #[test]
     fn secure_curl_config_keeps_token_off_argv() {
@@ -135,7 +164,10 @@ mod tests {
         o.credential_env="VAST_API_KEY";
         o.method="PUT";
         o.url="https://cloud.vast.ai/api/v0/instances/123/".into();
+        o.body=Some(json!({"state":"stopped"}));
         assert!(allowed_operation(&o));
+        o.body=Some(json!({"state":"running"}));
+        assert!(!allowed_operation(&o));
         o.url="https://cloud.vast.ai/api/v0/asks/456/".into();
         assert!(allowed_operation(&o));
         o.url="https://cloud.vast.ai/api/v0/auth/apikeys/".into();
