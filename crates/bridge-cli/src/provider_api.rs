@@ -24,7 +24,7 @@ pub(crate) fn account_operation(provider:&str)->Result<Operation,String>{
             method:"POST",url:"https://api.runpod.io/graphql".into(),
             body:Some(json!({"query":RUNPOD_ACCOUNT_QUERY})),credential_env:"RUNPOD_API_KEY"}),
         "vast-instances"|"vast-serverless"=>Ok(Operation{
-            method:"GET",url:"https://cloud.vast.ai/api/v0/users/current".into(),
+            method:"GET",url:"https://cloud.vast.ai/api/v0/users/current/".into(),
             body:None,credential_env:"VAST_API_KEY"}),
         _=>Err("No native account verification adapter for this provider".into()),
     }

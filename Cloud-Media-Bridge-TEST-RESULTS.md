@@ -324,3 +324,7 @@ Follow-up source review confirmed Vast's published GET search and PUT instance o
 ## Independent five-agent retest and distribution verification (5b99967)
 
 2026-11-24: five Windows clients passed all 20 target MCP calls against CLI references (21 attempts, one invalid-parameter rejection followed by success). The uploaded audit and logs were reviewed; see docs/AGENT-COMPATIBILITY.md and tests/evidence/agent-compatibility.json for limitations and source hashes. Historical 2f40c7c evidence is retained separately. Offline CI 45327961794 and six-target native candidate CI 45327961850 passed. Independent WSL report: 110 Rust tests, Clippy, 27 tools and CPU fixture demo passed. No GPU resource, live provider invoice or live deployment is verified. This update changes evidence/docs only.
+
+## Independent provider read-only test (5b99967)
+
+User-provided operator files reviewed: authenticated RunPod and Vast account/catalog reads and reported CMB market refresh success, Modal missing official client, DigitalOcean/Lambda missing keys. No GPU rental or incremental charge reported. Exact native account-check calls and raw HTTP responses were not supplied. Corrected Vast account path to the observed trailing slash without enabling redirects; fresh CI and authenticated retest required. DigitalOcean official per-second minimum and destroy billing boundary recorded in provider verification. No raw catalogs, private account details or credentials committed. Paid execution remains unverified.

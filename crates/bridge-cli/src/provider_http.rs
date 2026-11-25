@@ -32,7 +32,7 @@ fn allowed_operation(op: &Operation) -> bool {
         "VAST_API_KEY" => {
             let base = "https://cloud.vast.ai/api/v0/";
             let Some(path) = op.url.strip_prefix(base) else {return false};
-            if path=="users/current"{return op.method=="GET"&&op.body.is_none();}
+            if path=="users/current/"{return op.method=="GET"&&op.body.is_none();}
             let parts=path.split('/').collect::<Vec<_>>();
             match parts.as_slice() {
                 ["asks",id,""] => op.method=="PUT"&&op.body.is_some()&&!id.is_empty()&&id.len()<=20&&id.bytes().all(|c|c.is_ascii_digit()),
@@ -142,7 +142,12 @@ mod tests {
         o.body=Some(json!({"query":"mutation { forbidden }"}));
         assert!(!allowed_operation(&o));
         let mut v=crate::provider_api::account_operation("vast-instances").unwrap();
-        assert!(allowed_operation(&v));v.method="PUT";
+        assert_eq!(v.url,"https://cloud.vast.ai/api/v0/users/current/");
+        assert!(allowed_operation(&v));
+        let mut redirecting=crate::provider_api::account_operation("vast-instances").unwrap();
+        redirecting.url="https://cloud.vast.ai/api/v0/users/current".into();
+        assert!(!allowed_operation(&redirecting));
+        v.method="PUT";
         assert!(!allowed_operation(&v));
     }
     #[test]
