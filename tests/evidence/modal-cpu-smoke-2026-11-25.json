@@ -4,14 +4,15 @@
   "tested_commit_reported": "e024e94456298ac6c36a1b0a82697bfd76eda1d0",
   "commit_attribution_note": "Preparation report gives exact SHA; later execution reports contain a mistyped SHA. Executed binary not independently rehashed.",
   "source": "User-provided operator reports and attached files, not independently replayed against the cloud account",
+  "source_sha256_note": "The three operator reports are identified by English descriptions. Other entries use the supplied filenames. The original filename-to-digest mapping is preserved in the same file at commit fecf1c7652262e0c09901e4d2636126e38eb508b.",
   "source_sha256": {
-    "laporan-final-smoke-test-e024e94.md": "1ab568f27dbae9ac8105bc75fc5053546d5598af10b8bf08f149f1268786e65f",
+    "Final smoke test report for e024e94": "1ab568f27dbae9ac8105bc75fc5053546d5598af10b8bf08f149f1268786e65f",
     "cpu-inference-result.json": "dceb5eabdb8af65305d63db29a493b51bcc0b2d88d22e674a8934244077b63e2",
     "speech-16k-mono.wav": "6e6f4d605555863e27ea42aed087e0a070fdc9784f86ce953a16e60f83abeb3a",
     "cpu-transcript.txt": "fb2cdf10c514196b6a9d7de3de25e93dcdf0c0f19469f35a458c02038f8686bc",
-    "laporan-eksekusi-modal-2026-11-25.md": "5687ab1bffeb075f62b05be60920aaa8a33e7d9968c889079573d82f5a54a892",
+    "Modal execution report for 2026-11-25": "5687ab1bffeb075f62b05be60920aaa8a33e7d9968c889079573d82f5a54a892",
     "modal-run.log": "1ec84f28473e22b822a54aba9d22ace5f80cf78d1f906cd6b51550d8624b943e",
-    "laporan-eksekusi-cpu-modal-berhasil.md": "c67588391dd6d905cb18b397b05491d70855fb5f8624a043f3a391385c2117ec",
+    "Successful Modal CPU execution report": "c67588391dd6d905cb18b397b05491d70855fb5f8624a043f3a391385c2117ec",
     "modal-run-result-cpu.json": "ae7b071b3497949747c0fa5cae72d5c8bd559eb38da43191fca2e2cbad69a991",
     "modal-transcript-cpu.txt": "fb2cdf10c514196b6a9d7de3de25e93dcdf0c0f19469f35a458c02038f8686bc",
     "billing-report-today.json": "d95f327bdcbdb0ec3a1ab284b23b9a01c1ee817e0d13bfe2373be4403f7dd186"
