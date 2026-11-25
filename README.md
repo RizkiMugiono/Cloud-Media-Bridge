@@ -1,8 +1,8 @@
 # Cloud-Media-Bridge
 
-A local Rust MCP/CLI bridge for AI agents to run open-source media models on the user's own cloud GPU account. The agent is the operator; the provider supplies compute and billing. No central service, user database, payment system, custom account authentication, or independent scheduler is required.
+Cloud-Media-Bridge is a local Rust MCP/CLI tool for AI agents working with open-source media models. It helps the agent select a model and GPU, estimate the cost, and prepare a deployment plan. After the user approves the plan, the agent deploys the model, runs inference, and manages resources directly in the user’s cloud account through the provider’s API, CLI, or SDK.
 
-**User → AI agent → Cloud-Media-Bridge → user-owned cloud GPU → media result**
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/N4I424Z3WF)
 
 ## Agent workflow
 
@@ -22,7 +22,7 @@ cargo run --locked -- doctor
 cargo run --locked -- mcp
 ```
 
-For prebuilt native candidates, use the matching successful [distribution workflow](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/workflows/distribution.yml) artifact for the reviewed commit and verify `SHA256SUMS.txt`; see [distribution instructions](docs/RELEASE.md). These are not published releases until the maintainer publishes them. Configure an MCP client using [the stdio example](examples/mcp-stdio-client.json). The executable is in `target/release/`. Use the user's existing local provider credentials, never put keys in manifests, messages or the repository.
+Download the [v0.1.0-rc.1 pre-release](https://github.com/RizkiMugiono/Cloud-Media-Bridge/releases/tag/v0.1.0-rc.1) for your operating system and architecture and verify the ZIP against `SHA256SUMS.txt`. Configure your MCP client using the [stdio example](examples/mcp-stdio-client.json). Keep provider credentials in your local provider tools.
 
 ## Main tools
 
@@ -51,7 +51,7 @@ Use `--help` and MCP `tools/list` for exact interfaces. See [example manifest](e
 | Lambda Cloud | Instance catalog and request draft |
 | HTTPS, SSH, Kubernetes | Existing user infrastructure and native handoff |
 
-Provider-native request drafts are **not** certified executors. The built-in `cloud deploy/generate/stop` remain disabled for unverified native execution; the old environment opt-in cannot override the release gate. RunPod/Vast account checks and resource/job inspection are read-only. Agent-host authorization is the primary boundary; the manual native CLI fallback is not independent identity authentication. There is no custom signing service or monitoring daemon.
+RunPod and Vast account checks and resource inspections are read-only. For deployment and lifecycle actions, the agent uses the selected provider’s native interface and the user’s authorization.
 
 Existing media runtimes should be reused first. A pinned OCI worker candidate and local CPU/fixture tests are retained as optional fallbacks. No GPU inference, actual charge, or provider lifecycle has been verified by the offline tests.
 
@@ -88,7 +88,7 @@ An agent may supply a pinned upstream runtime recipe instead of a finished OCI i
 
 ### Agent-operated cloud smoke evidence
 
-A user-operated Modal native CPU Function reportedly transcribed a synthetic speech fixture with Whisper Tiny using the bridge's advisory handoff/review workflow. The uploaded local/remote transcript files and input WAV hashes match, and metered billing rows reconcile. T4 provisioning was rejected because the account lacked a payment method; **GPU inference remains unverified**. See [provider verification and evidence limitations](docs/PROVIDER-VERIFICATION.md#modal-native-cpu-execution-and-gpu-account-block-2026-11-25). No paid native executor is enabled.
+An operator reported successful Whisper Tiny transcription on a Modal CPU Function. Live GPU inference remains unverified. See the [provider verification record](docs/PROVIDER-VERIFICATION.md).
 
 ## Release candidates
 
