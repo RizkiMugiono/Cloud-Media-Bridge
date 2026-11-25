@@ -61,7 +61,7 @@ pub(crate) fn preview(provider:&str,image:&str,gpu:&str,disk:u64,offer_id:Option
             )
         },
         "modal" => (
-            json!({"transport":"official_agent_handoff","image":image,"gpu":gpu,"disk_gb":disk_gb,
+            json!({"transport":"official_agent_handoff","image":image,"gpu":gpu,"disk_gb":disk,
                 "native_modes":["modal run (reviewed one-shot App)","modal deploy (reviewed Function/App)","modal server deploy (verified HTTP server image only)"],
                 "requires_mode_selection":true,"environment":"user-owned Modal auth",
                 "additional_gpu_flags":"verify selected workload and installed Modal CLI before execution"}),
