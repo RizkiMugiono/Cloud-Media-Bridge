@@ -73,7 +73,7 @@ Create a local [external provider profile](examples/external-provider.example.js
 
 ### Agent interoperability
 
-Five Windows agent clients completed four MCP tool calls each, with all 20 target results matching CLI on [tested code revision 5b99967](docs/AGENT-COMPATIBILITY.md). One invalid-parameter attempt was rejected and retried. Full tool-list equality for all five is not independently established by that audit. The external recipe-only fixture did not test Modal, whose handoff changed in e024e94. Current five-client Modal coverage and live GPU operation remain unverified.
+Five Windows agent clients completed four MCP tool calls each, with all 20 target results matching CLI on [tested code revision 5b99967](docs/AGENT-COMPATIBILITY.md). One invalid-parameter attempt was rejected and retried. Full tool-list equality for all five is not independently established by that audit. The external recipe-only fixture did not test Modal, whose handoff changed in e024e94. The later [three-client Modal handoff retest](docs/AGENT-COMPATIBILITY.md#modal-handoff-three-client-retest-2026-11-25) reports 12 successful calls, 10 matching the original fixture, with two agent input changes reported. Two other clients were unavailable for retest. Current five-client Modal coverage and live GPU operation remain unverified.
 
 The local executable supports MCP stdio for handshake revisions 2024-11-05, 2025-03-26, 2025-06-18 and 2025-11-25, and the basic 2026-07-28 stateless discovery/tools interface. No HTTP server or full optional MCP feature set is required. Any agent with a shell can use the same validated tool interface without MCP:
 

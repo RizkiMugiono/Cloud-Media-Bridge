@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "tested_commit": "21fd3bd3bf6888cd11d920a30ea6c861c31637de",
+  "tested_on": "2026-11-25",
+  "source": "Four supplied reports/summary files reviewed; referenced raw logs/arguments/replays not all supplied, no independent agent rerun",
+  "binary": {
+    "platform": "Linux x86_64 via WSL",
+    "sha256_reported": "ec414fd99b054cf189a7ae27e561d8920361356d2cd6752de1925b72d1e0f22e",
+    "size_bytes_reported": 1672992
+  },
+  "clients": [
+    {
+      "name": "Codex",
+      "version": "0.167.0-alpha.3.2",
+      "successful_calls": 4,
+      "original_fixture_matches": 4
+    },
+    {
+      "name": "Hermes",
+      "version": "0.23.1",
+      "successful_calls": 4,
+      "original_fixture_matches": 4
+    },
+    {
+      "name": "OpenCode",
+      "version": "2.1.4",
+      "successful_calls": 4,
+      "original_fixture_matches": 2,
+      "changed_input_same_input_cli_equality_reported": 2,
+      "raw_replay_supplied": false
+    },
+    {
+      "name": "Claude Code",
+      "status": "blocked_cli_unavailable",
+      "successful_calls": 0
+    },
+    {
+      "name": "DeepSeek Harness headless",
+      "status": "blocked_client_integration_unavailable_in_profile",
+      "successful_calls": 0
+    }
+  ],
+  "totals": {
+    "successful_calls": 12,
+    "original_fixture_matches": 10,
+    "clients_exercised": 3,
+    "clients_blocked": 2
+  },
+  "cli_baseline_reviewed": {
+    "modal_transport": "official_agent_handoff",
+    "one_shot_reference": "modal run",
+    "detach": false,
+    "server_arguments_present": false,
+    "approval_granted": false,
+    "provider_operation_sent": false,
+    "production_ready": false,
+    "plan_sha256": "3f0c7a57985a3e58be6cc9a8034efa1ef0fdd4f6d6c9afe9f2de18501cf210fd",
+    "fixture_only": true
+  },
+  "operator_reports": {
+    "stdio_tests_passed": 27,
+    "clippy": "pass",
+    "incremental_cloud_cost_usd": 0,
+    "hermes_original_old_binary_config_restored": true
+  },
+  "ci": {
+    "offline": {
+      "id": 45562710897,
+      "conclusion": "success"
+    },
+    "native": {
+      "id": 45562710913,
+      "conclusion": "success"
+    }
+  },
+  "source_file_checksums_reported_not_recomputed": {
+    "parity_result": "43015323ca346da95eb095df5a5963e9be1efb32fea8d61fff3288c381873cdb",
+    "cli_baseline": "549f19f4619e7a43bf56c4a26d70d1e074c3fab96894ae30d585dd16cb1267b1"
+  },
+  "limitations": [
+    "No new five-client claim",
+    "Canonical JSON equality not literal byte equality",
+    "Raw 17-file bundle not supplied in full",
+    "No actual GPU inference or GPU lifecycle evidence",
+    "No independent executed binary verification"
+  ]
+}
