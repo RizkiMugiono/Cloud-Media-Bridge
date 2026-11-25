@@ -697,12 +697,12 @@ fn print_json(value: Result<Value, String>) -> i32 {
 fn run_cli(args: &[String]) -> i32 {
     match args {
         [cmd,action] if cmd=="tools"&&action=="list"=>print_json(Ok(tool_definitions())),
-        [cmd,action,name,file] if cmd=="tools"&&action=="call"=>print_json(planning::load_manifest(file,1024*1024).and_then(|v|cli_tool(name,&v))),
+        [cmd,action,name,file] if cmd=="tools"&&action=="call"=>print_json(planning::load_json(file,1024*1024,"tool arguments").and_then(|v|cli_tool(name,&v))),
         [cmd] if cmd == "doctor" => {
             println!("{}", doctor());
             0
         }
-        [cmd] if cmd == "--version" => {
+        [cmd] if matches!(cmd.as_str(), "--version"|"-V") => {
             println!("{VERSION}");
             0
         }
@@ -710,9 +710,9 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, sub] if cmd == "market" && sub == "sources" => print_json(market::sources(None)),
         [cmd, sub, provider] if cmd == "market" && sub == "sources" => print_json(market::sources(Some(provider))),
         [cmd, sub, provider] if cmd == "market" && sub == "refresh" => print_json(market::refresh(provider)),
-        [cmd, sub, file] if cmd == "market" && sub == "check" => print_json(planning::load_manifest(file, 16384).and_then(|v| market::check(&v))),
-        [cmd, sub, file, profile] if cmd == "market" && sub == "check" => print_json(planning::load_manifest(file,16384).and_then(|q|planning::load_manifest(profile,8192).and_then(|p|market::check_profile(&q,&p)))),
-        [cmd, sub, file] if cmd == "providers" && sub == "profile" => print_json(planning::load_manifest(file,8192).and_then(|v|provider_profile::review(&v))),
+        [cmd, sub, file] if cmd == "market" && sub == "check" => print_json(planning::load_json(file, 16384,"billing quote").and_then(|v| market::check(&v))),
+        [cmd, sub, file, profile] if cmd == "market" && sub == "check" => print_json(planning::load_json(file,16384,"billing quote").and_then(|q|planning::load_json(profile,8192,"provider profile").and_then(|p|market::check_profile(&q,&p)))),
+        [cmd, sub, file] if cmd == "providers" && sub == "profile" => print_json(planning::load_json(file,8192,"provider profile").and_then(|v|provider_profile::review(&v))),
         [cmd] if cmd == "policy" => print_json(deployment_policy()),
         [cmd] if cmd == "billing" => print_json(billing::policy()),
         [cmd, sub, file] if cmd == "billing" && sub == "estimate" => {
@@ -729,7 +729,7 @@ fn run_cli(args: &[String]) -> i32 {
             print_json(planning::load_manifest(file, 16384).and_then(|v| planning::review(&v)))
         }
         [cmd, sub, file] if cmd == "cloud" && sub == "advice" => {
-            print_json(planning::load_manifest(file, 65536).and_then(|v| lifecycle::advise(&v["plan"], &v["receipt"], &v["observed"])))
+            print_json(planning::load_json(file, 65536,"lifecycle observation").and_then(|v| lifecycle::advise(&v["plan"], &v["receipt"], &v["observed"])))
         }
         [cmd, sub, dir, manifest] if cmd == "cloud" && sub == "prepare" => {
             print_json(cloud_operator::prepare(dir,manifest))
@@ -779,7 +779,7 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, sub, dir] if cmd == "offline" && sub == "verify" => print_json(offline::verify(dir)),
         [cmd, sub, dir] if cmd == "offline" && sub == "status" => print_json(offline::status(dir)),
         [cmd, action, model, provider, profile] if cmd == "runtimes" && action == "resolve" => {
-            print_json(planning::load_manifest(profile,8192).and_then(|p|provider_profile::resolve(provider,&p)).and_then(|selected|inspect_model(model).and_then(|inspected|runtime::resolve(&inspected,&selected))))
+            print_json(planning::load_json(profile,8192,"provider profile").and_then(|p|provider_profile::resolve(provider,&p)).and_then(|selected|inspect_model(model).and_then(|inspected|runtime::resolve(&inspected,&selected))))
         },
         [cmd, action, model, provider] if cmd == "runtimes" && action == "resolve" => {
             print_json(inspect_model(model).and_then(|inspected| {
@@ -813,7 +813,7 @@ fn run_cli(args: &[String]) -> i32 {
         [cmd, action, model] if cmd == "models" && action == "inspect" => {
             print_json(inspect_model(model))
         }
-        [cmd, model, provider, profile] if cmd=="plan"=>print_json(planning::load_manifest(profile,8192).and_then(|p|plan_generation(model,provider,&p))),
+        [cmd, model, provider, profile] if cmd=="plan"=>print_json(planning::load_json(profile,8192,"provider profile").and_then(|p|plan_generation(model,provider,&p))),
         [cmd, model, provider] if cmd == "plan" => {
             print_json(plan_generation(model, provider,&Value::Null))
         }

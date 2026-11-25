@@ -521,3 +521,51 @@ fn external_recipe_plan_prepare_and_lifecycle_stay_bound_to_same_digest(){
     assert!(reply[1]["result"]["structuredContent"]["action_draft"].is_null());
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn cli_version_alias_and_json_diagnostics_are_specific() {
+    let full=Command::new(BINARY).arg("--version").output().unwrap();
+    let short=Command::new(BINARY).arg("-V").output().unwrap();
+    assert!(full.status.success() && short.status.success());
+    assert_eq!(full.stdout,short.stdout);
+    let root=std::env::temp_dir().join(format!("cmb-input-diagnostics-{}",std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let missing=root.join("missing.json");
+    let invalid=root.join("invalid.json");
+    std::fs::write(&invalid,"{").unwrap();
+    for (args,label) in [(vec!["tools","call","doctor"],"tool arguments"),(vec!["providers","profile"],"provider profile"),(vec!["market","check"],"billing quote"),(vec!["cloud","advice"],"lifecycle observation"),(vec!["cloud","review"],"manifest")] {
+        let out=Command::new(BINARY).args(&args).arg(&missing).output().unwrap();
+        assert_eq!(out.status.code(),Some(1));
+        assert!(String::from_utf8_lossy(&out.stderr).contains(&format!("Cannot open {label}")));
+        let out=Command::new(BINARY).args(&args).arg(&invalid).output().unwrap();
+        assert_eq!(out.status.code(),Some(1));
+        assert!(String::from_utf8_lossy(&out.stderr).contains(&format!("Invalid {label} JSON")));
+    }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn modal_handoff_cli_and_both_mcp_modes_agree_without_deployment() {
+    let mut plan:Value=serde_json::from_str(include_str!("../../../examples/cloud-deployment-manifest.NOT-EXECUTABLE.json")).unwrap();
+    plan["provider"]=json!("modal");
+    plan["billing_quote"]["provider"]=json!("modal");
+    plan["provider_parameters"]=json!({"min_workers":0,"max_workers":1,"idle_seconds":2,"cpu_cores":1,"memory_mib":2048,"compute_region_evidence":"illustration"});
+    let args=json!({"manifest":plan});
+    let root=std::env::temp_dir().join(format!("cmb-modal-handoff-parity-{}",std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let path=root.join("args.json");
+    std::fs::write(&path,args.to_string()).unwrap();
+    let cli=Command::new(BINARY).args(["tools","call","provider_handoff"]).arg(&path).output().unwrap();
+    assert!(cli.status.success(),"{}",String::from_utf8_lossy(&cli.stderr));
+    let result:Value=serde_json::from_slice(&cli.stdout).unwrap();
+    let legacy=json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"provider_handoff","arguments":args}});
+    let modern=json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}},"name":"provider_handoff","arguments":args}});
+    assert_eq!(result,exchange(&[INIT,READY,&legacy.to_string()])[1]["result"]["structuredContent"]);
+    assert_eq!(result,exchange(&[&modern.to_string()])[0]["result"]["structuredContent"]);
+    assert_eq!(result["create_draft"]["workload_modes"][0]["native_reference"],"modal run");
+    assert_eq!(result["create_draft"]["workload_modes"][0]["detach"],false);
+    assert!(result["create_draft"]["arguments"].is_null());
+    assert_eq!(result["approval_granted"],false);
+    assert_eq!(result["provider_operation_sent"],false);
+    std::fs::remove_dir_all(root).unwrap();
+}

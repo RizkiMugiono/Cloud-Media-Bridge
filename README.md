@@ -22,7 +22,7 @@ cargo run --locked -- doctor
 cargo run --locked -- mcp
 ```
 
-Configure an MCP client using [the stdio example](examples/mcp-stdio-client.json). The executable is in `target/release/`. Use the user's existing local provider credentials, never put keys in manifests, messages or the repository.
+For prebuilt native candidates, use the matching successful [distribution workflow](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/workflows/distribution.yml) artifact for the reviewed commit and verify `SHA256SUMS.txt`; see [distribution instructions](docs/RELEASE.md). These are not published releases until the maintainer publishes them. Configure an MCP client using [the stdio example](examples/mcp-stdio-client.json). The executable is in `target/release/`. Use the user's existing local provider credentials, never put keys in manifests, messages or the repository.
 
 ## Main tools
 
@@ -73,7 +73,7 @@ Create a local [external provider profile](examples/external-provider.example.js
 
 ### Agent interoperability
 
-Five Windows agent clients completed four MCP tool calls each, with all 20 target results matching CLI on [tested code revision 5b99967](docs/AGENT-COMPATIBILITY.md). One invalid-parameter attempt was rejected and retried. Full tool-list equality for all five is not independently established by the latest audit; live GPU operation remains unverified.
+Five Windows agent clients completed four MCP tool calls each, with all 20 target results matching CLI on [tested code revision 5b99967](docs/AGENT-COMPATIBILITY.md). One invalid-parameter attempt was rejected and retried. Full tool-list equality for all five is not independently established by that audit. The external recipe-only fixture did not test Modal, whose handoff changed in e024e94. Current five-client Modal coverage and live GPU operation remain unverified.
 
 The local executable supports MCP stdio for handshake revisions 2024-11-05, 2025-03-26, 2025-06-18 and 2025-11-25, and the basic 2026-07-28 stateless discovery/tools interface. No HTTP server or full optional MCP feature set is required. Any agent with a shell can use the same validated tool interface without MCP:
 

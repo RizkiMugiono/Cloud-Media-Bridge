@@ -13,10 +13,12 @@ The canonical, extendable classification catalog is [`config/media-tasks.json`](
 | **Audio** | Text-to-audio, audio-to-audio, sound effects, audio enhancement, audio separation, audio understanding |
 | **Speech / voice** | Text-to-speech, ASR/transcription, voice activity detection, diarization, voice conversion, speech translation and voice synthesis |
 | **Music** | Music and melody generation, text-to-music, music-to-music, stem/source separation, music-related audio tasks |
-| **3D** | Text-to-3D, image-to-3D, point-cloud tasks, mesh/scene families where compatible |
+| **3D (discovery/classification only)** | Text-to-3D, image-to-3D, point-cloud tasks, mesh/scene families; specialized runtime review required |
 | **Spatial / motion** | Pose, depth/spatial estimation, motion generation, motion transformations and 4D families |
 | **Documents** | OCR, document question answering, visual retrieval, document layout understanding |
 | **Multimodal** | Image-text-to-text, audio-text-to-text, video-text-to-text, image-text-to-video, any-to-any, visual question answering and mixed media inputs/outputs |
+
+**3D runtime boundary:** TripoSR was discovered as image-to-3d but returned `runtime_unknown_requires_review` with zero candidates in the 2026-11-25 audit. There is no bundled verified 3D runtime. An agent may review the model-author upstream recipe, pin its revision, base image and recipe digest, then submit a reviewed `runtime_recipe` using the existing handoff mechanism. An external provider profile is necessary only for an otherwise unlisted provider, not for a new model family. This does not enable execution in CMB or certify the runtime.
 
 **Music versus audio:** Hugging Face often exposes music and sound-effect generators under the general `text-to-audio` pipeline tag. Model metadata tags like `music` can add a more specific family label. A label is a hint only.
 

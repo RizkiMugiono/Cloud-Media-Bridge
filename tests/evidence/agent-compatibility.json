@@ -232,5 +232,9 @@
     "Actual provider invoice",
     "All clients beyond the five tested",
     "Complete tools/list equality for each client on this revision"
-  ]
+  ],
+  "superseded_for_tools": [
+    "provider_handoff"
+  ],
+  "applicability_note": "Historical exact revision/fixture evidence only. External recipe-only fixture did not exercise Modal. Modal-specific draft changed in e024e94 and requires fresh five-client evidence for a current Modal coverage claim. Direct protocol regression and the 4a0d84d audit do not substitute for five-client retest."
 }

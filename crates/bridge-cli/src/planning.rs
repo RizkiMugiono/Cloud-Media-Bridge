@@ -12,16 +12,20 @@ fn safe_scope(value: &str) -> bool {
 }
 
 pub(crate) fn load_manifest(path: &str, limit: usize) -> Result<Value, String> {
+    load_json(path, limit, "manifest")
+}
+
+pub(crate) fn load_json(path: &str, limit: usize, label: &str) -> Result<Value, String> {
     use std::io::Read;
-    let file = fs::File::open(path).map_err(|_| "Cannot open manifest")?;
+    let file = fs::File::open(path).map_err(|_| format!("Cannot open {label}"))?;
     let mut bytes = Vec::new();
     file.take((limit + 1) as u64)
         .read_to_end(&mut bytes)
-        .map_err(|_| "Cannot read manifest")?;
+        .map_err(|_| format!("Cannot read {label}"))?;
     if bytes.len() > limit {
         return Err(format!("Input exceeds {limit} bytes"));
     }
-    serde_json::from_slice(&bytes).map_err(|_| "Invalid manifest JSON".into())
+    serde_json::from_slice(&bytes).map_err(|_| format!("Invalid {label} JSON"))
 }
 
 fn valid_digest(value:&Value,allowed:&[usize])->bool{

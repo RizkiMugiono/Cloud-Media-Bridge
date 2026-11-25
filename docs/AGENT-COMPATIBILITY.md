@@ -34,3 +34,7 @@ The first Claude Code doctor attempt was rejected, not counted as successful. Te
 ## Historical and CI evidence
 
 The [prior five-client evidence at 2f40c7c](../tests/evidence/agent-compatibility-2f40c7c.json) is retained separately. Its recorded results apply only to that revision. The latest tested code passed [offline CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45327961794) on Windows, Linux and macOS and [native candidate CI](https://github.com/RizkiMugiono/Cloud-Media-Bridge/actions/runs/45327961850) across six native targets. Independent WSL report: 110 Rust tests, Clippy and an offline CPU fixture demo passed. These are not real GPU inference, deployment, lifecycle or invoice results.
+
+## Evidence applicability after Modal handoff changes (2026-11-25)
+
+The five-agent result is historical, not a test of current HEAD. Its exact handoff fixture was the external recipe-only manifest, not a Modal server request. The Modal handoff changed in e024e94; the changed Modal-specific output has not been independently exercised by all five agents. A direct MCP/CLI parity regression for the Modal handoff is provided separately and is not five-client evidence. The 4a0d84d operator audit reports matching tool lists and both handshake modes, not five new agent calls. Retest five clients with the changed Modal fixture before claiming current five-client coverage.
